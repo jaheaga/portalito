@@ -1,0 +1,21 @@
+name: test
+
+on:
+  push:
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: 9.0.x
+      # Fails the build if any service-specific or private token slipped into the tree.
+      - run: ./scripts/scrub-check.sh
+      # Includes the content-auth signer and 3DES round-trip checks, plus the scrub guard test.
+      - run: dotnet test Jellyfin.Plugin.Portalito.sln --configuration Release

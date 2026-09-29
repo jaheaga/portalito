@@ -1,0 +1,12 @@
+{
+  "guid": "0bae4700-9bef-4e03-ad7f-cc99bf8f51ab",
+  "name": "Portalito",
+  "description": "Live TV and VOD from a configurable IPTV portal.",
+  "overview": "Live TV channels and VOD movies/series from a configurable IPTV portal, played through an in-plugin re-signing proxy.",
+  "owner": "Jaime Aguilar",
+  "category": "LiveTV",
+  "version": "0.1.0.0",
+  "targetAbi": "10.11.0.0",
+  "status": "Active",
+  "autoUpdate": false
+}

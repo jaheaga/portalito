@@ -1,0 +1,36 @@
+﻿
+Microsoft Visual Studio Solution File, Format Version 12.00
+# Visual Studio Version 17
+VisualStudioVersion = 17.0.31903.59
+MinimumVisualStudioVersion = 10.0.40219.1
+Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "src", "src", "{05FE3C22-B01B-4370-884D-D3BC44711F3E}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Jellyfin.Plugin.Portalito", "src\Jellyfin.Plugin.Portalito\Jellyfin.Plugin.Portalito.csproj", "{D4608B4F-B44C-42B0-8B94-EF380CC491E7}"
+EndProject
+Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "tests", "tests", "{8CFEB78A-9808-4C8F-B44E-44BF01C43485}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Jellyfin.Plugin.Portalito.Tests", "tests\Jellyfin.Plugin.Portalito.Tests\Jellyfin.Plugin.Portalito.Tests.csproj", "{FE2EE285-7888-4A18-820C-015CF1DC8CE4}"
+EndProject
+Global
+	GlobalSection(SolutionConfigurationPlatforms) = preSolution
+		Debug|Any CPU = Debug|Any CPU
+		Release|Any CPU = Release|Any CPU
+	EndGlobalSection
+	GlobalSection(SolutionProperties) = preSolution
+		HideSolutionNode = FALSE
+	EndGlobalSection
+	GlobalSection(ProjectConfigurationPlatforms) = postSolution
+		{D4608B4F-B44C-42B0-8B94-EF380CC491E7}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{D4608B4F-B44C-42B0-8B94-EF380CC491E7}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{D4608B4F-B44C-42B0-8B94-EF380CC491E7}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{D4608B4F-B44C-42B0-8B94-EF380CC491E7}.Release|Any CPU.Build.0 = Release|Any CPU
+		{FE2EE285-7888-4A18-820C-015CF1DC8CE4}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{FE2EE285-7888-4A18-820C-015CF1DC8CE4}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{FE2EE285-7888-4A18-820C-015CF1DC8CE4}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{FE2EE285-7888-4A18-820C-015CF1DC8CE4}.Release|Any CPU.Build.0 = Release|Any CPU
+	EndGlobalSection
+	GlobalSection(NestedProjects) = preSolution
+		{D4608B4F-B44C-42B0-8B94-EF380CC491E7} = {05FE3C22-B01B-4370-884D-D3BC44711F3E}
+		{FE2EE285-7888-4A18-820C-015CF1DC8CE4} = {8CFEB78A-9808-4C8F-B44E-44BF01C43485}
+	EndGlobalSection
+EndGlobal

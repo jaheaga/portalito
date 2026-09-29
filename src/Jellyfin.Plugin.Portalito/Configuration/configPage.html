@@ -1,0 +1,219 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="utf-8">
+    <title>Portalito</title>
+</head>
+<body>
+<div id="PortalitoConfigPage" data-role="page" class="page type-interior pluginConfigurationPage" data-require="emby-input,emby-button,emby-checkbox">
+    <div data-role="content">
+        <div class="content-primary">
+            <form id="PortalitoConfigForm">
+                <div class="inputContainer">
+                    <label class="inputLabel inputLabelUnfocused" for="TripleDesKeyHex">3DES key (hex)</label>
+                    <input id="TripleDesKeyHex" name="TripleDesKeyHex" type="password" is="emby-input" autocomplete="off" />
+                </div>
+                <div class="inputContainer">
+                    <label class="inputLabel inputLabelUnfocused" for="Hosts">Portal hosts (comma separated)</label>
+                    <input id="Hosts" name="Hosts" type="text" is="emby-input" />
+                </div>
+                <div class="inputContainer">
+                    <label class="inputLabel inputLabelUnfocused" for="AppId">App id</label>
+                    <input id="AppId" name="AppId" type="text" is="emby-input" />
+                </div>
+                <div class="inputContainer">
+                    <label class="inputLabel inputLabelUnfocused" for="ApkVersion">APK version</label>
+                    <input id="ApkVersion" name="ApkVersion" type="text" is="emby-input" />
+                </div>
+                <div class="inputContainer">
+                    <label class="inputLabel inputLabelUnfocused" for="DeviceSn">Device SN</label>
+                    <input id="DeviceSn" name="DeviceSn" type="password" is="emby-input" autocomplete="off" />
+                </div>
+                <div class="inputContainer">
+                    <label class="inputLabel inputLabelUnfocused" for="DeviceDrmId">Device DRM id (optional)</label>
+                    <input id="DeviceDrmId" name="DeviceDrmId" type="text" is="emby-input" />
+                </div>
+                <div class="inputContainer">
+                    <label class="inputLabel inputLabelUnfocused" for="DeviceToken">Device token (optional)</label>
+                    <input id="DeviceToken" name="DeviceToken" type="password" is="emby-input" autocomplete="off" />
+                </div>
+                <div class="inputContainer">
+                    <label class="inputLabel inputLabelUnfocused" for="DeviceReserve1">Device reserve1 (optional)</label>
+                    <input id="DeviceReserve1" name="DeviceReserve1" type="text" is="emby-input" />
+                </div>
+                <div class="inputContainer">
+                    <label class="inputLabel inputLabelUnfocused" for="ProxyBaseUrl">Proxy base URL (optional)</label>
+                    <input id="ProxyBaseUrl" name="ProxyBaseUrl" type="text" is="emby-input" placeholder="e.g. http://127.0.0.1:8096" />
+                    <div class="fieldDescription">How Jellyfin's own ffmpeg reaches this server. Leave empty to use the server's own address (its port, HTTPS and base path). "Save and test" checks it.</div>
+                </div>
+                <div class="inputContainer">
+                    <label class="inputLabel inputLabelUnfocused" for="AccountEmail">Portalito account email (optional, needed for live TV)</label>
+                    <input id="AccountEmail" name="AccountEmail" type="text" is="emby-input" autocomplete="off" />
+                    <div class="fieldDescription">Leave email and password empty to use anonymous device activation (catalog and VOD only). An account holds one session at a time, so a dedicated account avoids signing out your phone.</div>
+                </div>
+                <div class="inputContainer">
+                    <label class="inputLabel inputLabelUnfocused" for="AccountPassword">Portalito account password</label>
+                    <input id="AccountPassword" name="AccountPassword" type="password" is="emby-input" autocomplete="off" />
+                </div>
+                <div class="inputContainer">
+                    <label class="inputLabel inputLabelUnfocused" for="TmdbApiKey">TMDB API key (optional)</label>
+                    <input id="TmdbApiKey" name="TmdbApiKey" type="password" is="emby-input" autocomplete="off" />
+                    <div class="fieldDescription">Fills in synopses and posters Portalito leaves blank. Never changes which titles are listed.</div>
+                </div>
+                <div class="inputContainer">
+                    <label class="inputLabel inputLabelUnfocused" for="EpgTimeZone">TV guide time zone (optional)</label>
+                    <input id="EpgTimeZone" name="EpgTimeZone" type="text" is="emby-input" placeholder="e.g. America/Bogota" />
+                    <div class="fieldDescription">The portal sends guide times without a time zone. If the guide is shifted by some hours, put the zone the portal uses here (an IANA name). Empty means the server's own.</div>
+                </div>
+                <div class="checkboxContainer checkboxContainer-withDescription">
+                    <label class="emby-checkbox-label">
+                        <input id="SkipPortalTlsVerification" name="SkipPortalTlsVerification" type="checkbox" is="emby-checkbox" />
+                        <span>Skip portal TLS certificate verification</span>
+                    </label>
+                    <div class="fieldDescription checkboxFieldDescription">Leave off unless the portal hosts present invalid certificates: without verification, anyone on the network path can capture your account login.</div>
+                </div>
+                <details style="margin: 1em 0;">
+                    <summary>Advanced: portal protocol</summary>
+                    <div class="fieldDescription" style="margin: 0.5em 0;">The identity and codes your portal's middleware expects. Blank by default — fill in your own portal's values.</div>
+                    <div class="inputContainer">
+                        <label class="inputLabel inputLabelUnfocused" for="PortalCode">Portal code</label>
+                        <input id="PortalCode" name="PortalCode" type="text" is="emby-input" autocomplete="off" />
+                    </div>
+                    <div class="inputContainer">
+                        <label class="inputLabel inputLabelUnfocused" for="ApiBasePath">API base path</label>
+                        <input id="ApiBasePath" name="ApiBasePath" type="text" is="emby-input" placeholder="e.g. /api/core/" autocomplete="off" />
+                    </div>
+                    <div class="inputContainer">
+                        <label class="inputLabel inputLabelUnfocused" for="PortalApkVer">apkVer header</label>
+                        <input id="PortalApkVer" name="PortalApkVer" type="text" is="emby-input" autocomplete="off" />
+                    </div>
+                    <div class="inputContainer">
+                        <label class="inputLabel inputLabelUnfocused" for="PortalSpkgVer">spkgVer / sysVersion</label>
+                        <input id="PortalSpkgVer" name="PortalSpkgVer" type="text" is="emby-input" autocomplete="off" />
+                    </div>
+                    <div class="inputContainer">
+                        <label class="inputLabel inputLabelUnfocused" for="PortalUserAgent">Portal API User-Agent</label>
+                        <input id="PortalUserAgent" name="PortalUserAgent" type="text" is="emby-input" autocomplete="off" />
+                    </div>
+                    <div class="inputContainer">
+                        <label class="inputLabel inputLabelUnfocused" for="CdnUserAgent">CDN User-Agent</label>
+                        <input id="CdnUserAgent" name="CdnUserAgent" type="text" is="emby-input" autocomplete="off" />
+                    </div>
+                    <div class="inputContainer">
+                        <label class="inputLabel inputLabelUnfocused" for="LoginPasswordSalt">Login password salt</label>
+                        <input id="LoginPasswordSalt" name="LoginPasswordSalt" type="password" is="emby-input" autocomplete="off" />
+                    </div>
+                    <div class="inputContainer">
+                        <label class="inputLabel inputLabelUnfocused" for="LiveColumnCode">Live column code</label>
+                        <input id="LiveColumnCode" name="LiveColumnCode" type="text" is="emby-input" autocomplete="off" />
+                    </div>
+                    <div class="inputContainer">
+                        <label class="inputLabel inputLabelUnfocused" for="AllChannelsColumnId">All-channels column id (optional)</label>
+                        <input id="AllChannelsColumnId" name="AllChannelsColumnId" type="text" is="emby-input" autocomplete="off" />
+                    </div>
+                    <div class="inputContainer">
+                        <label class="inputLabel inputLabelUnfocused" for="Catalogs">VOD catalogs</label>
+                        <input id="Catalogs" name="Catalogs" type="text" is="emby-input" placeholder="code:Label, code:Label" autocomplete="off" />
+                        <div class="fieldDescription">Comma-separated <code>code:Label</code> pairs. Empty means no VOD catalogs.</div>
+                    </div>
+                </details>
+                <details style="margin: 1em 0;">
+                    <summary>Advanced: CDN Content-Auth signing</summary>
+                    <div class="fieldDescription" style="margin: 0.5em 0;">How live streams are signed for your portal's CDN. Leave blank unless your portal requires it; a wrong value only shows up as live streams that won't play.</div>
+                    <div class="inputContainer">
+                        <label class="inputLabel inputLabelUnfocused" for="ContentAuthMethod">Sign method name (optional)</label>
+                        <input id="ContentAuthMethod" name="ContentAuthMethod" type="text" is="emby-input" autocomplete="off" />
+                    </div>
+                    <div class="inputContainer">
+                        <label class="inputLabel inputLabelUnfocused" for="ContentAuthSaltHex">Sign salt, hex (optional)</label>
+                        <input id="ContentAuthSaltHex" name="ContentAuthSaltHex" type="password" is="emby-input" autocomplete="off" />
+                    </div>
+                    <div class="inputContainer">
+                        <label class="inputLabel inputLabelUnfocused" for="ContentAuthMd5Schedule">Non-standard MD5 round-1 schedule (optional)</label>
+                        <input id="ContentAuthMd5Schedule" name="ContentAuthMd5Schedule" type="text" is="emby-input" placeholder="16 indices; empty = standard MD5" />
+                    </div>
+                    <div class="inputContainer">
+                        <label class="inputLabel inputLabelUnfocused" for="ContentAuthMd5KOverrides">Non-standard MD5 K overrides (optional)</label>
+                        <input id="ContentAuthMd5KOverrides" name="ContentAuthMd5KOverrides" type="text" is="emby-input" placeholder="index:hex pairs; empty = standard MD5" />
+                    </div>
+                </details>
+                <div>
+                    <button is="emby-button" type="submit" class="raised button-submit block emby-button">
+                        <span>Save</span>
+                    </button>
+                    <button is="emby-button" type="button" id="PortalitoTestButton" class="raised block emby-button">
+                        <span>Save and test connection</span>
+                    </button>
+                </div>
+                <div id="PortalitoTestResults" class="fieldDescription" style="margin-top: 1em;"></div>
+            </form>
+        </div>
+    </div>
+    <script type="text/javascript">
+        (function () {
+            var pluginId = '0bae4700-9bef-4e03-ad7f-cc99bf8f51ab';
+            var textFields = ['TripleDesKeyHex', 'Hosts', 'AppId', 'ApkVersion', 'DeviceSn', 'DeviceDrmId', 'DeviceToken', 'DeviceReserve1', 'ProxyBaseUrl', 'AccountEmail', 'AccountPassword', 'TmdbApiKey', 'EpgTimeZone', 'ContentAuthMethod', 'ContentAuthSaltHex', 'ContentAuthMd5Schedule', 'ContentAuthMd5KOverrides', 'PortalCode', 'ApiBasePath', 'PortalApkVer', 'PortalSpkgVer', 'PortalUserAgent', 'CdnUserAgent', 'LoginPasswordSalt', 'LiveColumnCode', 'AllChannelsColumnId', 'Catalogs'];
+            var marks = { ok: '\u2705', warning: '\u26A0\uFE0F', error: '\u274C' };
+
+            function save() {
+                return ApiClient.getPluginConfiguration(pluginId).then(function (config) {
+                    textFields.forEach(function (name) {
+                        config[name] = document.querySelector('#' + name).value;
+                    });
+                    config.SkipPortalTlsVerification = document.querySelector('#SkipPortalTlsVerification').checked;
+                    return ApiClient.updatePluginConfiguration(pluginId, config);
+                });
+            }
+
+            // Built with textContent, never innerHTML: the messages quote portal and network errors verbatim.
+            function showResults(checks) {
+                var target = document.querySelector('#PortalitoTestResults');
+                target.textContent = '';
+                checks.forEach(function (check) {
+                    var line = document.createElement('div');
+                    line.textContent = (marks[check.Status || check.status] || '') + ' ' + (check.Name || check.name) + ': ' + (check.Message || check.message);
+                    target.appendChild(line);
+                });
+            }
+
+            document.querySelector('#PortalitoConfigPage').addEventListener('pageshow', function () {
+                Dashboard.showLoadingMsg();
+                ApiClient.getPluginConfiguration(pluginId).then(function (config) {
+                    textFields.forEach(function (name) {
+                        document.querySelector('#' + name).value = config[name] || '';
+                    });
+                    document.querySelector('#SkipPortalTlsVerification').checked = !!config.SkipPortalTlsVerification;
+                    Dashboard.hideLoadingMsg();
+                });
+            });
+
+            document.querySelector('#PortalitoConfigForm').addEventListener('submit', function (e) {
+                e.preventDefault();
+                Dashboard.showLoadingMsg();
+                save().then(function (result) {
+                    Dashboard.processPluginConfigurationUpdateResult(result);
+                });
+                return false;
+            });
+
+            // Tests what's on the page, so it saves first: testing the previously saved values would report on
+            // settings the user is looking at but not what they just typed.
+            document.querySelector('#PortalitoTestButton').addEventListener('click', function () {
+                var target = document.querySelector('#PortalitoTestResults');
+                target.textContent = 'Testing...';
+                Dashboard.showLoadingMsg();
+                save().then(function () {
+                    return ApiClient.ajax({ type: 'POST', url: ApiClient.getUrl('Portalito/Admin/Test'), dataType: 'json' });
+                }).then(function (checks) {
+                    showResults(checks);
+                }, function () {
+                    target.textContent = marks.error + ' The test itself could not run (see the server log).';
+                }).then(function () {
+                    Dashboard.hideLoadingMsg();
+                });
+            });
+        })();
+    </script>
+</div>
+</body>
+</html>

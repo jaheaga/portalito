@@ -1,0 +1,88 @@
+name: release
+
+# On a version tag (v0.1.0.0), build the plugin zip, attach it to a GitHub Release, and update
+# manifest.json so the Jellyfin plugin repository serves the new version.
+on:
+  push:
+    tags:
+      - "v*"
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: main
+          fetch-depth: 0
+
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: 9.0.x
+
+      - name: Build and test
+        run: dotnet test Jellyfin.Plugin.Portalito.sln --configuration Release
+
+      - name: Scrub check
+        run: ./scripts/scrub-check.sh
+
+      - name: Package
+        id: package
+        run: |
+          out=$(python3 packaging/package.py)
+          zip=$(echo "$out" | sed -n '1p')
+          md5=$(echo "$out" | sed -n '2p' | awk '{print $2}')
+          version=$(python3 -c "import json; print(json.load(open('packaging/meta.json'))['version'])")
+          abi=$(python3 -c "import json; print(json.load(open('packaging/meta.json'))['targetAbi'])")
+          echo "zip=$zip"       >> "$GITHUB_OUTPUT"
+          echo "md5=$md5"       >> "$GITHUB_OUTPUT"
+          echo "version=$version" >> "$GITHUB_OUTPUT"
+          echo "abi=$abi"       >> "$GITHUB_OUTPUT"
+
+      - name: Create GitHub Release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh release create "${{ github.ref_name }}" "${{ steps.package.outputs.zip }}" \
+            --title "Portalito ${{ steps.package.outputs.version }}" \
+            --notes "Portalito ${{ steps.package.outputs.version }}"
+
+      - name: Update manifest.json
+        env:
+          REPO: ${{ github.repository }}
+          TAG: ${{ github.ref_name }}
+          VERSION: ${{ steps.package.outputs.version }}
+          MD5: ${{ steps.package.outputs.md5 }}
+          ABI: ${{ steps.package.outputs.abi }}
+        run: |
+          python3 - <<'PY'
+          import json, os, datetime
+          repo, tag = os.environ["REPO"], os.environ["TAG"]
+          version, md5, abi = os.environ["VERSION"], os.environ["MD5"], os.environ["ABI"]
+          source = f"https://github.com/{repo}/releases/download/{tag}/Portalito_{version}.zip"
+          m = json.load(open("manifest.json"))
+          versions = m[0].setdefault("versions", [])
+          versions = [v for v in versions if v.get("version") != version]
+          versions.insert(0, {
+              "version": version,
+              "targetAbi": abi,
+              "sourceUrl": source,
+              "checksum": md5,
+              "changelog": f"Portalito {version}",
+              "timestamp": datetime.datetime.now(datetime.timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ"),
+          })
+          m[0]["versions"] = versions
+          json.dump(m, open("manifest.json", "w"), indent=2)
+          open("manifest.json", "a").write("\n")
+          PY
+
+      - name: Commit manifest.json
+        run: |
+          git config user.name  "Jaime Aguilar"
+          git config user.email "jaheaga@gmail.com"
+          git add manifest.json
+          git commit -m "chore(release): manifest for ${{ steps.package.outputs.version }}" || exit 0
+          git push origin main

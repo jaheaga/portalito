@@ -1,0 +1,19 @@
+# Secrets — never commit
+.env
+.env.*
+!.env.example
+# Native blobs are never part of this plugin
+*.so
+# .NET build output
+bin/
+obj/
+*.user
+# Python bytecode
+__pycache__/
+# Jellyfin plugin packaging output
+*.zip
+artifacts/
+
+# runner logs
+logs/*.log
+logs/.lock
