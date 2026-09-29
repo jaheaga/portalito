@@ -13,9 +13,11 @@
 
   <ItemGroup>
     <FrameworkReference Include="Microsoft.AspNetCore.App" />
-    <PackageReference Include="Jellyfin.Controller" Version="10.11.11" />
-    <!-- Compile-only: Jellyfin 10.11.11 ships this exact SkiaSharp (and its native lib) in /usr/lib/jellyfin/bin
-         for its own image encoder, so the plugin uses that copy and bundles nothing. -->
+    <!-- Build against the 10.11 ABI floor (matches meta.json targetAbi 10.11.0.0) so the plugin loads on
+         any 10.11.x server; a build against a higher patch would demand shared libs an older server lacks. -->
+    <PackageReference Include="Jellyfin.Controller" Version="10.11.0" />
+    <!-- Compile-only: Jellyfin ships SkiaSharp (and its native lib) for its own image encoder, so the plugin
+         uses the server's copy and bundles nothing. -->
     <PackageReference Include="SkiaSharp" Version="3.116.1" ExcludeAssets="runtime;native" PrivateAssets="all" />
   </ItemGroup>
 
