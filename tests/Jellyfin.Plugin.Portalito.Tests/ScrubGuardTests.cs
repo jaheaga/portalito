@@ -67,7 +67,15 @@ public class ScrubGuardTests
                 continue;
             }
 
-            if (SkipFiles.Contains(Path.GetFileName(file)))
+            var name = Path.GetFileName(file);
+            if (SkipFiles.Contains(name))
+            {
+                continue;
+            }
+
+            // The operator's real .env is git-ignored and never published, so it is not scanned; the blank
+            // .env.example template still is.
+            if ((name == ".env" || name.StartsWith(".env.", StringComparison.Ordinal)) && name != ".env.example")
             {
                 continue;
             }

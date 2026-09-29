@@ -17,8 +17,11 @@ deny=(
 
 pattern=$(IFS='|'; echo "${deny[*]}")
 # Everything tracked-ish, minus build output and VCS metadata, and minus this script (it lists the tokens).
+# .env holds the operator's own real portal values; it is git-ignored and never published, so it is skipped
+# (.env.example, the blank template, is still scanned).
 hits=$(grep -rInEi --exclude-dir=bin --exclude-dir=obj --exclude-dir=.git --exclude-dir=artifacts \
-  --exclude='scrub-check.sh' --exclude='ScrubGuardTests.cs' "$pattern" . || true)
+  --exclude='scrub-check.sh' --exclude='ScrubGuardTests.cs' --exclude='.env' --exclude='.env.local' \
+  "$pattern" . || true)
 
 if [[ -n "$hits" ]]; then
   echo "Forbidden tokens found:" >&2

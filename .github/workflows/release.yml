@@ -14,9 +14,10 @@ jobs:
   release:
     runs-on: ubuntu-latest
     steps:
+      # Build the exact tagged commit (default checkout of a tag push), so the release always matches the tag
+      # even if main has moved on since.
       - uses: actions/checkout@v4
         with:
-          ref: main
           fetch-depth: 0
 
       - uses: actions/setup-dotnet@v4
@@ -58,31 +59,18 @@ jobs:
           MD5: ${{ steps.package.outputs.md5 }}
           ABI: ${{ steps.package.outputs.abi }}
         run: |
-          python3 - <<'PY'
-          import json, os, datetime
-          repo, tag = os.environ["REPO"], os.environ["TAG"]
-          version, md5, abi = os.environ["VERSION"], os.environ["MD5"], os.environ["ABI"]
-          source = f"https://github.com/{repo}/releases/download/{tag}/Portalito_{version}.zip"
-          m = json.load(open("manifest.json"))
-          versions = m[0].setdefault("versions", [])
-          versions = [v for v in versions if v.get("version") != version]
-          versions.insert(0, {
-              "version": version,
-              "targetAbi": abi,
-              "sourceUrl": source,
-              "checksum": md5,
-              "changelog": f"Portalito {version}",
-              "timestamp": datetime.datetime.now(datetime.timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ"),
-          })
-          m[0]["versions"] = versions
-          json.dump(m, open("manifest.json", "w"), indent=2)
-          open("manifest.json", "a").write("\n")
-          PY
-
-      - name: Commit manifest.json
-        run: |
+          # Update manifest.json on main (not the detached tag checkout), retrying if main moved meanwhile.
           git config user.name  "Jaime Aguilar"
           git config user.email "jaheaga@gmail.com"
-          git add manifest.json
-          git commit -m "chore(release): manifest for ${{ steps.package.outputs.version }}" || exit 0
-          git push origin main
+          git fetch origin main
+          git checkout -B main origin/main
+          for attempt in 1 2 3 4 5; do
+            python3 packaging/update_manifest.py "$REPO" "$TAG" "$VERSION" "$MD5" "$ABI"
+            git add manifest.json
+            git commit -m "chore(release): manifest for $VERSION" || { echo "nothing to commit"; break; }
+            if git push origin main; then echo "pushed"; break; fi
+            echo "push rejected, rebasing (attempt $attempt)"
+            git reset --hard origin/main
+            git fetch origin main
+            git checkout -B main origin/main
+          done
