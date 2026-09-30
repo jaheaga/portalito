@@ -24,6 +24,12 @@ jobs:
         with:
           dotnet-version: 9.0.x
 
+      # Fail fast: a release without a CHANGELOG.md entry would ship with empty notes.
+      - name: Release notes
+        run: |
+          version=$(python3 -c "import json; print(json.load(open('packaging/meta.json'))['version'])")
+          python3 packaging/release_notes.py "$version" > "$RUNNER_TEMP/release-notes.md"
+
       - name: Build and test
         run: dotnet test Jellyfin.Plugin.Portalito.sln --configuration Release
 
@@ -49,7 +55,7 @@ jobs:
         run: |
           gh release create "${{ github.ref_name }}" "${{ steps.package.outputs.zip }}" \
             --title "Portalito ${{ steps.package.outputs.version }}" \
-            --notes "Portalito ${{ steps.package.outputs.version }}"
+            --notes-file "$RUNNER_TEMP/release-notes.md"
 
       - name: Update manifest.json
         env:

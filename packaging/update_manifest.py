@@ -11,6 +11,8 @@ import json
 import sys
 from pathlib import Path
 
+import release_notes  # same directory
+
 MANIFEST = Path(__file__).resolve().parent.parent / "manifest.json"
 
 
@@ -23,7 +25,7 @@ def main() -> None:
         "targetAbi": abi,
         "sourceUrl": f"https://github.com/{repo}/releases/download/{tag}/Portalito_{version}.zip",
         "checksum": md5,
-        "changelog": f"Portalito {version}",
+        "changelog": release_notes.short(release_notes.section(version)),
         "timestamp": datetime.datetime.now(datetime.timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ"),
     })
     manifest[0]["versions"] = versions

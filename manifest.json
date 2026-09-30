@@ -13,7 +13,7 @@
         "targetAbi": "10.11.0.0",
         "sourceUrl": "https://github.com/jaheaga/portalito/releases/download/v0.1.0.7/Portalito_0.1.0.7.zip",
         "checksum": "2a14a673b2af888dd34eb9d86759955b",
-        "changelog": "Portalito 0.1.0.7",
+        "changelog": "Recommended. Fix: switching a setting back to an earlier value now relists correctly (0.1.0.6's cache key could reuse a stale listing).",
         "timestamp": "2026-09-30T16:07:38Z"
       },
       {
@@ -21,7 +21,7 @@
         "targetAbi": "10.11.0.0",
         "sourceUrl": "https://github.com/jaheaga/portalito/releases/download/v0.1.0.6/Portalito_0.1.0.6.zip",
         "checksum": "aa2acca1539db23b1abcf68590cc9d1b",
-        "changelog": "Portalito 0.1.0.6",
+        "changelog": "Fix: setting changes show in the next listing (no 3-hour wait); installs from 0.1.0.4 get the default Destacado rows. Update to 0.1.0.7.",
         "timestamp": "2026-09-30T16:02:05Z"
       },
       {
@@ -29,7 +29,7 @@
         "targetAbi": "10.11.0.0",
         "sourceUrl": "https://github.com/jaheaga/portalito/releases/download/v0.1.0.5/Portalito_0.1.0.5.zip",
         "checksum": "87cb22c926e14fe1f01e646c72815ae0",
-        "changelog": "Portalito 0.1.0.5",
+        "changelog": "New: 11 default Destacado rows (Tendencias, Estrenos, Series coreanas, Anime JP/KR...), active once a TMDB key is set. Update to 0.1.0.7.",
         "timestamp": "2026-09-30T15:06:18Z"
       },
       {
@@ -37,7 +37,7 @@
         "targetAbi": "10.11.0.0",
         "sourceUrl": "https://github.com/jaheaga/portalito/releases/download/v0.1.0.4/Portalito_0.1.0.4.zip",
         "checksum": "509e626313e7cbcf1d07a6282ac06de9",
-        "changelog": "Portalito 0.1.0.4",
+        "changelog": "New: Destacado rows from TMDB lists (trending, popular, discover by country/genre...), showing only titles your portal has. Needs a TMDB key.",
         "timestamp": "2026-09-30T14:48:21Z"
       },
       {
@@ -45,7 +45,7 @@
         "targetAbi": "10.11.0.0",
         "sourceUrl": "https://github.com/jaheaga/portalito/releases/download/v0.1.0.3/Portalito_0.1.0.3.zip",
         "checksum": "6d854d5ec2ed319586b9e6f61784a518",
-        "changelog": "Portalito 0.1.0.3",
+        "changelog": "New: leave Device SN blank and the plugin registers its own free-tier device (and re-registers an expired one). New optional snToken salt setting.",
         "timestamp": "2026-09-30T14:02:46Z"
       },
       {
@@ -53,7 +53,7 @@
         "targetAbi": "10.11.0.0",
         "sourceUrl": "https://github.com/jaheaga/portalito/releases/download/v0.1.0.2/Portalito_0.1.0.2.zip",
         "checksum": "d87ec01711d364dd415eb7ae505c09f5",
-        "changelog": "Portalito 0.1.0.2",
+        "changelog": "New: Import / export box on the config page - paste a .env or JSON to fill every field, export to copy settings to another server.",
         "timestamp": "2026-09-30T13:07:24Z"
       },
       {
@@ -61,7 +61,7 @@
         "targetAbi": "10.11.0.0",
         "sourceUrl": "https://github.com/jaheaga/portalito/releases/download/v0.1.0.1/Portalito_0.1.0.1.zip",
         "checksum": "cdf8b0d71b94f4a47edec0939ca30c28",
-        "changelog": "Portalito 0.1.0.1",
+        "changelog": "First working release: VOD channel (Destacado, Descubrir, TV en vivo), Live TV with guide, re-signing proxy, TMDB enrichment, collages. Built for any Jellyfin 10.11.x.",
         "timestamp": "2026-09-29T19:40:13Z"
       }
     ]

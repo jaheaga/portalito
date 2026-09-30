@@ -10,7 +10,10 @@ Repositories**.
 1. Bump the version in **both**:
    - `packaging/meta.json` → `"version": "0.1.0.N"`
    - `src/Jellyfin.Plugin.Portalito/Jellyfin.Plugin.Portalito.csproj` → `<AssemblyVersion>` and `<FileVersion>`
-2. Add the version to [`CHANGELOG.md`](../CHANGELOG.md).
+2. Add a `## 0.1.0.N — date` section to [`CHANGELOG.md`](../CHANGELOG.md). **Required**: the release workflow
+   fails without it. That section becomes the GitHub Release notes (`packaging/release_notes.py`), and a one-line
+   version of it becomes the `changelog` shown in Jellyfin's plugin catalog (`manifest.json`). Write it for
+   users: what's new, what's fixed, upgrade notes, known issues.
 3. Check: `dotnet build -c Release` (0 warnings), `dotnet test`, `./scripts/scrub-check.sh`.
 4. Commit and push `main`, then tag and push the tag:
 
