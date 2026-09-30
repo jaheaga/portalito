@@ -93,6 +93,19 @@ public class ConfigPageTests
     }
 
     [Fact]
+    public void The_bulk_import_export_controls_are_wired()
+    {
+        // The import/export box fills every field from a pasted .env/JSON (and dumps them back); if it were
+        // dropped, setup would silently go back to typing ~26 fields by hand. It reuses textFields, so field
+        // coverage is already guarded by the tests above -- this just keeps the controls present and bound.
+        Assert.Contains(@"id=""ImportExportText""", Html.Value);
+        Assert.Contains(@"id=""PortalitoImportButton""", Html.Value);
+        Assert.Contains(@"id=""PortalitoExportButton""", Html.Value);
+        Assert.Contains("addEventListener('click', importIntoForm)", Html.Value);
+        Assert.Contains("addEventListener('click', exportCurrent)", Html.Value);
+    }
+
+    [Fact]
     public void Secrets_are_masked_inputs()
     {
         foreach (var id in new[] { nameof(PluginConfiguration.TripleDesKeyHex), nameof(PluginConfiguration.DeviceSn), nameof(PluginConfiguration.DeviceToken), nameof(PluginConfiguration.AccountPassword), nameof(PluginConfiguration.TmdbApiKey) })

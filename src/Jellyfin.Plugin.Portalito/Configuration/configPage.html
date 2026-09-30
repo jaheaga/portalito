@@ -9,6 +9,18 @@
     <div data-role="content">
         <div class="content-primary">
             <form id="PortalitoConfigForm">
+                <details style="margin: 0 0 1em 0;">
+                    <summary>Import / export configuration</summary>
+                    <div class="fieldDescription" style="margin: 0.5em 0;">Paste a <code>.env</code> (<code>PORTALITO_*=value</code> lines) or a JSON object and press Import to fill every field at once, then review and press Save. Export writes the current values here to copy to another server. Nothing is saved until you press Save.</div>
+                    <div class="inputContainer">
+                        <textarea id="ImportExportText" rows="6" style="width: 100%; box-sizing: border-box; font-family: monospace;" placeholder="PORTALITO_TRIPLE_DES_KEY_HEX=...&#10;PORTALITO_HOSTS=...&#10;(or a JSON object)"></textarea>
+                    </div>
+                    <div>
+                        <button is="emby-button" type="button" id="PortalitoImportButton" class="raised block emby-button"><span>Import into form</span></button>
+                        <button is="emby-button" type="button" id="PortalitoExportButton" class="raised block emby-button"><span>Export current values</span></button>
+                    </div>
+                    <div id="PortalitoImportStatus" class="fieldDescription" style="margin-top: 0.5em;"></div>
+                </details>
                 <div class="inputContainer">
                     <label class="inputLabel inputLabelUnfocused" for="TripleDesKeyHex">3DES key (hex)</label>
                     <input id="TripleDesKeyHex" name="TripleDesKeyHex" type="password" is="emby-input" autocomplete="off" />
@@ -155,6 +167,72 @@
             var textFields = ['TripleDesKeyHex', 'Hosts', 'AppId', 'ApkVersion', 'DeviceSn', 'DeviceDrmId', 'DeviceToken', 'DeviceReserve1', 'ProxyBaseUrl', 'AccountEmail', 'AccountPassword', 'TmdbApiKey', 'EpgTimeZone', 'ContentAuthMethod', 'ContentAuthSaltHex', 'ContentAuthMd5Schedule', 'ContentAuthMd5KOverrides', 'PortalCode', 'ApiBasePath', 'PortalApkVer', 'PortalSpkgVer', 'PortalUserAgent', 'CdnUserAgent', 'LoginPasswordSalt', 'LiveColumnCode', 'AllChannelsColumnId', 'Catalogs'];
             var marks = { ok: '\u2705', warning: '\u26A0\uFE0F', error: '\u274C' };
 
+            // Bulk import/export. Every key is matched by its normalized form (uppercase, no PORTALITO_
+            // prefix, no separators), so ".env" keys, raw property names and underscore variants all resolve
+            // to the same field -- e.g. PORTALITO_CONTENT_AUTH_MD5_K_OVERRIDES == ContentAuthMd5KOverrides.
+            var boolField = 'SkipPortalTlsVerification';
+            function normalizeKey(k) {
+                return String(k).toUpperCase().replace(/^PORTALITO_/, '').replace(/[^A-Z0-9]/g, '');
+            }
+            var normIndex = {};
+            textFields.concat([boolField]).forEach(function (name) { normIndex[normalizeKey(name)] = name; });
+
+            function parseImport(text) {
+                var pairs = [], out = {}, ignored = 0;
+                var trimmed = text.trim();
+                if (trimmed.charAt(0) === '{') {
+                    var obj = JSON.parse(trimmed); // throws on invalid JSON; caller reports it
+                    Object.keys(obj).forEach(function (k) { pairs.push([k, obj[k]]); });
+                } else {
+                    trimmed.split(/\r?\n/).forEach(function (line) {
+                        var l = line.trim();
+                        if (!l || l.charAt(0) === '#') { return; }
+                        var eq = l.indexOf('='); // split on the FIRST '=': values may contain '=', ':', ',' and spaces
+                        if (eq < 0) { return; }
+                        pairs.push([l.slice(0, eq), l.slice(eq + 1).trim()]);
+                    });
+                }
+                pairs.forEach(function (p) {
+                    var name = normIndex[normalizeKey(p[0])];
+                    if (name) { out[name] = p[1]; } else { ignored++; }
+                });
+                return { values: out, ignored: ignored };
+            }
+
+            function importIntoForm() {
+                var status = document.querySelector('#PortalitoImportStatus');
+                var text = document.querySelector('#ImportExportText').value;
+                if (!text.trim()) { status.textContent = 'Paste your configuration into the box first.'; return; }
+                var parsed;
+                try { parsed = parseImport(text); }
+                catch (err) { status.textContent = marks.error + ' Could not parse it. Paste PORTALITO_*=value lines or a JSON object.'; return; }
+                var applied = 0;
+                Object.keys(parsed.values).forEach(function (name) {
+                    var value = parsed.values[name];
+                    if (name === boolField) {
+                        var s = String(value).toLowerCase();
+                        document.querySelector('#' + boolField).checked = (s === 'true' || s === '1' || s === 'yes' || s === 'on');
+                    } else {
+                        document.querySelector('#' + name).value = value == null ? '' : String(value);
+                    }
+                    applied++;
+                });
+                status.textContent = marks.ok + ' Imported ' + applied + ' field(s)'
+                    + (parsed.ignored ? ' (' + parsed.ignored + ' unknown key(s) ignored)' : '')
+                    + '. Review the values and press Save.';
+            }
+
+            function exportCurrent() {
+                function envKey(name) { return 'PORTALITO_' + name.replace(/([a-z0-9])([A-Z])/g, '$1_$2').toUpperCase(); }
+                var lines = textFields.map(function (name) {
+                    return envKey(name) + '=' + (document.querySelector('#' + name).value || '');
+                });
+                lines.push('PORTALITO_' + boolField.replace(/([a-z0-9])([A-Z])/g, '$1_$2').toUpperCase()
+                    + '=' + (document.querySelector('#' + boolField).checked ? 'true' : 'false'));
+                document.querySelector('#ImportExportText').value = lines.join('\n');
+                document.querySelector('#PortalitoImportStatus').textContent = marks.ok + ' Exported current values \u2014 copy them from the box.';
+            }
+
             function save() {
                 return ApiClient.getPluginConfiguration(pluginId).then(function (config) {
                     textFields.forEach(function (name) {
@@ -186,6 +264,9 @@
                     Dashboard.hideLoadingMsg();
                 });
             });
+
+            document.querySelector('#PortalitoImportButton').addEventListener('click', importIntoForm);
+            document.querySelector('#PortalitoExportButton').addEventListener('click', exportCurrent);
 
             document.querySelector('#PortalitoConfigForm').addEventListener('submit', function (e) {
                 e.preventDefault();

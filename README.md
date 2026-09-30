@@ -65,6 +65,12 @@ Then, under the **Advanced** sections, the protocol details your portal uses:
 Press **Save**, then **Save and test connection** — it walks activation, login and a catalog fetch and
 reports exactly where it stops.
 
+**Filling it faster:** the config page has an **Import / export configuration** box at the top. Paste a
+`.env` (`PORTALITO_*=value` lines) or a JSON object and press **Import into form** to fill every field
+at once, then review and **Save**. **Export current values** dumps the current settings back out so you
+can copy them to another server. Nothing is saved until you press Save, and the import runs entirely in
+your browser — no values are sent anywhere.
+
 ## Build from source
 
 ```sh
