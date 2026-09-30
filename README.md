@@ -20,7 +20,11 @@ channel hides itself and the connection test reports "not configured".
 - Plays streams through an **in-plugin re-signing proxy**: Jellyfin's player talks to the plugin, and
   the plugin mints a fresh CDN Content-Auth signature per playlist and per segment. No external
   helper service is required — everything runs inside Jellyfin.
-- Optional **TMDB** enrichment for artwork and metadata (you supply your own TMDB API key).
+- Optional **TMDB** enrichment for artwork and metadata (you supply your own TMDB API key), and an optional
+  **Destacado** section built from TMDB lists (trending, popular, Korean series, anime…), showing only the
+  titles your portal actually has.
+- **Self-provisions** a free-tier device when no device serial is configured.
+- An **import / export** box on the config page, so a whole configuration is one paste.
 
 ## Requirements
 
@@ -48,7 +52,9 @@ Open **Dashboard → Plugins → Portalito** and fill in your values. The essent
 
 - **3DES key (hex)** — the portal's request-body cipher key.
 - **Hosts** — one or more API hosts (comma-separated).
-- **App id**, **APK version**, **device serial** — the client identity your portal expects.
+- **App id**, **APK version** — the client identity your portal expects.
+- **Device serial** — leave blank to let the plugin provision a device (with the snToken salt set), or
+  enter a known one.
 - **Account** / anonymous activation — how you log in.
 
 Then, under the **Advanced** sections, the protocol details your portal uses:
@@ -82,6 +88,15 @@ reports exactly where it stops.
 at once, then review and **Save**. **Export current values** dumps the current settings back out so you
 can copy them to another server. Nothing is saved until you press Save, and the import runs entirely in
 your browser — no values are sent anywhere.
+
+## Documentation
+
+- [docs/CONFIGURATION.md](docs/CONFIGURATION.md) — every setting, the connection test, troubleshooting
+- [docs/DESTACADO.md](docs/DESTACADO.md) — building Destacado rows from TMDB lists
+- [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) — how the plugin works inside
+- [docs/DEVELOPMENT.md](docs/DEVELOPMENT.md) — building, testing, the no-secrets rule, conventions
+- [docs/RELEASING.md](docs/RELEASING.md) — cutting a release and installing it
+- [CHANGELOG.md](CHANGELOG.md)
 
 ## Build from source
 
