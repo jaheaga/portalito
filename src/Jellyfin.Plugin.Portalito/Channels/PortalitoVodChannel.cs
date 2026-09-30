@@ -29,6 +29,9 @@ public sealed class PortalitoVodChannel : IChannel, IRequiresMediaInfoCallback
     // program types the reference client treats as "a series of episodes"; anything else plays directly as a movie.
     private static readonly HashSet<string> SeriesTypes = new(StringComparer.OrdinalIgnoreCase) { "teleplay", "series", "variety" };
 
+    // A "Destacado" row built from a TMDB list: VodItemId.Row(rowIndex, TmdbRowMode), the index into the configured rows.
+    private const string TmdbRowMode = "tmdb";
+
     /// <summary>How long a title's probe may take before playback goes ahead without its track list.</summary>
     internal static readonly TimeSpan ProbeTimeout = TimeSpan.FromSeconds(20);
 
@@ -110,8 +113,10 @@ public sealed class PortalitoVodChannel : IChannel, IRequiresMediaInfoCallback
     /// "v20" -> "v21" (2026-09-24): collages pick by show, not poster URL, so a series' seasons ("The Simpsons" in
     /// every 1990s year) count once (see <see cref="CollageImage"/>).
     /// "v21" -> "v22" (2026-09-28): a new "Destacado" root of curated rows (Estrenos, Mejor valoradas) leads the tree.
+    /// "v22" -> "v23" (2026-09-30): "Destacado" rows can come from TMDB lists (the FeaturedRows setting), reconciled
+    /// with the portal (see <see cref="DiscoveryBrowser"/>).
     /// </summary>
-    public string DataVersion => $"v22:{DateTime.UtcNow:yyyyMMdd}";
+    public string DataVersion => $"v23:{DateTime.UtcNow:yyyyMMdd}";
 
     public string HomePageUrl => string.Empty;
 
@@ -628,6 +633,11 @@ public sealed class PortalitoVodChannel : IChannel, IRequiresMediaInfoCallback
     /// </summary>
     private async Task<IReadOnlyList<ChannelItemInfo>> DestacadoFoldersAsync(PortalitoServices services, CancellationToken cancellationToken)
     {
+        if (services.Discovery is { } discovery)
+        {
+            return await TmdbRowFoldersAsync(services, discovery, cancellationToken).ConfigureAwait(false);
+        }
+
         var vocabulary = await services.Catalogs.VocabularyAsync(services.Portal, cancellationToken).ConfigureAwait(false);
         var year = vocabulary.Years.DefaultIfEmpty(DateTime.UtcNow.Year).Max();
 
@@ -655,9 +665,67 @@ public sealed class PortalitoVodChannel : IChannel, IRequiresMediaInfoCallback
         return rows.Select((r, i) => Folder(VodItemId.Row(r.Catalog, r.Mode).ToString(), r.Label, ChannelFolderType.Container, images[i])).ToList();
     }
 
+    /// <summary>
+    /// The configured TMDB rows as "Destacado" folders. Their collages use the TMDB list's own posters (cheap: no portal
+    /// search needed just for a thumbnail); opening a row is what reconciles it with the portal.
+    /// </summary>
+    private async Task<IReadOnlyList<ChannelItemInfo>> TmdbRowFoldersAsync(PortalitoServices services, DiscoveryBrowser discovery, CancellationToken cancellationToken)
+    {
+        var entries = await Task.WhenAll(discovery.Rows.Select((_, i) => TmdbEntriesOrNoneAsync(discovery, i, cancellationToken))).ConfigureAwait(false);
+        var posters = entries
+            .Select(list => (IReadOnlyList<CollageImage>)list
+                .Where(e => e.PosterUrl is not null)
+                .Select(e => new CollageImage(CollageImage.KeyFor(e.Title ?? e.EnglishTitle ?? e.Id), e.PosterUrl!))
+                .ToList())
+            .ToList();
+        var picks = CollagePlanner.PickAll(posters, new HashSet<string>(StringComparer.Ordinal));
+        var images = await Task.WhenAll(discovery.Rows.Select((r, i) =>
+            CollageAsync(services, r.Label, CollageFit.Cover, picks[i], cancellationToken))).ConfigureAwait(false);
+
+        return discovery.Rows.Select((r, i) => Folder(VodItemId.Row(i, TmdbRowMode).ToString(), r.Label, ChannelFolderType.Container, images[i])).ToList();
+    }
+
+    /// <summary>A row's TMDB list, or none if TMDB won't answer -- a thumbnail must not break the listing.</summary>
+    private async Task<IReadOnlyList<TmdbEntry>> TmdbEntriesOrNoneAsync(DiscoveryBrowser discovery, int rowIndex, CancellationToken cancellationToken)
+    {
+        try
+        {
+            return await discovery.EntriesAsync(rowIndex, cancellationToken).ConfigureAwait(false);
+        }
+        catch (Exception ex) when (ex is HttpRequestException or System.Text.Json.JsonException || (ex is OperationCanceledException && !cancellationToken.IsCancellationRequested))
+        {
+            _logger.LogDebug("No TMDB list for row {Row} ({Reason})", discovery.Rows[rowIndex].Label, ex.Message);
+            return Array.Empty<TmdbEntry>();
+        }
+    }
+
+    /// <summary>A TMDB row's portal titles; empty (not an error) when the row no longer exists or TMDB is unreachable.</summary>
+    private async Task<ChannelItemResult> TmdbRowItemsAsync(PortalitoServices services, int rowIndex, PageWindow window, CancellationToken cancellationToken)
+    {
+        IReadOnlyList<JsonObject> content = Array.Empty<JsonObject>();
+        if (services.Discovery is { } discovery && rowIndex < discovery.Rows.Count)
+        {
+            try
+            {
+                content = await discovery.RowAsync(services.Portal, rowIndex, cancellationToken).ConfigureAwait(false);
+            }
+            catch (Exception ex) when (ex is HttpRequestException or System.Text.Json.JsonException || (ex is OperationCanceledException && !cancellationToken.IsCancellationRequested))
+            {
+                _logger.LogWarning("TMDB row {Row} couldn't be built ({Reason})", discovery.Rows[rowIndex].Label, ex.Message);
+            }
+        }
+
+        return await MapListingAsync(services, content, window, cancellationToken).ConfigureAwait(false);
+    }
+
     /// <summary>One curated row's titles: "estrenos" = the newest of the newest year; "top" = the best-rated recent.</summary>
     private async Task<ChannelItemResult> RowItemsAsync(PortalitoServices services, int catalogIndex, string mode, PageWindow window, CancellationToken cancellationToken)
     {
+        if (mode == TmdbRowMode)
+        {
+            return await TmdbRowItemsAsync(services, catalogIndex, window, cancellationToken).ConfigureAwait(false);
+        }
+
         var code = services.Catalogs.Entries[catalogIndex].Code;
         IReadOnlyList<JsonObject> content;
         if (mode == "top")

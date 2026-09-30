@@ -70,7 +70,12 @@
                 <div class="inputContainer">
                     <label class="inputLabel inputLabelUnfocused" for="TmdbApiKey">TMDB API key (optional)</label>
                     <input id="TmdbApiKey" name="TmdbApiKey" type="password" is="emby-input" autocomplete="off" />
-                    <div class="fieldDescription">Fills in synopses and posters Portalito leaves blank. Never changes which titles are listed.</div>
+                    <div class="fieldDescription">Fills in synopses and posters Portalito leaves blank, and powers the Destacado rows below.</div>
+                </div>
+                <div class="inputContainer">
+                    <label class="inputLabel inputLabelUnfocused" for="FeaturedRows">Destacado rows from TMDB (optional)</label>
+                    <input id="FeaturedRows" name="FeaturedRows" type="text" is="emby-input" placeholder="Tendencias | trending | window=week; Series coreanas | discover-tv | country=KR" autocomplete="off" />
+                    <div class="fieldDescription">Rows separated by <code>;</code>, each <code>Label | source | key=value ...</code>. Sources: trending, popular-movies, popular-tv, top-movies, top-tv, upcoming, now-playing, airing-today, on-air, discover-movies, discover-tv. Discover takes <code>country=</code>, <code>lang=</code>, <code>genre=</code> (16 = animation), <code>nogenre=</code>, <code>sort=</code>, <code>year=</code>, <code>minvotes=</code> (commas mean "or", e.g. <code>country=JP,KR</code>); trending takes <code>type=movie|tv</code> and <code>window=day|week</code>. Only titles your portal has are shown. Needs the TMDB key; empty keeps the portal's own rows.</div>
                 </div>
                 <div class="inputContainer">
                     <label class="inputLabel inputLabelUnfocused" for="EpgTimeZone">TV guide time zone (optional)</label>
@@ -169,7 +174,7 @@
     <script type="text/javascript">
         (function () {
             var pluginId = '0bae4700-9bef-4e03-ad7f-cc99bf8f51ab';
-            var textFields = ['TripleDesKeyHex', 'Hosts', 'AppId', 'ApkVersion', 'DeviceSn', 'DeviceDrmId', 'DeviceToken', 'DeviceReserve1', 'ProxyBaseUrl', 'AccountEmail', 'AccountPassword', 'TmdbApiKey', 'EpgTimeZone', 'ContentAuthMethod', 'ContentAuthSaltHex', 'ContentAuthMd5Schedule', 'ContentAuthMd5KOverrides', 'PortalCode', 'ApiBasePath', 'PortalApkVer', 'PortalSpkgVer', 'PortalUserAgent', 'CdnUserAgent', 'LoginPasswordSalt', 'SnTokenSalt', 'LiveColumnCode', 'AllChannelsColumnId', 'Catalogs'];
+            var textFields = ['TripleDesKeyHex', 'Hosts', 'AppId', 'ApkVersion', 'DeviceSn', 'DeviceDrmId', 'DeviceToken', 'DeviceReserve1', 'ProxyBaseUrl', 'AccountEmail', 'AccountPassword', 'TmdbApiKey', 'FeaturedRows', 'EpgTimeZone', 'ContentAuthMethod', 'ContentAuthSaltHex', 'ContentAuthMd5Schedule', 'ContentAuthMd5KOverrides', 'PortalCode', 'ApiBasePath', 'PortalApkVer', 'PortalSpkgVer', 'PortalUserAgent', 'CdnUserAgent', 'LoginPasswordSalt', 'SnTokenSalt', 'LiveColumnCode', 'AllChannelsColumnId', 'Catalogs'];
             var marks = { ok: '\u2705', warning: '\u26A0\uFE0F', error: '\u274C' };
 
             // Bulk import/export. Every key is matched by its normalized form (uppercase, no PORTALITO_

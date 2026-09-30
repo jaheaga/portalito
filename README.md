@@ -61,6 +61,18 @@ Then, under the **Advanced** sections, the protocol details your portal uses:
   overrides. **No reverse-engineered constant is baked into this plugin** — unconfigured, it is plain
   RFC-1321 MD5.
 - **TMDB API key** (optional).
+- **Destacado rows from TMDB** (optional, needs the TMDB key): build the "Destacado" section from TMDB
+  lists — trending, popular, upcoming, airing today, top rated, or a *discover* query by country/language/genre.
+  Rows are `;`-separated, each `Label | source | key=value ...`, for example:
+
+  ```
+  Tendencias | trending | window=week; Anime del momento | discover-tv | country=JP,KR genre=16;
+  Series coreanas | discover-tv | country=KR nogenre=16,10764,10767 minvotes=20
+  ```
+
+  Each TMDB title is searched for in your portal and **only titles the portal has are listed**, so every item
+  plays. Sources: `trending`, `popular-movies`, `popular-tv`, `top-movies`, `top-tv`, `upcoming`, `now-playing`,
+  `airing-today`, `on-air`, `discover-movies`, `discover-tv`. Leave it empty to keep the portal's own rows.
 
 Press **Save**, then **Save and test connection** — it walks activation, login and a catalog fetch and
 reports exactly where it stops.

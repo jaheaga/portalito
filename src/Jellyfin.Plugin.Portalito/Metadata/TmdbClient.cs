@@ -94,13 +94,15 @@ public static class TmdbMatching
 
 /// <summary>
 /// TMDB as a fallback for what Portalito leaves blank: mostly the synopsis (the portal's <c>description</c> is usually
-/// empty), sometimes the poster. Never decides what's listed or played. Owner decision 2026-09-23.
+/// empty), sometimes the poster (owner decision 2026-09-23). The one exception is "Destacado": its configured rows
+/// are TMDB lists (trending, popular, discover...) via <see cref="ListAsync"/>, but even there only titles the portal
+/// actually has are listed, and what plays is always the portal's (owner decision 2026-09-30).
 /// </summary>
 public sealed class TmdbClient
 {
     private const string Language = "es-MX";
     private const string FallbackLanguage = "en-US";
-    private const string PosterBase = "https://image.tmdb.org/t/p/w342";
+    internal const string PosterBase = "https://image.tmdb.org/t/p/w342";
 
     private static readonly TmdbInfo NoMatch = new(null, null);
 
@@ -110,11 +112,74 @@ public sealed class TmdbClient
     // Misses are cached too (as NoMatch), so a title TMDB doesn't know isn't looked up again on every listing.
     private readonly TtlCache<TmdbInfo> _cache;
 
+    // Trending/popular move during the day; six hours keeps a row fresh without refetching on every listing.
+    private readonly TtlCache<IReadOnlyList<TmdbEntry>> _lists;
+
     public TmdbClient(ITmdbTransport transport, string apiKey, TimeProvider clock)
     {
         _transport = transport;
         _apiKey = apiKey;
         _cache = new TtlCache<TmdbInfo>(clock, TimeSpan.FromDays(7), capacity: 20_000);
+        _lists = new TtlCache<IReadOnlyList<TmdbEntry>>(clock, TimeSpan.FromHours(6), capacity: 64);
+    }
+
+    /// <summary>
+    /// One configured row's TMDB list, newest-first as TMDB ranks it: each page fetched in es-MX (the titles the portal's
+    /// Spanish names match best) and en-US (for the portal's English <c>alias</c>). Empty for an unknown source or when
+    /// TMDB answers nothing; an empty first page isn't cached, so a transient TMDB failure isn't remembered.
+    /// </summary>
+    public async Task<IReadOnlyList<TmdbEntry>> ListAsync(FeaturedRow row, CancellationToken cancellationToken)
+    {
+        if (TmdbLists.Endpoint(row) is not { } endpoint)
+        {
+            return Array.Empty<TmdbEntry>();
+        }
+
+        var key = endpoint.Path + "?" + string.Join('&', endpoint.Query.OrderBy(kv => kv.Key, StringComparer.Ordinal).Select(kv => kv.Key + "=" + kv.Value)) + "#" + endpoint.Pages;
+        if (_lists.TryGet(key, out var cached))
+        {
+            return cached;
+        }
+
+        var spanish = new List<JsonObject>();
+        var english = new Dictionary<string, JsonObject>(StringComparer.Ordinal);
+        for (var page = 1; page <= endpoint.Pages; page++)
+        {
+            var es = await ListPageAsync(endpoint.Path, endpoint.Query, Language, page, cancellationToken).ConfigureAwait(false);
+            if (es.Count == 0)
+            {
+                break;
+            }
+
+            spanish.AddRange(es);
+            foreach (var r in await ListPageAsync(endpoint.Path, endpoint.Query, FallbackLanguage, page, cancellationToken).ConfigureAwait(false))
+            {
+                if (TmdbLists.Key(r, endpoint.IsSeries) is { } k)
+                {
+                    english.TryAdd(k, r);
+                }
+            }
+        }
+
+        var entries = TmdbLists.ToEntries(spanish, english, endpoint.IsSeries, PosterBase);
+        if (entries.Count > 0)
+        {
+            _lists.Set(key, entries);
+        }
+
+        return entries;
+    }
+
+    private async Task<IReadOnlyList<JsonObject>> ListPageAsync(string path, IReadOnlyDictionary<string, string> query, string language, int page, CancellationToken cancellationToken)
+    {
+        var full = new Dictionary<string, string>(query, StringComparer.Ordinal)
+        {
+            ["api_key"] = _apiKey,
+            ["language"] = language,
+            ["page"] = page.ToString(CultureInfo.InvariantCulture),
+        };
+        var body = await _transport.GetAsync(path, full, cancellationToken).ConfigureAwait(false);
+        return body is null ? Array.Empty<JsonObject>() : PortalJson.Objects(JsonNode.Parse(body)?["results"]).ToArray();
     }
 
     /// <summary>The match's synopsis, poster, year and rating, or null when TMDB has no confident match.</summary>

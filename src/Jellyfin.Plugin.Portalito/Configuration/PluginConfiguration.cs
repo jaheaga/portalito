@@ -110,10 +110,18 @@ public class PluginConfiguration : BasePluginConfiguration
     public string AccountPassword { get; set; } = string.Empty;
 
     /// <summary>
-    /// Gets or sets the optional TMDB v3 API key. When set, TMDB fills in synopses and posters Portalito leaves blank; it
-    /// never changes which titles are listed.
+    /// Gets or sets the optional TMDB v3 API key. When set, TMDB fills in synopses and posters Portalito leaves blank, and
+    /// the <see cref="FeaturedRows"/> (if any) are built from TMDB lists -- limited to titles the portal has.
     /// </summary>
     public string TmdbApiKey { get; set; } = string.Empty;
+
+    /// <summary>
+    /// Gets or sets the "Destacado" rows, built from TMDB lists (needs <see cref="TmdbApiKey"/>): rows separated by
+    /// <c>;</c> or newlines, each <c>Label | source | key=value ...</c> -- e.g.
+    /// <c>Tendencias | trending | window=week; Series coreanas | discover-tv | country=KR</c>. Only titles the portal has
+    /// are listed. Empty (the default) keeps the portal's own rows (newest and best-rated per catalog).
+    /// </summary>
+    public string FeaturedRows { get; set; } = string.Empty;
 
     /// <summary>Gets or sets the secret that signs proxy URLs. Generated on first use when empty.</summary>
     public string ProxySigningSecret { get; set; } = string.Empty;
