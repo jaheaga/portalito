@@ -9,6 +9,14 @@
     "imageUrl": "",
     "versions": [
       {
+        "version": "0.1.0.5",
+        "targetAbi": "10.11.0.0",
+        "sourceUrl": "https://github.com/jaheaga/portalito/releases/download/v0.1.0.5/Portalito_0.1.0.5.zip",
+        "checksum": "87cb22c926e14fe1f01e646c72815ae0",
+        "changelog": "Portalito 0.1.0.5",
+        "timestamp": "2026-09-30T15:06:18Z"
+      },
+      {
         "version": "0.1.0.4",
         "targetAbi": "10.11.0.0",
         "sourceUrl": "https://github.com/jaheaga/portalito/releases/download/v0.1.0.4/Portalito_0.1.0.4.zip",
