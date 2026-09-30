@@ -91,6 +91,79 @@ public class PortalClientTests
         Assert.Equal("default", req.Body["channel"]!.GetValue<string>());
     }
 
+    private static string Md5Hex(string value)
+        => Convert.ToHexString(System.Security.Cryptography.MD5.HashData(System.Text.Encoding.UTF8.GetBytes(value))).ToLowerInvariant();
+
+    [Fact]
+    public async Task Provisions_a_fresh_device_when_no_serial_is_configured()
+    {
+        var transport = new FakePortalTransport();
+        transport.Handler = r => r.Path switch
+        {
+            "v3/snToken" => transport.Ok(new JsonObject { ["snToken"] = "TOK" }),
+            "v8/active" => transport.Ok(Activation("tok1")),
+            _ => FakePortalTransport.Error("x", r.Path),
+        };
+        string? persisted = null;
+        var client = new PortalClient(Options() with { DeviceSn = string.Empty, SnTokenSalt = "s" }, transport, sn => persisted = sn);
+
+        var response = await client.ActivateAsync();
+
+        var expectedSn = Md5Hex("TOKs"); // MD5(snToken + salt)
+        Assert.True(response.IsSuccess);
+        Assert.Equal(new PortalSession("u1", "tok1", "jwt-tok1"), client.Session);
+        Assert.Equal(expectedSn, persisted);
+
+        var snReq = transport.Requests.Single(r => r.Path == "v3/snToken");
+        Assert.Equal(string.Empty, snReq.Body["sn"]!.GetValue<string>()); // stored serial cleared for the handshake
+        Assert.NotNull(snReq.Body["androidId"]);                          // a fresh fingerprint was sent
+        var activeReq = transport.Requests.Single(r => r.Path == "v8/active");
+        Assert.Equal("TOK", activeReq.Body["snToken"]!.GetValue<string>());
+        Assert.Equal(expectedSn, activeReq.Body["sn"]!.GetValue<string>());
+    }
+
+    [Fact]
+    public async Task Provisioning_uses_the_serial_the_portal_returns_when_present()
+    {
+        var transport = new FakePortalTransport();
+        transport.Handler = r => r.Path == "v3/snToken"
+            ? transport.Ok(new JsonObject { ["snToken"] = "TOK", ["sn"] = "SERVER_SN" })
+            : transport.Ok(Activation("tok1"));
+        string? persisted = null;
+        var client = new PortalClient(Options() with { DeviceSn = string.Empty, SnTokenSalt = string.Empty }, transport, sn => persisted = sn);
+
+        await client.ActivateAsync();
+
+        Assert.Equal("SERVER_SN", persisted); // no salt needed when the portal hands back the serial
+        Assert.Equal("SERVER_SN", transport.Requests.Single(r => r.Path == "v8/active").Body["sn"]!.GetValue<string>());
+    }
+
+    [Fact]
+    public async Task Re_provisions_once_when_the_configured_device_is_expired()
+    {
+        var transport = new FakePortalTransport();
+        transport.Handler = r =>
+        {
+            if (r.Path == "v3/snToken")
+            {
+                return transport.Ok(new JsonObject { ["snToken"] = "TOK", ["sn"] = "NEW_SN" });
+            }
+
+            // The fast path (empty snToken + the configured, expired serial) is rejected; the provisioned one works.
+            return r.Body["snToken"]!.GetValue<string>().Length == 0
+                ? FakePortalTransport.Error("aaa100080", "snToken expired")
+                : transport.Ok(Activation("tok1"));
+        };
+        string? persisted = null;
+        var client = new PortalClient(Options() with { DeviceSn = "OLD_SN", SnTokenSalt = "s" }, transport, sn => persisted = sn);
+
+        var response = await client.ActivateAsync();
+
+        Assert.True(response.IsSuccess);
+        Assert.Equal("NEW_SN", persisted);
+        Assert.Equal(2, transport.Count("v8/active")); // failed fast path + successful provisioned activation
+    }
+
     [Fact]
     public async Task First_call_activates_then_carries_the_session()
     {

@@ -96,7 +96,12 @@ public sealed class PortalitoRuntime : IPortalitoServicesProvider
         }
 
         var transport = new HttpPortalTransport(portalHttp, options);
-        var portal = new PortalClient(options, transport);
+        var portal = new PortalClient(options, transport, provisionedSn =>
+        {
+            // A fresh free-tier device was registered: persist its serial so later activations reuse it.
+            config.DeviceSn = provisionedSn;
+            _saveConfig();
+        });
         var signer = new ProxyUrlSigner(config.ProxySigningSecret, ProxyBaseUrl(config), _clock);
         var contentAuth = BuildContentAuthSigner(config);
         var proxy = new PortalitoProxyService(_upstream, portal, signer, contentAuth, new ProxyIdentity(options.AppId, options.ApkVersion, options.CdnUserAgent), _clock);
@@ -193,6 +198,7 @@ public sealed class PortalitoRuntime : IPortalitoServicesProvider
             c.DeviceDrmId,
             c.DeviceToken,
             c.DeviceReserve1,
+            c.SnTokenSalt,
             c.SkipPortalTlsVerification,
             c.ProxyBaseUrl,
             c.AccountEmail,

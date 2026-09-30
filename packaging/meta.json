@@ -5,7 +5,7 @@
   "overview": "Live TV channels and VOD movies/series from a configurable IPTV portal, played through an in-plugin re-signing proxy.",
   "owner": "Jaime Aguilar",
   "category": "LiveTV",
-  "version": "0.1.0.2",
+  "version": "0.1.0.3",
   "targetAbi": "10.11.0.0",
   "status": "Active",
   "autoUpdate": false

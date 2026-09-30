@@ -116,6 +116,11 @@
                         <input id="LoginPasswordSalt" name="LoginPasswordSalt" type="password" is="emby-input" autocomplete="off" />
                     </div>
                     <div class="inputContainer">
+                        <label class="inputLabel inputLabelUnfocused" for="SnTokenSalt">snToken salt (optional)</label>
+                        <input id="SnTokenSalt" name="SnTokenSalt" type="password" is="emby-input" autocomplete="off" />
+                        <div class="fieldDescription">Leave Device SN blank to auto-provision a free device; this salt derives its serial (<code>MD5(snToken + salt)</code>) if the portal doesn't return one.</div>
+                    </div>
+                    <div class="inputContainer">
                         <label class="inputLabel inputLabelUnfocused" for="LiveColumnCode">Live column code</label>
                         <input id="LiveColumnCode" name="LiveColumnCode" type="text" is="emby-input" autocomplete="off" />
                     </div>
@@ -164,7 +169,7 @@
     <script type="text/javascript">
         (function () {
             var pluginId = '0bae4700-9bef-4e03-ad7f-cc99bf8f51ab';
-            var textFields = ['TripleDesKeyHex', 'Hosts', 'AppId', 'ApkVersion', 'DeviceSn', 'DeviceDrmId', 'DeviceToken', 'DeviceReserve1', 'ProxyBaseUrl', 'AccountEmail', 'AccountPassword', 'TmdbApiKey', 'EpgTimeZone', 'ContentAuthMethod', 'ContentAuthSaltHex', 'ContentAuthMd5Schedule', 'ContentAuthMd5KOverrides', 'PortalCode', 'ApiBasePath', 'PortalApkVer', 'PortalSpkgVer', 'PortalUserAgent', 'CdnUserAgent', 'LoginPasswordSalt', 'LiveColumnCode', 'AllChannelsColumnId', 'Catalogs'];
+            var textFields = ['TripleDesKeyHex', 'Hosts', 'AppId', 'ApkVersion', 'DeviceSn', 'DeviceDrmId', 'DeviceToken', 'DeviceReserve1', 'ProxyBaseUrl', 'AccountEmail', 'AccountPassword', 'TmdbApiKey', 'EpgTimeZone', 'ContentAuthMethod', 'ContentAuthSaltHex', 'ContentAuthMd5Schedule', 'ContentAuthMd5KOverrides', 'PortalCode', 'ApiBasePath', 'PortalApkVer', 'PortalSpkgVer', 'PortalUserAgent', 'CdnUserAgent', 'LoginPasswordSalt', 'SnTokenSalt', 'LiveColumnCode', 'AllChannelsColumnId', 'Catalogs'];
             var marks = { ok: '\u2705', warning: '\u26A0\uFE0F', error: '\u274C' };
 
             // Bulk import/export. Every key is matched by its normalized form (uppercase, no PORTALITO_

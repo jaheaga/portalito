@@ -70,6 +70,14 @@ public class PluginConfiguration : BasePluginConfiguration
     public string DeviceReserve1 { get; set; } = string.Empty;
 
     /// <summary>
+    /// Gets or sets the salt that derives a new device serial from the portal's snToken
+    /// (<c>sn = MD5(snToken + salt)</c>). When the device serial is left blank the plugin provisions a fresh
+    /// free-tier device (snToken handshake) and saves the serial it gets; this salt is only needed if the portal
+    /// does not return the serial directly. Blank by default.
+    /// </summary>
+    public string SnTokenSalt { get; set; } = string.Empty;
+
+    /// <summary>
     /// Gets or sets a value indicating whether portal TLS certificates are not validated. Off by default: the login
     /// request carries the account's password hash under a 3DES key anyone can pull from the APK, so without
     /// certificate checks anyone on the network path can capture a replayable credential. The reference client runs

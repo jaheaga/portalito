@@ -21,6 +21,8 @@ public sealed record PortalOptions
 
     public string DeviceReserve1 { get; init; } = string.Empty;
 
+    public string SnTokenSalt { get; init; } = string.Empty;
+
     public string Portal { get; init; } = string.Empty;
 
     public string ApiBasePath { get; init; } = string.Empty;
@@ -56,6 +58,7 @@ public sealed record PortalOptions
         DeviceDrmId = config.DeviceDrmId.Trim(),
         DeviceToken = config.DeviceToken.Trim(),
         DeviceReserve1 = config.DeviceReserve1.Trim(),
+        SnTokenSalt = config.SnTokenSalt.Trim(),
         Portal = config.PortalCode.Trim(),
         ApiBasePath = config.ApiBasePath.Trim(),
         ApkVer = config.PortalApkVer.Trim(),

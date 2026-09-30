@@ -25,17 +25,23 @@ public sealed partial class PortalClient : IStreamResolver
     private readonly IPortalTransport _transport;
     private readonly PortalCipher _cipher;
     private readonly JsonObject _device;
+    private readonly Action<string>? _onDeviceProvisioned;
     private readonly SemaphoreSlim _authLock = new(1, 1);
     private volatile PortalSession? _session;
     private volatile string? _preferredHost;
 
-    public PortalClient(PortalOptions options, IPortalTransport transport)
+    /// <param name="onDeviceProvisioned">
+    /// Called with the device serial when a fresh free-tier device is provisioned (see <see cref="ProvisionDeviceAsync"/>),
+    /// so the host can persist it into configuration and later activations use the fast path. Optional.
+    /// </param>
+    public PortalClient(PortalOptions options, IPortalTransport transport, Action<string>? onDeviceProvisioned = null)
     {
         options.Validate();
         _options = options;
         _transport = transport;
         _cipher = new PortalCipher(options.TripleDesKeyHex);
         _device = BuildDeviceFields(options);
+        _onDeviceProvisioned = onDeviceProvisioned;
     }
 
     /// <summary>Gets a value indicating whether this client logs in with an account (live TV) rather than as an anonymous device.</summary>
@@ -79,7 +85,8 @@ public sealed partial class PortalClient : IStreamResolver
         JsonObject? bean,
         bool baseFields,
         PortalSession? session,
-        CancellationToken cancellationToken)
+        CancellationToken cancellationToken,
+        JsonObject? deviceOverride = null)
     {
         var body = new JsonObject();
         if (baseFields)
@@ -101,6 +108,15 @@ public sealed partial class PortalClient : IStreamResolver
         foreach (var (key, value) in _device)
         {
             body[key] = value?.DeepClone();
+        }
+
+        // Provisioning overrides specific device fields (e.g. a blank/derived sn) for one call.
+        if (deviceOverride is not null)
+        {
+            foreach (var (key, value) in deviceOverride)
+            {
+                body[key] = value?.DeepClone();
+            }
         }
 
         var wire = _cipher.Encrypt(body.ToJsonString());
@@ -279,24 +295,117 @@ public sealed partial class PortalClient : IStreamResolver
 
     private async Task<PortalResponse> ActivateCoreAsync(CancellationToken cancellationToken)
     {
-        var bean = new JsonObject
+        // No device serial yet: register a fresh free-tier device and persist the serial it gets.
+        if (string.IsNullOrEmpty(_options.DeviceSn))
         {
-            ["snToken"] = string.Empty,
-            ["authVersion"] = string.Empty,
-            ["authCode"] = string.Empty,
-            ["preCode"] = string.Empty,
-            ["macAddr"] = "02:00:00:00:00:00",
-            ["reserve1"] = _options.DeviceReserve1,
-            ["openNum"] = 4,
-            ["channel"] = "default",
-            ["matadata"] = string.Empty,
-            ["signdata"] = string.Empty,
-        };
+            return await ProvisionDeviceAsync(cancellationToken).ConfigureAwait(false);
+        }
 
-        var response = await CallOnceAsync("v8/active", bean, false, null, cancellationToken).ConfigureAwait(false);
+        var response = await CallOnceAsync("v8/active", ActivationBean(string.Empty), false, null, cancellationToken).ConfigureAwait(false);
+
+        // The configured device is gone or expired (aaa100080: snToken invalid). Re-provision once -- but only when a
+        // salt is set, since otherwise we may not be able to derive the new serial.
+        if (response.ErrorCode == "aaa100080" && !string.IsNullOrEmpty(_options.SnTokenSalt))
+        {
+            return await ProvisionDeviceAsync(cancellationToken).ConfigureAwait(false);
+        }
+
         StoreSession(response);
         return response;
     }
+
+    private JsonObject ActivationBean(string snToken) => new()
+    {
+        ["snToken"] = snToken,
+        ["authVersion"] = string.Empty,
+        ["authCode"] = string.Empty,
+        ["preCode"] = string.Empty,
+        ["macAddr"] = "02:00:00:00:00:00",
+        ["reserve1"] = _options.DeviceReserve1,
+        ["openNum"] = 4,
+        ["channel"] = "default",
+        ["matadata"] = string.Empty,
+        ["signdata"] = string.Empty,
+    };
+
+    /// <summary>
+    /// Registers a brand-new free-tier device: <c>v3/snToken</c> with a fresh fingerprint, then the serial the portal
+    /// returns (or <c>MD5(snToken + SnTokenSalt)</c> when it returns none), then <c>v8/active</c> with that snToken.
+    /// On success the serial is reported via the provisioning callback so the host persists it and later activations
+    /// use the fast path (empty snToken + stored serial). Port of the reference client's <c>new_anonymous_device</c>.
+    /// </summary>
+    private async Task<PortalResponse> ProvisionDeviceAsync(CancellationToken cancellationToken)
+    {
+        // Ask for an snToken with a fresh fingerprint and no stored device identity.
+        var cleared = new JsonObject
+        {
+            ["sn"] = string.Empty,
+            ["drmId"] = string.Empty,
+            ["deviceToken"] = string.Empty,
+            ["reserve1"] = string.Empty,
+        };
+        var snTokenResponse = await CallOnceAsync("v3/snToken", BuildFingerprint(), false, null, cancellationToken, cleared).ConfigureAwait(false);
+        var snToken = ReadScalar(snTokenResponse.Data?["snToken"]);
+        if (string.IsNullOrEmpty(snToken))
+        {
+            return snTokenResponse; // carries the portal/transport error for the caller to report
+        }
+
+        var sn = ReadScalar(snTokenResponse.Data?["sn"]);
+        if (string.IsNullOrEmpty(sn))
+        {
+            if (string.IsNullOrEmpty(_options.SnTokenSalt))
+            {
+                throw new PortalException("The portal issued an snToken but no device serial, and no snToken salt is configured to derive one.");
+            }
+
+            sn = Md5Hex(snToken + _options.SnTokenSalt);
+        }
+
+        var response = await CallOnceAsync("v8/active", ActivationBean(snToken), false, null, cancellationToken, new JsonObject { ["sn"] = sn }).ConfigureAwait(false);
+        StoreSession(response);
+        if (_session is not null)
+        {
+            _device["sn"] = sn;                 // later fast-path activations reuse the provisioned serial
+            _onDeviceProvisioned?.Invoke(sn);   // the host persists it into configuration
+        }
+
+        return response;
+    }
+
+    // A generic Android-emulator fingerprint (no service-identifying values), regenerated per provisioning.
+    private static JsonObject BuildFingerprint() => new()
+    {
+        ["androidId"] = RandomHex(8),
+        ["board"] = "goldfish_arm64",
+        ["brand"] = "google",
+        ["cpuAbi"] = "arm64-v8a",
+        ["cpuId"] = RandomHex(8),
+        ["device"] = "emu64a",
+        ["diskInfo"] = "8GB",
+        ["display"] = "sdk_gphone64_arm64",
+        ["etheMac"] = RandomMac(),
+        ["fingerprint"] = "google/sdk_gphone64_arm64/emu64a:14/UE1A.230829.036/11228894:user/release-keys",
+        ["gatewayMac"] = RandomMac(),
+        ["hardware"] = "ranchu",
+        ["host"] = "abfarm",
+        ["manufacturer"] = "Google",
+        ["ramSize"] = "4GB",
+        ["romSize"] = "8GB",
+        ["serialNumber"] = RandomHex(8),
+        ["tags"] = "release-keys",
+        ["verId"] = string.Empty,
+        ["wifiMac"] = RandomMac(),
+    };
+
+    private static string RandomHex(int bytes)
+        => Convert.ToHexString(System.Security.Cryptography.RandomNumberGenerator.GetBytes(bytes)).ToLowerInvariant();
+
+    private static string RandomMac()
+        => string.Join(":", System.Security.Cryptography.RandomNumberGenerator.GetBytes(6).Select(b => b.ToString("x2", CultureInfo.InvariantCulture)));
+
+    private static string Md5Hex(string value)
+        => Convert.ToHexString(System.Security.Cryptography.MD5.HashData(System.Text.Encoding.UTF8.GetBytes(value))).ToLowerInvariant();
 
     /// <summary>Account login: mints a userToken for the configured account (needed for live TV).</summary>
     public async Task<PortalResponse> LoginAsync(CancellationToken cancellationToken = default)
