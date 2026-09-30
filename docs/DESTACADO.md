@@ -1,12 +1,33 @@
 # Destacado rows from TMDB
 
-**Destacado** is the first folder of the Portalito channel: a set of curated rows. By default they are
-computed from the portal itself (newest and best-rated per catalog). With a TMDB key and the
-`FeaturedRows` setting, each row is instead a **TMDB list** — trending, popular, upcoming, a *discover*
+**Destacado** is the first folder of the Portalito channel: a set of curated rows. With a TMDB key, each
+row is a **TMDB list** — trending, popular, upcoming, a *discover*
 query by country/language/genre… — **reconciled with the portal**: only titles the portal actually has are
 listed, so everything in a row plays.
 
-Descubrir is not affected; it always browses the portal's own catalog.
+The `FeaturedRows` setting **comes pre-filled with the default rows below**, so a fresh install gets them
+as soon as the TMDB key is set. Edit them freely; **clear the field** (or leave the TMDB key empty) to get
+the portal-computed rows instead (newest and best-rated per catalog). Descubrir is not affected; it always
+browses the portal's own catalog.
+
+## Default rows
+
+| Row | Definition |
+|---|---|
+| Tendencias | `trending \| window=week` |
+| Estrenos en cine | `now-playing` |
+| Próximamente | `upcoming` |
+| Películas populares | `popular-movies` |
+| Series populares | `popular-tv` |
+| En emisión hoy | `airing-today` |
+| Anime del momento | `discover-tv \| country=JP,KR genre=16 pages=3` |
+| Películas de anime | `discover-movies \| country=JP,KR genre=16` |
+| Series coreanas | `discover-tv \| country=KR nogenre=16,10764,10767 minvotes=20 pages=3` |
+| Películas mejor valoradas | `top-movies` |
+| Series mejor valoradas | `top-tv` |
+
+The exact string is `PluginConfiguration.DefaultFeaturedRows`. A saved configuration from before this setting
+existed picks up the default too; a configuration where the field was saved empty stays empty.
 
 ## Syntax
 
@@ -53,7 +74,7 @@ Useful TMDB genre ids: 16 Animation, 28 Action, 35 Comedy, 18 Drama, 27 Horror, 
 878 Science Fiction, 99 Documentary, 10751 Family; TV only: 10759 Action & Adventure, 10762 Kids,
 10764 Reality, 10767 Talk, 10765 Sci-Fi & Fantasy.
 
-## Examples
+## More examples
 
 ```
 Tendencias | trending | window=week;
@@ -103,4 +124,4 @@ The row's items are ordinary portal items — the same ids, seasons, episodes an
 - **Matching.** Title-based: an occasional title filed under a very different name won't match (it's
   dropped, never mislabeled — unless the portal has a different title with the same name and year).
 - **Thumbnails** use TMDB's posters, so a row's collage may show a title the portal doesn't have.
-- Needs the TMDB key. Without it (or with no valid row) Destacado falls back to the portal's own rows.
+- Needs the TMDB key. Without it, or with the field cleared, Destacado falls back to the portal's own rows.

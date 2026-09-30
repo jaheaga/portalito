@@ -1,8 +1,9 @@
 # Configuration reference
 
 All settings live on **Dashboard → Plugins → Portalito** and are persisted by Jellyfin in the plugin's
-config XML. Nothing is baked into the build: every field defaults to empty (or `false`), and the plugin is
-inert until the required ones are set. Saving takes effect immediately — no restart.
+config XML. Nothing service-specific is baked into the build: every field defaults to empty (or `false`) — the one
+exception is `FeaturedRows`, whose default is a set of generic TMDB lists — and the plugin is inert until
+the required ones are set. Saving takes effect immediately — no restart.
 
 Each field also has a `.env`-style key (`PORTALITO_*`, listed in [`.env.example`](../.env.example)) used by
 the page's **Import / export** box. Keep your real values in a git-ignored `.env`; never commit them.
@@ -68,7 +69,7 @@ plugin. A wrong value only shows up as live streams that won't play (VOD doesn't
 | Field | `.env` key | What it is |
 |---|---|---|
 | `TmdbApiKey` | `PORTALITO_TMDB_API_KEY` | Optional TMDB v3 key. Fills blank synopses/posters, and powers `FeaturedRows`. |
-| `FeaturedRows` | `PORTALITO_FEATURED_ROWS` | Optional. Builds **Destacado** from TMDB lists, keeping only titles the portal has. Syntax and sources: [DESTACADO.md](DESTACADO.md). Empty = the portal's own rows. |
+| `FeaturedRows` | `PORTALITO_FEATURED_ROWS` | Builds **Destacado** from TMDB lists, keeping only titles the portal has. **Pre-filled with 11 default rows** (trending, popular, anime JP/KR, Korean series…), active as soon as a TMDB key is set. Clear it to use the portal's own rows. Syntax, sources and the default list: [DESTACADO.md](DESTACADO.md). |
 
 ## Server / network
 
@@ -89,7 +90,8 @@ The **Import / export configuration** box at the top of the page runs entirely i
   press **Save**.
 - **Export current values** — writes the page's current values as `.env` lines, to copy to another server.
 
-Don't put a comment after a value on the same line: everything after the first `=` is the value.
+Don't put a comment after a value on the same line: everything after the first `=` is the value. A key with an
+empty value clears its field — e.g. `PORTALITO_FEATURED_ROWS=` turns the default Destacado rows off.
 
 ## Save and test connection
 

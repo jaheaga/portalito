@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.1.0.5 — 2026-09-30
+
+- **Default Destacado rows.** `FeaturedRows` now comes pre-filled with 11 TMDB rows (Tendencias, Estrenos en
+  cine, Próximamente, Películas/Series populares, En emisión hoy, Anime del momento, Películas de anime,
+  Series coreanas, Películas/Series mejor valoradas), active as soon as a TMDB key is set. Clear the field
+  to use the portal's own rows.
+
 ## 0.1.0.4 — 2026-09-30
 
 - **Destacado rows from TMDB.** New `FeaturedRows` setting: each row is a TMDB list (trending, popular,

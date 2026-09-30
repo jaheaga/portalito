@@ -90,10 +90,10 @@ Portalito VOD
 - **Series** are listed once per show (seasons grouped by name, `SeasonGrouping`); opening a show lists its
   seasons from the portal's authoritative season list, and a season lists its episodes.
 - **Destacado** has two modes:
-  - **Portal rows** (default, `FeaturedRows` empty): newest of the newest year and best-rated recent
-    titles, per catalog.
-  - **TMDB rows** (`FeaturedRows` set and a TMDB key present): each row is a TMDB list reconciled with the
-    portal — see [DESTACADO.md](DESTACADO.md).
+  - **TMDB rows** (a TMDB key present; `FeaturedRows` defaults to 11 generic rows): each row is a TMDB list
+    reconciled with the portal — see [DESTACADO.md](DESTACADO.md).
+  - **Portal rows** (no TMDB key, or `FeaturedRows` cleared): newest of the newest year and best-rated
+    recent titles, per catalog.
 - **Item ids** (`VodItemId`) encode what an item stands for (`mov:<contentId>`, `shw:…`, `row:<index>:<mode>`,
   `flt:<catalog>:g<tag>`…) in a strict charset, because they end up in portal requests and proxy URLs.
 - **`DataVersion`** is part of Jellyfin's cache key for channel listings; bump it whenever the tree's shape or

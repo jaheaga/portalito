@@ -34,6 +34,24 @@ public class DiscoveryBrowserTests
     }
 
     [Fact]
+    public void The_default_rows_are_the_eleven_seeded_tmdb_rows()
+    {
+        var rows = DiscoveryBrowser.ParseRows(Configuration.PluginConfiguration.DefaultFeaturedRows);
+
+        Assert.Equal(
+            new[]
+            {
+                "Tendencias", "Estrenos en cine", "Próximamente", "Películas populares", "Series populares", "En emisión hoy",
+                "Anime del momento", "Películas de anime", "Series coreanas", "Películas mejor valoradas", "Series mejor valoradas",
+            },
+            rows.Select(r => r.Label));
+        Assert.All(rows, r => Assert.NotNull(TmdbLists.Endpoint(r)));
+        Assert.Equal("JP|KR", TmdbLists.Endpoint(rows[6])!.Value.Query["with_origin_country"]);
+        Assert.Equal("16,10764,10767", TmdbLists.Endpoint(rows[8])!.Value.Query["without_genres"]);
+        Assert.Equal(new Configuration.PluginConfiguration().FeaturedRows, Configuration.PluginConfiguration.DefaultFeaturedRows);
+    }
+
+    [Fact]
     public void Trending_defaults_to_all_titles_this_week()
     {
         var endpoint = TmdbLists.Endpoint(new FeaturedRow("T", "trending", new Dictionary<string, string>()))!.Value;

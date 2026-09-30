@@ -116,12 +116,19 @@ public class PluginConfiguration : BasePluginConfiguration
     public string TmdbApiKey { get; set; } = string.Empty;
 
     /// <summary>
-    /// Gets or sets the "Destacado" rows, built from TMDB lists (needs <see cref="TmdbApiKey"/>): rows separated by
-    /// <c>;</c> or newlines, each <c>Label | source | key=value ...</c> -- e.g.
-    /// <c>Tendencias | trending | window=week; Series coreanas | discover-tv | country=KR</c>. Only titles the portal has
-    /// are listed. Empty (the default) keeps the portal's own rows (newest and best-rated per catalog).
+    /// The out-of-the-box "Destacado" rows: generic TMDB lists (no portal-specific value), so a fresh install with a TMDB
+    /// key gets them without any setup. Owner decision 2026-09-30.
     /// </summary>
-    public string FeaturedRows { get; set; } = string.Empty;
+    public const string DefaultFeaturedRows =
+        "Tendencias | trending | window=week; Estrenos en cine | now-playing; Próximamente | upcoming; Películas populares | popular-movies; Series populares | popular-tv; En emisión hoy | airing-today; Anime del momento | discover-tv | country=JP,KR genre=16 pages=3; Películas de anime | discover-movies | country=JP,KR genre=16; Series coreanas | discover-tv | country=KR nogenre=16,10764,10767 minvotes=20 pages=3; Películas mejor valoradas | top-movies; Series mejor valoradas | top-tv";
+
+    /// <summary>
+    /// Gets or sets the "Destacado" rows, built from TMDB lists (needs <see cref="TmdbApiKey"/>): rows separated by
+    /// <c>;</c> or newlines, each <c>Label | source | key=value ...</c>. Only titles the portal has are listed.
+    /// Defaults to <see cref="DefaultFeaturedRows"/> (also for saved configs that predate the setting); an empty value
+    /// switches back to the portal's own rows (newest and best-rated per catalog).
+    /// </summary>
+    public string FeaturedRows { get; set; } = DefaultFeaturedRows;
 
     /// <summary>Gets or sets the secret that signs proxy URLs. Generated on first use when empty.</summary>
     public string ProxySigningSecret { get; set; } = string.Empty;

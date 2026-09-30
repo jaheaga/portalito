@@ -7,7 +7,7 @@ A Jellyfin 10.11 channel + Live TV plugin (.NET 9) for IPTV "portal" middleware.
 
 - **Nothing service-specific in the tree.** No real portal name, hosts, keys, salts, signing constants,
   captured tokens, accounts or private paths — not in code, tests, docs or commit messages. Every such value
-  is a config field that defaults to empty. `./scripts/scrub-check.sh` must print `scrub-check: clean`, and
+  is a config field that defaults to empty (the only non-empty default, `FeaturedRows`, is generic TMDB lists). `./scripts/scrub-check.sh` must print `scrub-check: clean`, and
   `ScrubGuardTests` enforces the same denylist in `dotnet test`. Test data is synthetic.
 - **Real values live only in git-ignored places:** `.env` (every setting as `PORTALITO_*`) and `private/`
   (operator notes). Never `git add -A`; stage files explicitly and check `git status` shows neither.

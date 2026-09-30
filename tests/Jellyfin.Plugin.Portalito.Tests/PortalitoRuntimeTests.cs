@@ -173,6 +173,20 @@ public class PortalitoRuntimeTests
     }
 
     [Fact]
+    public void A_fresh_install_with_a_tmdb_key_gets_the_default_destacado_rows_and_clearing_them_turns_them_off()
+    {
+        var config = ValidConfig();
+        var runtime = new PortalitoRuntime(() => config, () => { }, TimeProvider.System);
+        Assert.Null(runtime.Get().Discovery); // no TMDB key yet
+
+        config.TmdbApiKey = "abc123";
+        Assert.Equal(11, runtime.Get().Discovery!.Rows.Count);
+
+        config.FeaturedRows = string.Empty;
+        Assert.Null(runtime.Get().Discovery); // back to the portal's own rows
+    }
+
+    [Fact]
     public void Becoming_invalid_after_being_valid_throws_instead_of_serving_stale_services()
     {
         var config = ValidConfig();

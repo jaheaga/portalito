@@ -69,7 +69,10 @@ Then, under the **Advanced** sections, the protocol details your portal uses:
 - **TMDB API key** (optional).
 - **Destacado rows from TMDB** (optional, needs the TMDB key): build the "Destacado" section from TMDB
   lists — trending, popular, upcoming, airing today, top rated, or a *discover* query by country/language/genre.
-  Rows are `;`-separated, each `Label | source | key=value ...`, for example:
+  **It comes pre-filled with 11 default rows** (Tendencias, Estrenos en cine, Próximamente, Películas/Series
+  populares, En emisión hoy, Anime del momento, Películas de anime, Series coreanas, Películas/Series mejor
+  valoradas), so they appear as soon as the TMDB key is set. Rows are `;`-separated, each
+  `Label | source | key=value ...`, for example:
 
   ```
   Tendencias | trending | window=week; Anime del momento | discover-tv | country=JP,KR genre=16;
@@ -78,7 +81,7 @@ Then, under the **Advanced** sections, the protocol details your portal uses:
 
   Each TMDB title is searched for in your portal and **only titles the portal has are listed**, so every item
   plays. Sources: `trending`, `popular-movies`, `popular-tv`, `top-movies`, `top-tv`, `upcoming`, `now-playing`,
-  `airing-today`, `on-air`, `discover-movies`, `discover-tv`. Leave it empty to keep the portal's own rows.
+  `airing-today`, `on-air`, `discover-movies`, `discover-tv`. Clear it to use the portal's own rows instead.
 
 Press **Save**, then **Save and test connection** — it walks activation, login and a catalog fetch and
 reports exactly where it stops.
