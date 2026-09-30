@@ -219,10 +219,20 @@ public class PortalitoRuntimeTests
         var runtime = new PortalitoRuntime(() => config, () => { }, TimeProvider.System);
         var before = runtime.CacheStamp();
 
-        Assert.Equal(before, runtime.CacheStamp());
+        Assert.Equal(before, runtime.CacheStamp()); // stable while nothing changes
+        var original = config.FeaturedRows;
         config.FeaturedRows = "Solo | trending";
+        var changed = runtime.CacheStamp();
+        Assert.NotEqual(before, changed);
+
+        // Back to the original config: a NEW key, not the old one -- Jellyfin would serve the old cache file's
+        // folder contents, which by then are the changed config's items.
+        config.FeaturedRows = original;
         Assert.NotEqual(before, runtime.CacheStamp());
-        Assert.Matches("^[0-9a-f]{12}$", runtime.CacheStamp());
+        Assert.NotEqual(changed, runtime.CacheStamp());
+
+        // A restart (a new runtime) never reuses the previous process's keys.
+        Assert.NotEqual(before, new PortalitoRuntime(() => config, () => { }, TimeProvider.System).CacheStamp());
     }
 
     [Fact]

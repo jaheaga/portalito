@@ -71,7 +71,8 @@ Test data must be synthetic (neutral hosts like `host-a.test`, keys like `Portal
 - Anything that changes what a listing contains or how ids are read: **bump `DataVersion`** in
   `PortalitoVodChannel` (and add a line to its history comment). Jellyfin caches listings for 3 hours by
   (channel, folder, `DataVersion`, cache key) and won't re-fetch otherwise. Configuration changes are already
-  covered: the cache key is a hash of the config (`PortalitoRuntime.CacheStamp`).
+  covered: the cache key changes on every config change (`PortalitoRuntime.CacheStamp` — a counter, not a
+  config hash, because on a cache hit Jellyfin serves the folder's last stored items).
 - A saved config that needs upgrading (a new default, a renamed value): add it to
   `PluginConfiguration.ApplyMigrations`, which runs once at plugin load, guarded by a flag property.
 - Folders that should be searchable must be opened by `CatalogIndexWalk.ShouldOpen`.

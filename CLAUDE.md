@@ -22,7 +22,7 @@ A Jellyfin 10.11 channel + Live TV plugin (.NET 9) for IPTV "portal" middleware.
   10.11.x servers. Never reuse a release version/tag (the asset CDN serves stale zips). See
   [docs/RELEASING.md](docs/RELEASING.md).
 - Bump `DataVersion` in `PortalitoVodChannel` whenever a code change alters listings — Jellyfin caches them 3 h. Config
-  changes are covered by the channel's `GetCacheKey` (a config hash).
+  changes are covered by the channel's `GetCacheKey` (a change counter — never a config hash).
 - A new non-empty default doesn't reach configs that already saved the field: use `PluginConfiguration.ApplyMigrations`.
 - Jellyfin re-sorts channel items client-side (A–Z by default); a plugin can't impose an order.
 - A new setting needs the property, a page input + `textFields` entry, the runtime `Fingerprint`, and a

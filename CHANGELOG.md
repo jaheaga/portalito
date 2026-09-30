@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.1.0.7 — 2026-09-30
+
+- Fix 0.1.0.6's cache key: it was a hash of the configuration, so reverting a setting to an earlier value
+  within 3 hours reused that value's old cache file — and on a cache hit Jellyfin serves the folder's last
+  stored items, i.e. the in-between listing. The key is now a change counter plus a per-start nonce, so it
+  never repeats.
+
 ## 0.1.0.6 — 2026-09-30
 
 - **Setting changes show up immediately in the channel.** Jellyfin caches every channel folder's listing for

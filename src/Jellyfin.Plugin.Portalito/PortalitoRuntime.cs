@@ -23,8 +23,9 @@ public interface IPortalitoServicesProvider
     PortalitoServices Get();
 
     /// <summary>
-    /// A short value that changes whenever the configuration does. The channel hands it to Jellyfin as its cache key, so a
-    /// saved setting shows up in the next listing instead of after Jellyfin's 3-hour channel cache expires. Never throws.
+    /// A short value that changes every time the configuration changes (and on every Jellyfin start). The channel hands it
+    /// to Jellyfin as its cache key, so a saved setting shows up in the next listing instead of after Jellyfin's 3-hour
+    /// channel cache expires. Never throws.
     /// </summary>
     string CacheStamp() => string.Empty;
 }
@@ -55,8 +56,12 @@ public sealed class PortalitoRuntime : IPortalitoServicesProvider
     private readonly HttpClient _tmdbHttp = new() { Timeout = TimeSpan.FromSeconds(10) };
     private readonly Dictionary<bool, HttpClient> _portalHttp = new();
 
+    private readonly string _stampNonce = Convert.ToHexString(RandomNumberGenerator.GetBytes(4)).ToLowerInvariant();
+
     private string? _fingerprint;
     private PortalitoServices? _current;
+    private string? _stampFingerprint;
+    private long _stampGeneration;
 
     /// <param name="localBaseUrl">
     /// This server's own address as ffmpeg (running on it) reaches it, used when the proxy base URL is left empty.
@@ -93,12 +98,22 @@ public sealed class PortalitoRuntime : IPortalitoServicesProvider
         }
     }
 
+    // Not a hash of the configuration: on a cache hit Jellyfin doesn't ask the channel at all and serves the items it last
+    // stored under that folder, so a key that came back to an earlier value (config A -> B -> A within 3 hours) would
+    // reuse A's old cache file and show B's listing (measured 2026-09-30). A change counter never repeats; the per-start
+    // nonce keeps a restarted counter from colliding with the previous process's files.
     public string CacheStamp()
     {
         lock (_gate)
         {
-            var hash = SHA256.HashData(System.Text.Encoding.UTF8.GetBytes(Fingerprint(_getConfig())));
-            return Convert.ToHexString(hash, 0, 6).ToLowerInvariant();
+            var fingerprint = Fingerprint(_getConfig());
+            if (fingerprint != _stampFingerprint)
+            {
+                _stampFingerprint = fingerprint;
+                _stampGeneration++;
+            }
+
+            return _stampNonce + _stampGeneration.ToString(System.Globalization.CultureInfo.InvariantCulture);
         }
     }
 

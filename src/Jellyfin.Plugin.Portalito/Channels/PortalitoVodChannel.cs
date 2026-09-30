@@ -72,8 +72,9 @@ public sealed class PortalitoVodChannel : IChannel, IRequiresMediaInfoCallback, 
 
     /// <summary>
     /// Part of the file name Jellyfin caches each folder listing under (for 3 hours, alongside <see cref="DataVersion"/>).
-    /// It follows the configuration, so saving a setting -- the Destacado rows, the catalogs, the TMDB key -- shows up
-    /// in the very next listing. Measured 2026-09-30: without it, changed rows stayed hidden behind the cached listing.
+    /// It changes whenever the configuration does, so saving a setting -- the Destacado rows, the catalogs, the TMDB key --
+    /// shows up in the very next listing. Measured 2026-09-30: without it, changed rows stayed hidden behind the cached
+    /// listing. See <see cref="PortalitoRuntime.CacheStamp"/> for why it isn't a hash of the configuration.
     /// </summary>
     public string? GetCacheKey(string? userId) => _services.CacheStamp();
 
