@@ -26,3 +26,4 @@ A Jellyfin 10.11 channel + Live TV plugin (.NET 9) for IPTV "portal" middleware.
 - A new setting needs the property, a page input + `textFields` entry, the runtime `Fingerprint`, and a
   `.env.example` key (checklist in docs/DEVELOPMENT.md).
 - The release workflow commits `manifest.json` to `main` after a tag — pull before pushing again.
+- Updating a server: wait until `GET /Packages` shows the new version *before* uninstalling the old one.

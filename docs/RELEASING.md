@@ -44,12 +44,17 @@ Through the UI: **Dashboard → Plugins → Catalog → Portalito → Install**,
 (admin key):
 
 ```sh
-curl "$SERVER/Packages?api_key=$KEY"                                             # does it see the new version?
+curl "$SERVER/Packages?api_key=$KEY"                                             # does it see the new version? WAIT until it does
 curl -X DELETE "$SERVER/Plugins/$PLUGIN_GUID?api_key=$KEY"                        # remove the old one (optional)
 curl -X POST "$SERVER/Packages/Installed/Portalito?version=0.1.0.N&api_key=$KEY"  # install
 curl -X POST "$SERVER/System/Restart?api_key=$KEY"                                # activate
 curl "$SERVER/Plugins?api_key=$KEY"                                              # expect Status: Active
 ```
+
+**Don't uninstall until `/Packages` lists the new version.** The server reads the manifest through
+`raw.githubusercontent.com`, which can lag several minutes behind the release; uninstalling first and then
+installing a version the server can't see yet (HTTP 404) leaves the server with no plugin at all. The saved
+configuration survives an uninstall/reinstall.
 
 The plugin GUID is `0bae4700-9bef-4e03-ad7f-cc99bf8f51ab`. `NotSupported` after a restart means the assembly
 failed to load — the server log says why.
