@@ -22,7 +22,8 @@ public class ScrubGuardTests
         "***REMOVED***", "***REMOVED***",
     };
 
-    private static readonly string[] SkipDirs = { "bin", "obj", ".git", "artifacts", "node_modules" };
+    // "private" holds the operator's git-ignored real-portal notes (never published), like .env.
+    private static readonly string[] SkipDirs = { "bin", "obj", ".git", "artifacts", "node_modules", "private" };
     private static readonly string[] SkipFiles = { "scrub-check.sh", "ScrubGuardTests.cs" };
 
     [Fact]

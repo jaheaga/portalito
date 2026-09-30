@@ -17,9 +17,10 @@ deny=(
 
 pattern=$(IFS='|'; echo "${deny[*]}")
 # Everything tracked-ish, minus build output and VCS metadata, and minus this script (it lists the tokens).
-# .env holds the operator's own real portal values; it is git-ignored and never published, so it is skipped
-# (.env.example, the blank template, is still scanned).
+# .env and private/ hold the operator's own real portal values (and the APK-extraction notes); they are
+# git-ignored and never published, so they are skipped (.env.example, the blank template, is still scanned).
 hits=$(grep -rInEi --exclude-dir=bin --exclude-dir=obj --exclude-dir=.git --exclude-dir=artifacts \
+  --exclude-dir=private \
   --exclude='scrub-check.sh' --exclude='ScrubGuardTests.cs' --exclude='.env' --exclude='.env.local' \
   "$pattern" . || true)
 

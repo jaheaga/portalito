@@ -2,6 +2,8 @@
 .env
 .env.*
 !.env.example
+# Private local notes (real-portal values, extraction write-ups) — never commit
+private/
 # Native blobs are never part of this plugin
 *.so
 # .NET build output
