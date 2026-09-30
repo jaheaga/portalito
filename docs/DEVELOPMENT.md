@@ -69,8 +69,11 @@ Test data must be synthetic (neutral hosts like `host-a.test`, keys like `Portal
 
 - New folder kinds need a `VodItemKind`, a factory, and `ToString`/`TryParse` cases in `Catalog/VodItemId.cs`.
 - Anything that changes what a listing contains or how ids are read: **bump `DataVersion`** in
-  `PortalitoVodChannel` (and add a line to its history comment). Jellyfin caches listings by
-  (channel, folder, `DataVersion`) and won't re-fetch otherwise.
+  `PortalitoVodChannel` (and add a line to its history comment). Jellyfin caches listings for 3 hours by
+  (channel, folder, `DataVersion`, cache key) and won't re-fetch otherwise. Configuration changes are already
+  covered: the cache key is a hash of the config (`PortalitoRuntime.CacheStamp`).
+- A saved config that needs upgrading (a new default, a renamed value): add it to
+  `PluginConfiguration.ApplyMigrations`, which runs once at plugin load, guarded by a flag property.
 - Folders that should be searchable must be opened by `CatalogIndexWalk.ShouldOpen`.
 - Remember that Jellyfin re-sorts channel items client-side (A–Z by default); a listing's order is not
   under the plugin's control.

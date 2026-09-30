@@ -21,7 +21,7 @@ namespace Jellyfin.Plugin.Portalito.Channels;
 /// The portal as a Jellyfin channel. The root holds two folders: "Descubrir" (Portalito's own full, paginated catalog) and
 /// "TV en vivo" (the live channels). Playback goes through the plugin's own signed proxy URLs.
 /// </summary>
-public sealed class PortalitoVodChannel : IChannel, IRequiresMediaInfoCallback
+public sealed class PortalitoVodChannel : IChannel, IRequiresMediaInfoCallback, IHasCacheKey
 {
     /// <summary>Portal page size; also the channel's <c>MaxPageSize</c> so a Jellyfin window spans at most two portal pages.</summary>
     internal const int PageSize = 30;
@@ -69,6 +69,13 @@ public sealed class PortalitoVodChannel : IChannel, IRequiresMediaInfoCallback
     }
 
     public string Name => "Portalito VOD";
+
+    /// <summary>
+    /// Part of the file name Jellyfin caches each folder listing under (for 3 hours, alongside <see cref="DataVersion"/>).
+    /// It follows the configuration, so saving a setting -- the Destacado rows, the catalogs, the TMDB key -- shows up
+    /// in the very next listing. Measured 2026-09-30: without it, changed rows stayed hidden behind the cached listing.
+    /// </summary>
+    public string? GetCacheKey(string? userId) => _services.CacheStamp();
 
     public string Description => "Movies and series from a configurable IPTV portal.";
 

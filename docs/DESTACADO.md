@@ -26,8 +26,13 @@ browses the portal's own catalog.
 | Películas mejor valoradas | `top-movies` |
 | Series mejor valoradas | `top-tv` |
 
-The exact string is `PluginConfiguration.DefaultFeaturedRows`. A saved configuration from before this setting
-existed picks up the default too; a configuration where the field was saved empty stays empty.
+The exact string is `PluginConfiguration.DefaultFeaturedRows`. Existing installs get it too: a one-time
+migration (0.1.0.6) fills the field when it's empty and was never seeded — including configs that 0.1.0.4
+saved empty. After that, clearing the field keeps it cleared.
+
+Changes to the rows show up in the **next** listing: the channel's cache key follows the configuration, so
+Jellyfin's 3-hour channel cache doesn't hide them. (A client app may still show its own cached screen until
+you refresh it.)
 
 ## Syntax
 

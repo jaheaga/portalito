@@ -1,5 +1,15 @@
 # Changelog
 
+## 0.1.0.6 — 2026-09-30
+
+- **Setting changes show up immediately in the channel.** Jellyfin caches every channel folder's listing for
+  3 hours; the channel now gives Jellyfin a cache key that follows the configuration, so saving the Destacado
+  rows (or catalogs, or the TMDB key) is reflected in the next listing. Before, the old rows could stay for
+  up to 3 hours.
+- **Configs saved by 0.1.0.4 get the default Destacado rows.** 0.1.0.4 saved an empty `FeaturedRows`, which
+  kept 0.1.0.5's new default from applying. A one-time migration fills an empty, never-seeded field with the
+  default rows; clearing the field afterwards still turns them off.
+
 ## 0.1.0.5 — 2026-09-30
 
 - **Default Destacado rows.** `FeaturedRows` now comes pre-filled with 11 TMDB rows (Tendencias, Estrenos en

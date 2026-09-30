@@ -21,6 +21,12 @@ public interface IPortalitoServicesProvider
 {
     /// <summary>Returns the services for the current configuration; throws <see cref="PortalException"/> if it is incomplete.</summary>
     PortalitoServices Get();
+
+    /// <summary>
+    /// A short value that changes whenever the configuration does. The channel hands it to Jellyfin as its cache key, so a
+    /// saved setting shows up in the next listing instead of after Jellyfin's 3-hour channel cache expires. Never throws.
+    /// </summary>
+    string CacheStamp() => string.Empty;
 }
 
 /// <summary>
@@ -84,6 +90,15 @@ public sealed class PortalitoRuntime : IPortalitoServicesProvider
             }
 
             return _current;
+        }
+    }
+
+    public string CacheStamp()
+    {
+        lock (_gate)
+        {
+            var hash = SHA256.HashData(System.Text.Encoding.UTF8.GetBytes(Fingerprint(_getConfig())));
+            return Convert.ToHexString(hash, 0, 6).ToLowerInvariant();
         }
     }
 

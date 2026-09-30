@@ -187,6 +187,45 @@ public class PortalitoRuntimeTests
     }
 
     [Fact]
+    public void A_config_saved_empty_before_the_default_existed_gets_the_default_rows_once()
+    {
+        // A 0.1.0.4 install saved FeaturedRows = "" (the default then); 0.1.0.5's default never reached it (2026-09-30).
+        var config = new PluginConfiguration { FeaturedRows = string.Empty };
+
+        Assert.True(config.ApplyMigrations());
+        Assert.Equal(PluginConfiguration.DefaultFeaturedRows, config.FeaturedRows);
+        Assert.True(config.FeaturedRowsSeeded);
+
+        // Cleared on purpose afterwards: stays cleared.
+        config.FeaturedRows = string.Empty;
+        Assert.False(config.ApplyMigrations());
+        Assert.Equal(string.Empty, config.FeaturedRows);
+    }
+
+    [Fact]
+    public void The_migration_keeps_rows_the_owner_already_set()
+    {
+        var config = new PluginConfiguration { FeaturedRows = "Solo | trending" };
+
+        Assert.True(config.ApplyMigrations()); // only marks it seeded
+        Assert.Equal("Solo | trending", config.FeaturedRows);
+    }
+
+    [Fact]
+    public void The_cache_stamp_changes_with_the_configuration_so_jellyfin_relists()
+    {
+        // Jellyfin caches a channel folder's listing for 3 hours; the stamp is part of that cache's file name.
+        var config = ValidConfig();
+        var runtime = new PortalitoRuntime(() => config, () => { }, TimeProvider.System);
+        var before = runtime.CacheStamp();
+
+        Assert.Equal(before, runtime.CacheStamp());
+        config.FeaturedRows = "Solo | trending";
+        Assert.NotEqual(before, runtime.CacheStamp());
+        Assert.Matches("^[0-9a-f]{12}$", runtime.CacheStamp());
+    }
+
+    [Fact]
     public void Becoming_invalid_after_being_valid_throws_instead_of_serving_stale_services()
     {
         var config = ValidConfig();

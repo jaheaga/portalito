@@ -96,8 +96,9 @@ Portalito VOD
     recent titles, per catalog.
 - **Item ids** (`VodItemId`) encode what an item stands for (`mov:<contentId>`, `shw:…`, `row:<index>:<mode>`,
   `flt:<catalog>:g<tag>`…) in a strict charset, because they end up in portal requests and proxy URLs.
-- **`DataVersion`** is part of Jellyfin's cache key for channel listings; bump it whenever the tree's shape or
-  contents change meaning, or Jellyfin keeps serving old listings.
+- **Listing cache.** Jellyfin caches each folder's listing for 3 hours in a file named from `DataVersion` and
+  the channel's `GetCacheKey` (`IHasCacheKey`). `GetCacheKey` returns a hash of the whole configuration, so a
+  saved setting relists immediately; bump `DataVersion` whenever a *code* change alters what listings mean.
 - **Folder thumbnails** are collages rendered to files (`CollageService`), picked so sibling and parent
   folders don't repeat the same posters (`CollagePlanner`).
 
@@ -158,7 +159,7 @@ TMDB never decides what plays: everything played is the portal's.
 
 | What | Where | Lifetime |
 |---|---|---|
-| Channel listings | Jellyfin (keyed by `DataVersion`, which includes the date) | until the day or `DataVersion` changes |
+| Channel listings | Jellyfin's channel cache, a file per folder keyed by `DataVersion` + the channel's cache key (`IHasCacheKey` → a hash of the configuration) | 3 h, or until the date, `DataVersion` or the configuration changes |
 | Catalog parent ids, genre/year vocabulary, collage posters, top-rated rankings | `CatalogBrowser` | 24 h |
 | TMDB enrichment matches | `TmdbClient` | 7 days |
 | TMDB lists (Destacado) | `TmdbClient` | 6 h |

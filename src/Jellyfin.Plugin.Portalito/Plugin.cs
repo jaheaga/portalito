@@ -14,6 +14,12 @@ public class Plugin : BasePlugin<PluginConfiguration>, IHasWebPages
         : base(applicationPaths, xmlSerializer)
     {
         Instance = this;
+
+        // Upgrade the saved configuration once (e.g. give pre-0.1.0.5 configs the default Destacado rows).
+        if (Configuration.ApplyMigrations())
+        {
+            SaveConfiguration();
+        }
     }
 
     public static Plugin? Instance { get; private set; }

@@ -130,6 +130,33 @@ public class PluginConfiguration : BasePluginConfiguration
     /// </summary>
     public string FeaturedRows { get; set; } = DefaultFeaturedRows;
 
+    /// <summary>
+    /// Gets or sets a value indicating whether <see cref="FeaturedRows"/> has been given its default once. Not on the
+    /// config page. Lets a config saved by 0.1.0.4 -- when the default was empty -- pick up the default rows once, while
+    /// a field cleared on purpose afterwards stays cleared.
+    /// </summary>
+    public bool FeaturedRowsSeeded { get; set; }
+
+    /// <summary>
+    /// One-time upgrades of a saved configuration; returns whether anything changed (so the caller saves it). Today: an
+    /// empty <see cref="FeaturedRows"/> that was never seeded gets <see cref="DefaultFeaturedRows"/>.
+    /// </summary>
+    public bool ApplyMigrations()
+    {
+        if (FeaturedRowsSeeded)
+        {
+            return false;
+        }
+
+        if (string.IsNullOrWhiteSpace(FeaturedRows))
+        {
+            FeaturedRows = DefaultFeaturedRows;
+        }
+
+        FeaturedRowsSeeded = true;
+        return true;
+    }
+
     /// <summary>Gets or sets the secret that signs proxy URLs. Generated on first use when empty.</summary>
     public string ProxySigningSecret { get; set; } = string.Empty;
 
