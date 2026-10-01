@@ -9,12 +9,12 @@
     "imageUrl": "https://raw.githubusercontent.com/jaheaga/portalito/main/assets/branding/portalito-banner.png",
     "versions": [
       {
-        "version": "0.1.1.101",
+        "version": "0.1.1.102",
         "targetAbi": "10.11.0.0",
-        "sourceUrl": "https://raw.githubusercontent.com/jaheaga/portalito/testing/Portalito_0.1.1.101.zip",
-        "checksum": "acee07e7b022418e0a9b5d3b34ecb99d",
-        "changelog": "VOD: retry a CDN connection that times out (seeks/resume failed). Not a release.",
-        "timestamp": "2026-10-01T16:28:19Z"
+        "sourceUrl": "https://raw.githubusercontent.com/jaheaga/portalito/testing/Portalito_0.1.1.102.zip",
+        "checksum": "856e5235512b61ba317f221b04ba264e",
+        "changelog": "Siguiendo: any recent play keeps a show followed; marker file; subtitles at playback. Not a release.",
+        "timestamp": "2026-10-01T18:43:14Z"
       }
     ]
   }
