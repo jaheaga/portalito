@@ -9,12 +9,12 @@
     "imageUrl": "https://raw.githubusercontent.com/jaheaga/portalito/main/assets/branding/portalito-banner.png",
     "versions": [
       {
-        "version": "0.1.1.104",
+        "version": "0.1.1.105",
         "targetAbi": "10.11.0.0",
-        "sourceUrl": "https://raw.githubusercontent.com/jaheaga/portalito/testing/Portalito_0.1.1.104.zip",
-        "checksum": "fc6991e4feedd05fac2bd35cfa6197ef",
-        "changelog": "Destacado: rows identified by label, not position. Not a release.",
-        "timestamp": "2026-10-01T20:19:36Z"
+        "sourceUrl": "https://raw.githubusercontent.com/jaheaga/portalito/testing/Portalito_0.1.1.105.zip",
+        "checksum": "bab3a26c6192aac9b40ab9b3fea831fb",
+        "changelog": "Channel logo task: fills the channel's missing images. Not a release.",
+        "timestamp": "2026-10-01T20:29:15Z"
       }
     ]
   }
