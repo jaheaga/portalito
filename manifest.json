@@ -9,6 +9,14 @@
     "imageUrl": "https://raw.githubusercontent.com/jaheaga/portalito/main/assets/branding/portalito-banner.png",
     "versions": [
       {
+        "version": "0.1.0.8",
+        "targetAbi": "10.11.0.0",
+        "sourceUrl": "https://github.com/jaheaga/portalito/releases/download/v0.1.0.8/Portalito_0.1.0.8.zip",
+        "checksum": "d3329dabbfeeaa895045e07b4e40fd41",
+        "changelog": "A logo for the channel. \"Portalito VOD\" now shows the Portalito logo (a lit doorway with a play button) instead of a blank tile: the square logo as its main image, a banner as its thumb and backdrop. They're built in, so they work even before the portal is configured. The plugin also shows the\u2026",
+        "timestamp": "2026-10-01T12:35:24Z"
+      },
+      {
         "version": "0.1.0.7",
         "targetAbi": "10.11.0.0",
         "sourceUrl": "https://github.com/jaheaga/portalito/releases/download/v0.1.0.7/Portalito_0.1.0.7.zip",
