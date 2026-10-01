@@ -37,6 +37,32 @@ public sealed class DiscoveryBrowser
     public IReadOnlyList<FeaturedRow> Rows { get; }
 
     /// <summary>
+    /// A row's folder number, from its label: the same row keeps its id (and the image Jellyfin stored for it) wherever it
+    /// sits in the list. Ids were the row's position until 0.1.1.3: inserting rows gave the rows after them the positions,
+    /// and so the stored collages, of other rows (measured 2026-10-01: Disney+ showing "Películas de anime"). Always
+    /// 100000000 or more, so it never equals an old position id.
+    /// </summary>
+    public static int RowKey(string label)
+    {
+        var hash = System.Security.Cryptography.SHA256.HashData(System.Text.Encoding.UTF8.GetBytes(label.Trim()));
+        return 100_000_000 + (int)(BitConverter.ToUInt32(hash, 0) % 900_000_000);
+    }
+
+    /// <summary>The index of the row whose <see cref="RowKey"/> is <paramref name="key"/>; -1 if no row has it (any more).</summary>
+    public int IndexOfRow(int key)
+    {
+        for (var i = 0; i < Rows.Count; i++)
+        {
+            if (RowKey(Rows[i].Label) == key)
+            {
+                return i;
+            }
+        }
+
+        return -1;
+    }
+
+    /// <summary>
     /// Parses the configured rows: one per line or separated by <c>;</c>, each <c>Label | source | key=value ...</c>
     /// (the parameters are space-separated; list alternatives with commas, e.g. <c>country=JP,KR</c>). Rows with no
     /// label or an unknown source are skipped.

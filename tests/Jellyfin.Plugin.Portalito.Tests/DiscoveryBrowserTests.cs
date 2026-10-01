@@ -78,6 +78,22 @@ public class DiscoveryBrowserTests
     }
 
     [Fact]
+    public void A_row_keeps_its_id_wherever_it_sits_in_the_list()
+    {
+        var tmdb = new TmdbClient(new FakeTmdbTransport(), "key", TimeProvider.System);
+        var before = new DiscoveryBrowser(tmdb, TimeProvider.System, DiscoveryBrowser.ParseRows("Series populares | popular-tv; Películas de anime | discover-movies"));
+        var after = new DiscoveryBrowser(tmdb, TimeProvider.System, DiscoveryBrowser.ParseRows("Series populares | popular-tv; Disney+ | discover-tv | network=disney; Películas de anime | discover-movies"));
+        var anime = DiscoveryBrowser.RowKey("Películas de anime");
+
+        Assert.Equal(1, before.IndexOfRow(anime));
+        Assert.Equal(2, after.IndexOfRow(anime));
+        Assert.NotEqual(anime, DiscoveryBrowser.RowKey("Disney+"));
+        Assert.Equal(anime, DiscoveryBrowser.RowKey(" Películas de anime "));
+        Assert.InRange(anime, 100_000_000, 999_999_999);
+        Assert.Equal(-1, after.IndexOfRow(1)); // an id from when rows were numbered by position finds nothing
+    }
+
+    [Fact]
     public void Trending_defaults_to_all_titles_this_week()
     {
         var endpoint = TmdbLists.Endpoint(new FeaturedRow("T", "trending", new Dictionary<string, string>()))!.Value;

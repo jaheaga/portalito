@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.1.1.4 — 2026-10-01
+
+- **Each Destacado row shows its own picture again.** Rows were identified by their position in the list, so adding
+  rows (like 0.1.1.3's platform rows) gave the rows after them the position, and the picture Jellyfin had stored, of
+  another row: Disney+ showed "Películas de anime", HBO showed "Series coreanas". Rows are now identified by their
+  name, so reordering or adding rows never mixes them up. Renaming a row gives it a fresh picture.
+
 ## 0.1.1.3 — 2026-10-01
 
 - **Destacado rows by streaming platform.** Six new default rows list each platform's own series, most popular

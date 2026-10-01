@@ -30,7 +30,7 @@ public sealed class PortalitoVodChannel : IChannel, IRequiresMediaInfoCallback, 
     // program types the reference client treats as "a series of episodes"; anything else plays directly as a movie.
     private static readonly HashSet<string> SeriesTypes = new(StringComparer.OrdinalIgnoreCase) { "teleplay", "series", "variety" };
 
-    // A "Destacado" row built from a TMDB list: VodItemId.Row(rowIndex, TmdbRowMode), the index into the configured rows.
+    // A "Destacado" row built from a TMDB list: VodItemId.Row(DiscoveryBrowser.RowKey(label), TmdbRowMode).
     private const string TmdbRowMode = "tmdb";
 
     /// <summary>How long a title's probe may take before playback goes ahead without its track list.</summary>
@@ -139,8 +139,10 @@ public sealed class PortalitoVodChannel : IChannel, IRequiresMediaInfoCallback, 
     /// with the portal (see <see cref="DiscoveryBrowser"/>).
     /// "v23" -> "v24" (2026-10-01): movies and episodes carry their runtime once known, and episodes their season and
     /// show name -- what Jellyfin needs to keep playback positions (Continue Watching) and order episodes.
+    /// "v24" -> "v25" (2026-10-01): TMDB Destacado rows are identified by their label, not their position (see
+    /// <see cref="DiscoveryBrowser.RowKey"/>).
     /// </summary>
-    public string DataVersion => $"v24:{DateTime.UtcNow:yyyyMMdd}";
+    public string DataVersion => $"v25:{DateTime.UtcNow:yyyyMMdd}";
 
     public string HomePageUrl => string.Empty;
 
@@ -777,7 +779,7 @@ public sealed class PortalitoVodChannel : IChannel, IRequiresMediaInfoCallback, 
         var images = await Task.WhenAll(discovery.Rows.Select((r, i) =>
             CollageAsync(services, r.Label, CollageFit.Cover, picks[i], cancellationToken))).ConfigureAwait(false);
 
-        return discovery.Rows.Select((r, i) => Folder(VodItemId.Row(i, TmdbRowMode).ToString(), r.Label, ChannelFolderType.Container, images[i])).ToList();
+        return discovery.Rows.Select((r, i) => Folder(VodItemId.Row(DiscoveryBrowser.RowKey(r.Label), TmdbRowMode).ToString(), r.Label, ChannelFolderType.Container, images[i])).ToList();
     }
 
     /// <summary>A row's TMDB list, or none if TMDB won't answer -- a thumbnail must not break the listing.</summary>
@@ -795,10 +797,10 @@ public sealed class PortalitoVodChannel : IChannel, IRequiresMediaInfoCallback, 
     }
 
     /// <summary>A TMDB row's portal titles; empty (not an error) when the row no longer exists or TMDB is unreachable.</summary>
-    private async Task<ChannelItemResult> TmdbRowItemsAsync(PortalitoServices services, int rowIndex, PageWindow window, CancellationToken cancellationToken)
+    private async Task<ChannelItemResult> TmdbRowItemsAsync(PortalitoServices services, int rowKey, PageWindow window, CancellationToken cancellationToken)
     {
         IReadOnlyList<JsonObject> content = Array.Empty<JsonObject>();
-        if (services.Discovery is { } discovery && rowIndex < discovery.Rows.Count)
+        if (services.Discovery is { } discovery && discovery.IndexOfRow(rowKey) is >= 0 and var rowIndex)
         {
             try
             {
