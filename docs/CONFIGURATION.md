@@ -75,6 +75,7 @@ plugin. A wrong value only shows up as live streams that won't play (VOD doesn't
 
 | Field | `.env` key | What it is |
 |---|---|---|
+| `ChannelImageUrl` | `PORTALITO_CHANNEL_IMAGE_URL` | Optional http(s) image for the channel tile. Empty = the built-in Portalito logo. Jellyfin caches channel images: after changing it, refresh the channel's metadata with *Replace existing images*. |
 | `ProxyBaseUrl` | `PORTALITO_PROXY_BASE_URL` | How Jellyfin's own ffmpeg reaches this server's proxy, e.g. `http://127.0.0.1:8096`. Empty = the server's own local address (port, HTTPS and base path included). Must be `http(s)://`. |
 | `EpgTimeZone` | `PORTALITO_EPG_TIME_ZONE` | IANA zone the portal's guide times are in (they carry none), e.g. `America/Bogota`. Empty = the server's zone. |
 | `SkipPortalTlsVerification` | `PORTALITO_SKIP_PORTAL_TLS_VERIFICATION` | Off by default. Turn on only if the portal hosts present invalid certificates — without verification, anyone on the network path can capture the login. |

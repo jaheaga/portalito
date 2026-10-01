@@ -78,6 +78,11 @@
                     <div class="fieldDescription">Rows separated by <code>;</code>, each <code>Label | source | key=value ...</code>. Sources: trending, popular-movies, popular-tv, top-movies, top-tv, upcoming, now-playing, airing-today, on-air, discover-movies, discover-tv. Discover takes <code>country=</code>, <code>lang=</code>, <code>genre=</code> (16 = animation), <code>nogenre=</code>, <code>sort=</code>, <code>year=</code>, <code>minvotes=</code> (commas mean "or", e.g. <code>country=JP,KR</code>); trending takes <code>type=movie|tv</code> and <code>window=day|week</code>. Only titles your portal has are shown. Needs the TMDB key. Comes pre-filled with a default set of rows; clear it to use the portal's own rows instead.</div>
                 </div>
                 <div class="inputContainer">
+                    <label class="inputLabel inputLabelUnfocused" for="ChannelImageUrl">Channel image URL (optional)</label>
+                    <input id="ChannelImageUrl" name="ChannelImageUrl" type="text" is="emby-input" placeholder="https://..." autocomplete="off" />
+                    <div class="fieldDescription">Leave empty to use the built-in Portalito logo. Jellyfin caches channel images: after changing this, open the channel and use "Refresh metadata" with "Replace existing images".</div>
+                </div>
+                <div class="inputContainer">
                     <label class="inputLabel inputLabelUnfocused" for="EpgTimeZone">TV guide time zone (optional)</label>
                     <input id="EpgTimeZone" name="EpgTimeZone" type="text" is="emby-input" placeholder="e.g. America/Bogota" />
                     <div class="fieldDescription">The portal sends guide times without a time zone. If the guide is shifted by some hours, put the zone the portal uses here (an IANA name). Empty means the server's own.</div>
@@ -174,7 +179,7 @@
     <script type="text/javascript">
         (function () {
             var pluginId = '0bae4700-9bef-4e03-ad7f-cc99bf8f51ab';
-            var textFields = ['TripleDesKeyHex', 'Hosts', 'AppId', 'ApkVersion', 'DeviceSn', 'DeviceDrmId', 'DeviceToken', 'DeviceReserve1', 'ProxyBaseUrl', 'AccountEmail', 'AccountPassword', 'TmdbApiKey', 'FeaturedRows', 'EpgTimeZone', 'ContentAuthMethod', 'ContentAuthSaltHex', 'ContentAuthMd5Schedule', 'ContentAuthMd5KOverrides', 'PortalCode', 'ApiBasePath', 'PortalApkVer', 'PortalSpkgVer', 'PortalUserAgent', 'CdnUserAgent', 'LoginPasswordSalt', 'SnTokenSalt', 'LiveColumnCode', 'AllChannelsColumnId', 'Catalogs'];
+            var textFields = ['TripleDesKeyHex', 'Hosts', 'AppId', 'ApkVersion', 'DeviceSn', 'DeviceDrmId', 'DeviceToken', 'DeviceReserve1', 'ProxyBaseUrl', 'AccountEmail', 'AccountPassword', 'TmdbApiKey', 'FeaturedRows', 'ChannelImageUrl', 'EpgTimeZone', 'ContentAuthMethod', 'ContentAuthSaltHex', 'ContentAuthMd5Schedule', 'ContentAuthMd5KOverrides', 'PortalCode', 'ApiBasePath', 'PortalApkVer', 'PortalSpkgVer', 'PortalUserAgent', 'CdnUserAgent', 'LoginPasswordSalt', 'SnTokenSalt', 'LiveColumnCode', 'AllChannelsColumnId', 'Catalogs'];
             var marks = { ok: '\u2705', warning: '\u26A0\uFE0F', error: '\u274C' };
 
             // Bulk import/export. Every key is matched by its normalized form (uppercase, no PORTALITO_

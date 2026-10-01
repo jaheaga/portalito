@@ -23,6 +23,7 @@ src/Jellyfin.Plugin.Portalito/     the plugin (see ARCHITECTURE.md)
 tests/Jellyfin.Plugin.Portalito.Tests/
 packaging/                         meta.json (plugin metadata), package.py, update_manifest.py
 scripts/scrub-check.sh             the no-secrets gate
+assets/branding/                   the logo (icon, banner) and make_logo.py, which draws them; embedded in the DLL
 manifest.json                      the Jellyfin plugin-repository manifest (updated by the release CI)
 .env.example                       every setting as a PORTALITO_* key, blank
 .github/workflows/                 test.yml (every push), release.yml (v* tags)

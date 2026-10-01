@@ -1,5 +1,7 @@
 # Portalito
 
+<p align="center"><img src="assets/branding/portalito-banner.png" alt="Portalito" width="480"></p>
+
 A [Jellyfin](https://jellyfin.org) channel plugin for self-hosted IPTV **portal** middleware — the
 kind that exposes Live TV and VOD (movies and series) over an HTTP JSON API and serves streams from a
 CDN behind a per-request signed token.

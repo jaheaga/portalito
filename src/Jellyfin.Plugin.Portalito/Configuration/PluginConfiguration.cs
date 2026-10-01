@@ -157,6 +157,12 @@ public class PluginConfiguration : BasePluginConfiguration
         return true;
     }
 
+    /// <summary>
+    /// Gets or sets an optional image URL for the channel (http/https). Empty (the default) uses the built-in Portalito
+    /// logo. Jellyfin caches channel images: after changing it, refresh the channel's images.
+    /// </summary>
+    public string ChannelImageUrl { get; set; } = string.Empty;
+
     /// <summary>Gets or sets the secret that signs proxy URLs. Generated on first use when empty.</summary>
     public string ProxySigningSecret { get; set; } = string.Empty;
 

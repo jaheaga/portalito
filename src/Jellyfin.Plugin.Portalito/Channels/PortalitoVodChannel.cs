@@ -154,10 +154,36 @@ public sealed class PortalitoVodChannel : IChannel, IRequiresMediaInfoCallback, 
     // This is the CHANNEL's own icon (Jellyfin's channel-list entry for "Portalito VOD" itself), not a per-item
     // poster -- those are set directly on each ChannelItemInfo.ImageUrl. No source has a logo for the channel as
     // a whole, so this stays empty.
+    /// <summary>
+    /// The channel's own images: the configured <c>ChannelImageUrl</c> when set, otherwise the built-in Portalito logo
+    /// (square, for Primary) and banner (16:9, for Thumb and Backdrop), embedded from <c>assets/branding</c>. Works even
+    /// before the portal is configured, so the channel never shows a blank tile.
+    /// </summary>
     public Task<DynamicImageResponse> GetChannelImage(ImageType type, CancellationToken cancellationToken)
-        => Task.FromResult(new DynamicImageResponse { HasImage = false });
+    {
+        string? url = null;
+        try
+        {
+            url = _services.Get().ChannelImageUrl;
+        }
+        catch (PortalException)
+        {
+            // Not configured yet: the built-in image still applies.
+        }
 
-    public IEnumerable<ImageType> GetSupportedChannelImages() => Array.Empty<ImageType>();
+        if (url is not null)
+        {
+            return Task.FromResult(new DynamicImageResponse { HasImage = true, Path = url, Protocol = MediaBrowser.Model.MediaInfo.MediaProtocol.Http });
+        }
+
+        var resource = type == ImageType.Primary ? "icon.png" : "banner.png";
+        var stream = typeof(PortalitoVodChannel).Assembly.GetManifestResourceStream("Jellyfin.Plugin.Portalito.Branding." + resource);
+        return Task.FromResult(stream is null
+            ? new DynamicImageResponse { HasImage = false }
+            : new DynamicImageResponse { HasImage = true, Stream = stream, Format = MediaBrowser.Model.Drawing.ImageFormat.Png });
+    }
+
+    public IEnumerable<ImageType> GetSupportedChannelImages() => new[] { ImageType.Primary, ImageType.Thumb, ImageType.Backdrop };
 
     /// <summary>
     /// Jellyfin 10.11's ChannelManager calls this ONCE per folder with no StartIndex/Limit at all, caches the whole

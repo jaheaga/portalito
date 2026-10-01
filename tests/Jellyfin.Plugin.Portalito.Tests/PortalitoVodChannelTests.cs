@@ -677,13 +677,6 @@ public sealed class PortalitoVodChannelTests : IDisposable
     }
 
     [Fact]
-    public async Task No_images_are_offered_yet()
-    {
-        Assert.Empty(_channel.GetSupportedChannelImages());
-        Assert.False((await _channel.GetChannelImage(MediaBrowser.Model.Entities.ImageType.Primary, default)).HasImage);
-    }
-
-    [Fact]
     public void The_channel_is_enabled_only_once_the_plugin_is_configured()
     {
         Assert.True(_channel.IsEnabledFor("user"));

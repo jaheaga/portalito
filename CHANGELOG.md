@@ -1,5 +1,15 @@
 # Changelog
 
+## 0.1.0.8 — 2026-10-01
+
+- **A logo for the channel.** "Portalito VOD" now shows the Portalito logo (a lit doorway with a play button)
+  instead of a blank tile: the square logo as its main image, a banner as its thumb and backdrop. They're
+  built in, so they work even before the portal is configured. The plugin also shows the banner in Jellyfin's
+  plugin catalog.
+- **New optional setting "Channel image URL"** to use your own image instead.
+- Upgrading: Jellyfin keeps the channel's old (empty) image until it refreshes it — open the channel's
+  ⋮ menu → **Refresh metadata** → *Replace existing images*, or wait for the next library scan.
+
 ## 0.1.0.7 — 2026-09-30
 
 - Fix 0.1.0.6's cache key: it was a hash of the configuration, so reverting a setting to an earlier value

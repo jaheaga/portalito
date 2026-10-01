@@ -101,6 +101,8 @@ Portalito VOD
   serves the items it last stored for that folder. `GetCacheKey` changes on every configuration change (a
   counter, never a config hash — reverting a config must not reuse an older file) and on every restart, so a
   saved setting relists immediately; bump `DataVersion` whenever a *code* change alters what listings mean.
+- **Channel images**: the channel supplies its own Primary (square logo), Thumb and Backdrop (16:9 banner) —
+  embedded PNGs from `assets/branding/` (drawn by `make_logo.py`) — or the `ChannelImageUrl` setting's image.
 - **Folder thumbnails** are collages rendered to files (`CollageService`), picked so sibling and parent
   folders don't repeat the same posters (`CollagePlanner`).
 

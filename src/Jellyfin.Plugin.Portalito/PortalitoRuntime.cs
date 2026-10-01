@@ -15,7 +15,8 @@ public sealed record PortalitoServices(
     Metadata.TmdbClient? Tmdb = null,
     TimeZoneInfo? EpgTimeZone = null,
     string? EpgTimeZoneProblem = null,
-    DiscoveryBrowser? Discovery = null);
+    DiscoveryBrowser? Discovery = null,
+    string? ChannelImageUrl = null);
 
 public interface IPortalitoServicesProvider
 {
@@ -147,7 +148,10 @@ public sealed class PortalitoRuntime : IPortalitoServicesProvider
         // TMDB-driven "Destacado" rows: only with a TMDB key and at least one valid configured row.
         var featuredRows = DiscoveryBrowser.ParseRows(config.FeaturedRows);
         var discovery = tmdb is not null && featuredRows.Count > 0 ? new DiscoveryBrowser(tmdb, _clock, featuredRows) : null;
-        return new PortalitoServices(portal, signer, proxy, catalogs, tmdb, epgZone, epgZoneProblem, discovery);
+        var channelImage = Uri.TryCreate(config.ChannelImageUrl.Trim(), UriKind.Absolute, out var image) && image.Scheme is "http" or "https"
+            ? image.ToString()
+            : null;
+        return new PortalitoServices(portal, signer, proxy, catalogs, tmdb, epgZone, epgZoneProblem, discovery, channelImage);
     }
 
     /// <summary>Builds the CDN Content-Auth signer from config: signing method, salt bytes, and any non-standard MD5 deviation.</summary>
@@ -242,6 +246,7 @@ public sealed class PortalitoRuntime : IPortalitoServicesProvider
             // Without it here, saving a key on the config page wouldn't take effect until a restart (the 2026-09-22 bug).
             c.TmdbApiKey,
             c.FeaturedRows,
+            c.ChannelImageUrl,
             c.EpgTimeZone,
             c.ProxySigningSecret,
             c.ContentAuthMethod,

@@ -235,6 +235,20 @@ public class PortalitoRuntimeTests
         Assert.NotEqual(before, new PortalitoRuntime(() => config, () => { }, TimeProvider.System).CacheStamp());
     }
 
+    [Theory]
+    [InlineData("", null)]
+    [InlineData("  https://example.test/logo.png  ", "https://example.test/logo.png")]
+    [InlineData("http://example.test/a.jpg", "http://example.test/a.jpg")]
+    [InlineData("ftp://example.test/a.png", null)]
+    [InlineData("not a url", null)]
+    public void Only_an_http_channel_image_url_overrides_the_built_in_logo(string configured, string? expected)
+    {
+        var config = ValidConfig();
+        config.ChannelImageUrl = configured;
+
+        Assert.Equal(expected, new PortalitoRuntime(() => config, () => { }, TimeProvider.System).Get().ChannelImageUrl);
+    }
+
     [Fact]
     public void Becoming_invalid_after_being_valid_throws_instead_of_serving_stale_services()
     {
