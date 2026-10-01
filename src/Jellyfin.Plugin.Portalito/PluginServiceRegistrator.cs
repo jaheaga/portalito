@@ -37,6 +37,9 @@ public class PluginServiceRegistrator : IPluginServiceRegistrator
         // Data path, not cache path: folders point at these files, and Jellyfin's cache cleanup empties CachePath.
         serviceCollection.AddSingleton(sp => new Collage.CollageService(
             Path.Combine(sp.GetRequiredService<IApplicationPaths>().DataPath, "portalito-collages")));
+        // Known title runtimes (what lets Jellyfin keep playback positions); data path so it survives cache cleanup.
+        serviceCollection.AddSingleton(sp => new Catalog.RuntimeStore(
+            Path.Combine(sp.GetRequiredService<IApplicationPaths>().DataPath, "portalito", "runtimes.json")));
         serviceCollection.AddSingleton<ILiveTvService, PortalitoLiveTvService>();
         serviceCollection.AddSingleton<IChannel, PortalitoVodChannel>();
     }

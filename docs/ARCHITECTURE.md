@@ -133,6 +133,24 @@ plugin's own proxy** (`/Portalito/...`), which fetches from the CDN with the rig
 - **Session cache.** Resolved CDN sessions are cached per channel/title and refreshed before they expire
   (`StreamSessionCache`), so the many segment requests don't each hit the portal.
 
+## Continue Watching (resume)
+
+Jellyfin keeps a playback position only when the item has a runtime: with none, `UserDataManager.UpdatePlayState`
+marks it Played and drops the position on every progress report. The portal almost never sends a duration, so:
+
+- `GetChannelItemMediaInfo` (runs before playback starts) takes the runtime from its ffprobe of the title, records
+  it in `RuntimeStore` (`<data>/portalito/runtimes.json`, keyed by contentId) and sets it on the library item at
+  once — Jellyfin names a channel item `GetNewItemId(externalId + channelName + "16", type)` — so the first
+  progress report already keeps the position.
+- Listings give movies/episodes their known runtime, with `DateModified` = when it was learned (a newer
+  `DateModified` is what makes Jellyfin save a changed field on an item it already has).
+- Episodes also carry `ParentIndexNumber` (season, from the season's `sameSeasonSeriesList` entry or its "T2" marker)
+  and `SeriesName`. Jellyfin copies those only when it first creates an item, so `SeriesRepairTask` ("Reparar series
+  Portalito", at startup and weekly) fills them — and known runtimes — into items saved earlier.
+
+Continue Watching (`/UserItems/Resume`) includes channel items. **Next Up does not**: Jellyfin builds it from library
+folders only (`TVSeriesManager`), never channels.
+
 ## Live TV service
 
 `PortalitoLiveTvService` exposes the portal's channel list and guide to Jellyfin's Live TV section. Each
@@ -156,6 +174,7 @@ TMDB never decides what plays: everything played is the portal's.
 
 | Task | Schedule | What it does |
 |---|---|---|
+| Reparar series Portalito | at startup, Sundays 03:45 | fills runtimes and episode seasons into titles Jellyfin saved before they were known (what Continue Watching needs) |
 | Indexar catálogo Portalito | Sundays 04:00 | walks the catalogs and live categories so their items exist in Jellyfin's library and show up in search |
 | Reparar imágenes Portalito | Sundays 03:30 | re-applies the folder collages Jellyfin's image providers may have replaced |
 
@@ -168,4 +187,5 @@ TMDB never decides what plays: everything played is the portal's.
 | TMDB enrichment matches | `TmdbClient` | 7 days |
 | TMDB lists (Destacado) | `TmdbClient` | 6 h |
 | Reconciled Destacado rows / per-title portal matches | `DiscoveryBrowser` | 6 h / 1 day |
+| Title runtimes | `RuntimeStore` (`<data>/portalito/runtimes.json`) | permanent |
 | CDN sessions | `StreamSessionCache` | until shortly before the CDN auth expires (max 2 h) |

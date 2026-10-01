@@ -348,7 +348,7 @@ public sealed class PortalitoVodChannelTests : IDisposable
     // wrong one serves a different, invalid file for that title (measured live 2026-09-21: ffmpeg got "moov atom
     // not found" opening a real "ts" title as "_media.mp4").
 
-    private static Func<FakeRequest, string> VodRoute(WiringHarness h, string? videoFormat = null, JsonArray? subtitleList = null)
+    internal static Func<FakeRequest, string> VodRoute(WiringHarness h, string? videoFormat = null, JsonArray? subtitleList = null)
     {
         var movie = new JsonObject
         {

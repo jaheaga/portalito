@@ -48,7 +48,7 @@ public class DiscoveryBrowserTests
         Assert.All(rows, r => Assert.NotNull(TmdbLists.Endpoint(r)));
         Assert.Equal("JP|KR", TmdbLists.Endpoint(rows[6])!.Value.Query["with_origin_country"]);
         Assert.Equal("16,10764,10767", TmdbLists.Endpoint(rows[8])!.Value.Query["without_genres"]);
-        Assert.Equal(new Configuration.PluginConfiguration().FeaturedRows, Configuration.PluginConfiguration.DefaultFeaturedRows);
+        Assert.Equal(Configuration.PluginConfiguration.DefaultFeaturedRows, new Configuration.PluginConfiguration().FeaturedRows);
     }
 
     [Fact]

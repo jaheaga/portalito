@@ -2,6 +2,7 @@ using System.Globalization;
 using System.Text.Json;
 using System.Text.Json.Nodes;
 using System.Text.RegularExpressions;
+using Jellyfin.Plugin.Portalito.Catalog;
 using Jellyfin.Plugin.Portalito.Crypto;
 using Jellyfin.Plugin.Portalito.Proxy;
 
@@ -564,11 +565,25 @@ public sealed partial class PortalClient : IStreamResolver
 
     /// <summary>Episodes of a series (<c>assetData.simpleProgramList</c> of the type-0 detail).</summary>
     public async Task<IReadOnlyList<JsonObject>> EpisodesAsync(string seriesId, CancellationToken cancellationToken = default)
+        => (await SeasonAsync(seriesId, cancellationToken).ConfigureAwait(false)).Episodes;
+
+    /// <summary>
+    /// One season's episodes plus what an episode needs to sit in a series: the season number -- from the season's own
+    /// entry in <c>sameSeasonSeriesList</c>, else its name's marker ("… T2"), else 1 -- and the show's name (the season
+    /// name without that marker). Measured live 2026-10-01: a season's detail carries <c>name</c> "Show T1" and the
+    /// list of every season with its <c>seasonNumber</c>; episodes carry only <c>seriesNumber</c>.
+    /// </summary>
+    public async Task<SeasonListing> SeasonAsync(string seasonId, CancellationToken cancellationToken = default)
     {
-        var detail = (await DetailAsync(seriesId, type: "0", cancellationToken: cancellationToken).ConfigureAwait(false)).Require();
-        return detail["assetData"]?["simpleProgramList"] is JsonArray list
-            ? list.OfType<JsonObject>().ToArray()
-            : Array.Empty<JsonObject>();
+        var detail = (await DetailAsync(seasonId, type: "0", cancellationToken: cancellationToken).ConfigureAwait(false)).Require();
+        var asset = detail["assetData"] as JsonObject ?? detail;
+        var name = PortalJson.NonBlank(asset["name"]);
+        var number = PortalJson.Objects(asset["sameSeasonSeriesList"])
+            .Where(s => PortalJson.Str(s["contentId"]) == seasonId)
+            .Select(s => PortalJson.Int(s["seasonNumber"]))
+            .FirstOrDefault() ?? SeasonGrouping.SeasonFromName(name);
+        var show = SeasonGrouping.StripSeasonForDisplay(name);
+        return new SeasonListing(PortalJson.Objects(asset["simpleProgramList"]).ToArray(), number, show.Length > 0 ? show : null);
     }
 
     // ---- live / EPG ----

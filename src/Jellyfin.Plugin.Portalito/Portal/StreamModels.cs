@@ -52,6 +52,9 @@ public sealed record LiveStream(
 /// the extension; everything else (including missing/unknown) falls back to mp4.
 /// </param>
 /// <param name="Subtitles">External subtitle files play_vod lists for this title (<c>episodeList[0].subtitleList</c>).</param>
+/// <summary>A season's episodes with its season number and the show's name (see <see cref="PortalClient.SeasonAsync"/>).</summary>
+public sealed record SeasonListing(IReadOnlyList<System.Text.Json.Nodes.JsonObject> Episodes, int SeasonNumber, string? ShowName);
+
 public sealed record VodStream(
     string MediaCode,
     string Host,

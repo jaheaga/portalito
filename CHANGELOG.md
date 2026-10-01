@@ -1,5 +1,18 @@
 # Changelog
 
+## 0.1.0.9 — 2026-10-01
+
+- **Movies and episodes now show up in Jellyfin's "Continue Watching" and resume where you left off.** Jellyfin
+  only keeps a playback position when it knows a title's length; Portalito never told it, so Jellyfin marked
+  everything as watched the moment it started. The plugin now gives each title its runtime as it starts playing
+  (measured once, then remembered) and in later listings.
+- **Episodes now carry their season number and show name**, so they sort properly inside a series.
+- New scheduled task **"Reparar series Portalito"** fills in the runtime and season on titles Jellyfin already had;
+  it runs automatically once after updating, then weekly.
+- Upgrading: a title becomes resumable the first time it's played after updating. Series still don't appear in
+  Jellyfin's "Next Up" row — Jellyfin only builds that row from libraries, never from channels; a later version
+  will address it.
+
 ## 0.1.0.8 — 2026-10-01
 
 - **A logo for the channel.** "Portalito VOD" now shows the Portalito logo (a lit doorway with a play button)

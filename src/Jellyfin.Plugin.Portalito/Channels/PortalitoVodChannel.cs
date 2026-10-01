@@ -9,6 +9,7 @@ using Jellyfin.Plugin.Portalito.Portal;
 using Jellyfin.Plugin.Portalito.Proxy;
 using MediaBrowser.Controller.Channels;
 using MediaBrowser.Controller.Entities;
+using MediaBrowser.Controller.Library;
 using MediaBrowser.Controller.Providers;
 using MediaBrowser.Model.Channels;
 using MediaBrowser.Model.Dto;
@@ -45,6 +46,8 @@ public sealed class PortalitoVodChannel : IChannel, IRequiresMediaInfoCallback, 
     private readonly SubtitleFileCache _subtitles;
     private readonly CollageService _collages;
     private readonly ILogger<PortalitoVodChannel> _logger;
+    private readonly RuntimeStore _runtimes;
+    private readonly ILibraryManager? _library;
 
     // A title's tracks never change, so each is probed once; only the first playback of a title pays for it.
     private readonly TtlCache<ProbedTracks> _probed = new(TimeProvider.System, TimeSpan.FromDays(7), capacity: 2000);
@@ -59,8 +62,19 @@ public sealed class PortalitoVodChannel : IChannel, IRequiresMediaInfoCallback, 
     // Collage renders (four poster downloads each), across every listing at once.
     private readonly SemaphoreSlim _collageRenders = new(4);
 
-    public PortalitoVodChannel(IPortalitoServicesProvider services, IVodTrackProbe probe, SubtitleFileCache subtitles, CollageService collages, ILogger<PortalitoVodChannel> logger)
+    /// <param name="runtimes">Known title runtimes (see <see cref="RuntimeStore"/>); in-memory only when not given.</param>
+    /// <param name="library">Jellyfin's library, to give a playing item its runtime right away; optional (tests).</param>
+    public PortalitoVodChannel(
+        IPortalitoServicesProvider services,
+        IVodTrackProbe probe,
+        SubtitleFileCache subtitles,
+        CollageService collages,
+        ILogger<PortalitoVodChannel> logger,
+        RuntimeStore? runtimes = null,
+        ILibraryManager? library = null)
     {
+        _runtimes = runtimes ?? new RuntimeStore(null);
+        _library = library;
         _services = services;
         _probe = probe;
         _subtitles = subtitles;
@@ -123,8 +137,10 @@ public sealed class PortalitoVodChannel : IChannel, IRequiresMediaInfoCallback, 
     /// "v21" -> "v22" (2026-09-28): a new "Destacado" root of curated rows (Estrenos, Mejor valoradas) leads the tree.
     /// "v22" -> "v23" (2026-09-30): "Destacado" rows can come from TMDB lists (the FeaturedRows setting), reconciled
     /// with the portal (see <see cref="DiscoveryBrowser"/>).
+    /// "v23" -> "v24" (2026-10-01): movies and episodes carry their runtime once known, and episodes their season and
+    /// show name -- what Jellyfin needs to keep playback positions (Continue Watching) and order episodes.
     /// </summary>
-    public string DataVersion => $"v23:{DateTime.UtcNow:yyyyMMdd}";
+    public string DataVersion => $"v24:{DateTime.UtcNow:yyyyMMdd}";
 
     public string HomePageUrl => string.Empty;
 
@@ -212,8 +228,8 @@ public sealed class PortalitoVodChannel : IChannel, IRequiresMediaInfoCallback, 
             case VodItemKind.LiveCategory:
                 return Slice(await LiveChannelsAsync(services, long.Parse(folder.Primary, CultureInfo.InvariantCulture), cancellationToken).ConfigureAwait(false), window);
             case VodItemKind.ShowSeason:
-                var episodes = await services.Portal.EpisodesAsync(folder.Primary, cancellationToken).ConfigureAwait(false);
-                return Slice(episodes.Select(e => EpisodeItem(services.Signer, folder.Primary, e)).OfType<ChannelItemInfo>().ToList(), window);
+                var season = await services.Portal.SeasonAsync(folder.Primary, cancellationToken).ConfigureAwait(false);
+                return Slice(season.Episodes.Select(e => EpisodeItem(services.Signer, folder.Primary, e, season, _runtimes)).OfType<ChannelItemInfo>().ToList(), window);
             case VodItemKind.Featured:
                 return Slice(await DestacadoFoldersAsync(services, cancellationToken).ConfigureAwait(false), window);
             case VodItemKind.Row:
@@ -271,7 +287,8 @@ public sealed class PortalitoVodChannel : IChannel, IRequiresMediaInfoCallback, 
         var source = MediaSources.Vod(id, url, container);
         var probing = ProbeCachedAsync(contentId, source, cancellationToken);
         var subtitles = await _subtitles.LocalCopiesAsync(stream.Subtitles ?? Array.Empty<SubtitleFile>(), cancellationToken).ConfigureAwait(false);
-        if (await probing.ConfigureAwait(false) is { } tracks)
+        var tracks = await probing.ConfigureAwait(false);
+        if (tracks is not null)
         {
             source.RunTimeTicks = tracks.RunTimeTicks;
             source.Bitrate = tracks.Bitrate;
@@ -283,7 +300,51 @@ public sealed class PortalitoVodChannel : IChannel, IRequiresMediaInfoCallback, 
             source.MediaStreams = VodTracks.Assemble(Array.Empty<MediaStream>(), subtitles);
         }
 
+        // Remember the runtime, and fall back to a remembered one when this probe failed.
+        if (tracks?.RunTimeTicks is > 0 and var probed)
+        {
+            _runtimes.Set(contentId, probed, DateTime.UtcNow);
+        }
+        else if (_runtimes.TryGet(contentId, out var known))
+        {
+            source.RunTimeTicks = known.Ticks;
+        }
+
+        if (source.RunTimeTicks is > 0 and var runtime)
+        {
+            await GiveItemRuntimeAsync(id, item.Kind, runtime, cancellationToken).ConfigureAwait(false);
+        }
+
         return new[] { source };
+    }
+
+    /// <summary>
+    /// Sets the playing item's runtime in Jellyfin's library now -- this callback runs before playback starts, so the
+    /// first progress report already finds it and the position is kept. Jellyfin names a channel item
+    /// <c>GetNewItemId(externalId + channelName + "16", type)</c> (v10.11 <c>ChannelManager.GetIdToHash</c>).
+    /// A failure here only means this one playback isn't resumable; it never stops playback.
+    /// </summary>
+    private async Task GiveItemRuntimeAsync(string channelItemId, VodItemKind kind, long ticks, CancellationToken cancellationToken)
+    {
+        if (_library is null)
+        {
+            return;
+        }
+
+        try
+        {
+            var type = kind == VodItemKind.Episode ? typeof(MediaBrowser.Controller.Entities.TV.Episode) : typeof(MediaBrowser.Controller.Entities.Movies.Movie);
+            var libraryId = _library.GetNewItemId(channelItemId + Name + "16", type);
+            if (_library.GetItemById(libraryId) is { } entity && entity.RunTimeTicks != ticks)
+            {
+                entity.RunTimeTicks = ticks;
+                await entity.UpdateToRepositoryAsync(ItemUpdateType.MetadataEdit, cancellationToken).ConfigureAwait(false);
+            }
+        }
+        catch (Exception ex) when (ex is not OperationCanceledException)
+        {
+            _logger.LogWarning(ex, "Couldn't give {Item} its runtime; this playback won't be resumable", channelItemId);
+        }
     }
 
     /// <summary>
@@ -650,7 +711,7 @@ public sealed class PortalitoVodChannel : IChannel, IRequiresMediaInfoCallback, 
     /// <summary>Maps raw portal items to playable movies and per-show folders, fills blanks from TMDB, and pages.</summary>
     private async Task<ChannelItemResult> MapListingAsync(PortalitoServices services, IReadOnlyList<JsonObject> content, PageWindow window, CancellationToken cancellationToken)
     {
-        var grouped = GroupCatalogItems(content, services.Signer);
+        var grouped = GroupCatalogItems(content, services.Signer, _runtimes);
         if (services.Tmdb is { } tmdb)
         {
             await FillBlanksFromTmdbAsync(tmdb, grouped, cancellationToken).ConfigureAwait(false);
@@ -843,7 +904,7 @@ public sealed class PortalitoVodChannel : IChannel, IRequiresMediaInfoCallback, 
     /// from the authoritative <c>sameSeasonSeriesList</c> (see <see cref="ShowSeasonsAsync"/>), not from whatever
     /// happened to appear in this one filtered/paged listing.
     /// </summary>
-    private static IReadOnlyList<(ChannelItemInfo Item, TitleQuery Query)> GroupCatalogItems(IReadOnlyList<JsonObject> content, ProxyUrlSigner signer)
+    private static IReadOnlyList<(ChannelItemInfo Item, TitleQuery Query)> GroupCatalogItems(IReadOnlyList<JsonObject> content, ProxyUrlSigner signer, RuntimeStore runtimes)
     {
         var items = new List<(ChannelItemInfo Item, TitleQuery Query)>();
         var seenShows = new HashSet<string>();
@@ -871,6 +932,7 @@ public sealed class PortalitoVodChannel : IChannel, IRequiresMediaInfoCallback, 
                     ContentType = ChannelMediaContentType.Movie,
                 };
                 ApplyMetadata(movie, c, signer);
+                ApplyRuntime(movie, contentId!, c, runtimes);
                 items.Add((movie, new TitleQuery(name, PortalJson.NonBlank(c["alias"]), movie.ProductionYear, IsSeries: false, imdb)));
                 continue;
             }
@@ -931,7 +993,7 @@ public sealed class PortalitoVodChannel : IChannel, IRequiresMediaInfoCallback, 
     private static int ParseCatalogIndex(string primary)
         => int.Parse(primary, NumberStyles.None, CultureInfo.InvariantCulture);
 
-    private static ChannelItemInfo? EpisodeItem(ProxyUrlSigner signer, string seriesId, JsonObject episode)
+    private static ChannelItemInfo? EpisodeItem(ProxyUrlSigner signer, string seriesId, JsonObject episode, SeasonListing season, RuntimeStore runtimes)
     {
         var episodeId = PortalJson.Str(episode["contentId"]);
         if (!VodItemId.IsSafePart(episodeId))
@@ -947,9 +1009,37 @@ public sealed class PortalitoVodChannel : IChannel, IRequiresMediaInfoCallback, 
             MediaType = ChannelMediaType.Video,
             ContentType = ChannelMediaContentType.Episode,
             IndexNumber = PortalJson.Int(episode["seriesNumber"]),
+
+            // Next Up and episode ordering need the season; Jellyfin only reads these when it first creates the item,
+            // so items created before this was set are filled in by SeriesRepairTask.
+            ParentIndexNumber = season.SeasonNumber,
+            SeriesName = season.ShowName,
         };
         ApplyMetadata(item, episode, signer);
+        ApplyRuntime(item, episodeId!, episode, runtimes);
         return item;
+    }
+
+    /// <summary>
+    /// Gives a movie/episode its runtime, so Jellyfin keeps playback positions (without one it marks the title Played
+    /// and drops the position: UserDataManager.UpdatePlayState). Known from an earlier playback's probe, or from the
+    /// portal's <c>duration</c> when it sends one (rarely). <c>DateModified</c> = when the runtime was learned: a newer
+    /// value is what makes Jellyfin save a changed runtime on an item it already has (ChannelManager forceUpdate).
+    /// </summary>
+    private static void ApplyRuntime(ChannelItemInfo item, string contentId, JsonObject content, RuntimeStore runtimes)
+    {
+        if (!runtimes.TryGet(contentId, out var known)
+            && RuntimeStore.ParseDuration(PortalJson.Str(content["duration"])) is { } portalTicks
+            && runtimes.Set(contentId, portalTicks, DateTime.UtcNow))
+        {
+            runtimes.TryGet(contentId, out known);
+        }
+
+        if (known is not null)
+        {
+            item.RunTimeTicks = known.Ticks;
+            item.DateModified = known.LearnedUtc;
+        }
     }
 
     /// <summary>
