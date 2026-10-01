@@ -9,6 +9,14 @@
     "imageUrl": "https://raw.githubusercontent.com/jaheaga/portalito/main/assets/branding/portalito-banner.png",
     "versions": [
       {
+        "version": "0.1.1.5",
+        "targetAbi": "10.11.0.0",
+        "sourceUrl": "https://github.com/jaheaga/portalito/releases/download/v0.1.1.5/Portalito_0.1.1.5.zip",
+        "checksum": "43b6bfadbcbc3dcddbe535bd9f8d3df2",
+        "changelog": "The channel gets the Portalito logo on its own. Jellyfin only asks a channel for its images when it first creates it, so a server that had the channel before 0.1.0.8 never got the logo without a manual \"Refresh metadata\". A new task, \"Logo del canal Portalito\" (at startup and weekly), fills in\u2026",
+        "timestamp": "2026-10-01T20:31:44Z"
+      },
+      {
         "version": "0.1.1.4",
         "targetAbi": "10.11.0.0",
         "sourceUrl": "https://github.com/jaheaga/portalito/releases/download/v0.1.1.4/Portalito_0.1.1.4.zip",
