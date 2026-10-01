@@ -262,6 +262,37 @@ public class PortalitoProxyControllerTests
         Assert.Empty(_upstream.Requests);
     }
 
+    // ---- play (the "Siguiendo" .strm URLs) ----
+
+    private static string PlaySignature(string url)
+        => System.Web.HttpUtility.ParseQueryString(new Uri(url).Query)["s"]!;
+
+    [Fact]
+    public async Task Play_streams_with_the_never_expiring_signature()
+    {
+        _upstream.Respond = _ => new HttpResponseMessage(HttpStatusCode.OK) { Content = new ByteArrayContent(new byte[7]) };
+        var s = PlaySignature(_signer.PlayUrl("EP1", "SEASON1"));
+
+        await _controller.Play("EP1", "SEASON1", s, default);
+
+        Assert.Equal(200, _controller.Response.StatusCode);
+        Assert.Equal("SEASON1", _resolver.LastVodSeries);
+        Assert.Equal(7, _body.Length);
+    }
+
+    [Fact]
+    public async Task Play_rejects_other_ids_and_vod_signatures()
+    {
+        var s = PlaySignature(_signer.PlayUrl("EP1", "SEASON1"));
+        var (_, vodSignature) = Params(_signer.VodUrl("EP1", "SEASON1", TimeSpan.FromHours(1)));
+
+        Assert.Equal(403, Status(await _controller.Play("EP2", "SEASON1", s, default)));
+        Assert.Equal(403, Status(await _controller.Play("EP1", null, s, default)));
+        Assert.Equal(403, Status(await _controller.Play("EP1", "SEASON1", vodSignature, default)));
+        Assert.Equal(403, Status(await _controller.Play("EP1", "SEASON1", null, default)));
+        Assert.Empty(_upstream.Requests);
+    }
+
     // ---- images ----
 
     [Fact]

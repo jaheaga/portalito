@@ -93,22 +93,39 @@ public class PortalitoProxyController : ControllerBase
             {
                 var services = _provider.Get();
                 var seriesId = series ?? string.Empty;
-                if (!services.Signer.VerifyVod(contentId, seriesId, e, s))
-                {
-                    return StatusCode(StatusCodes.Status403Forbidden);
-                }
-
-                var method = HttpMethods.IsHead(Request.Method) ? HttpMethod.Head : HttpMethod.Get;
-                var upstream = await services.Proxy.OpenVodAsync(
-                    contentId,
-                    seriesId,
-                    method,
-                    Request.Headers.Range.ToString(),
-                    Request.Headers.IfRange.ToString(),
-                    cancellationToken).ConfigureAwait(false);
-                return await RelayAsync(upstream, "video/mp4", forwardRangeHeaders: true, cancellationToken).ConfigureAwait(false);
+                return services.Signer.VerifyVod(contentId, seriesId, e, s)
+                    ? await RelayVodAsync(services, contentId, seriesId, cancellationToken).ConfigureAwait(false)
+                    : StatusCode(StatusCodes.Status403Forbidden);
             },
             cancellationToken);
+
+    /// <summary>The same stream as <see cref="Vod"/>, under the never-expiring signature the "Siguiendo" .strm files carry.</summary>
+    [HttpGet("play/{contentId}")]
+    [HttpHead("play/{contentId}")]
+    public Task<IActionResult> Play(string contentId, [FromQuery] string? series, [FromQuery] string? s, CancellationToken cancellationToken)
+        => Guard(
+            async () =>
+            {
+                var services = _provider.Get();
+                var seriesId = series ?? string.Empty;
+                return services.Signer.VerifyPlay(contentId, seriesId, s)
+                    ? await RelayVodAsync(services, contentId, seriesId, cancellationToken).ConfigureAwait(false)
+                    : StatusCode(StatusCodes.Status403Forbidden);
+            },
+            cancellationToken);
+
+    private async Task<IActionResult> RelayVodAsync(PortalitoServices services, string contentId, string seriesId, CancellationToken cancellationToken)
+    {
+        var method = HttpMethods.IsHead(Request.Method) ? HttpMethod.Head : HttpMethod.Get;
+        var upstream = await services.Proxy.OpenVodAsync(
+            contentId,
+            seriesId,
+            method,
+            Request.Headers.Range.ToString(),
+            Request.Headers.IfRange.ToString(),
+            cancellationToken).ConfigureAwait(false);
+        return await RelayAsync(upstream, "video/mp4", forwardRangeHeaders: true, cancellationToken).ConfigureAwait(false);
+    }
 
     [HttpGet("img")]
     public Task<IActionResult> Image([FromQuery] string? u, [FromQuery] long e, [FromQuery] string? s, CancellationToken cancellationToken)

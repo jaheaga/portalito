@@ -149,7 +149,37 @@ marks it Played and drops the position on every progress report. The portal almo
   Portalito", at startup and weekly) fills them — and known runtimes — into items saved earlier.
 
 Continue Watching (`/UserItems/Resume`) includes channel items. **Next Up does not**: Jellyfin builds it from library
-folders only (`TVSeriesManager`), never channels.
+folders only (`TVSeriesManager`), never channels — hence the "Siguiendo" library below.
+
+## Next Up: the hidden "Portalito · Siguiendo" library
+
+Next Up only reads libraries, so the plugin mirrors the series people actually watch (not the catalog) into a real TV
+library, hidden from every user's menus. Code in `Following/`.
+
+- **Which shows** (`FollowPlanner`): any show someone played an episode of in the last 60 days — in the channel or in
+  the library — or marked favorite; capped at 100. Played/resumable channel episodes name their season
+  (`epi:<season>:<episode>`); the season's `sameSeasonSeriesList` names the show, whose id is its lowest-numbered
+  season's contentId. `FollowStore` (`<data>/portalito/following.json`) remembers the mirrored shows and their seasons.
+- **Files** (`FollowFiles`, `FollowWriter`): under `FollowLibraryPath` (default `<data>/portalito/siguiendo`),
+  `Show [portalito-<id>]/tvshow.nfo` + `poster.*`, and per episode `Season NN/SxxEyy.strm` / `.nfo` / `-thumb.*`. A
+  show's episode list is refetched every 12 h; only changed files are rewritten, and episodes the portal dropped are
+  deleted.
+- **Playback**: each `.strm` holds a never-expiring signed URL, `/Portalito/play/<episode>?series=<season>&s=<hmac>`
+  (`ProxyUrlSigner.PlayUrl`; its own HMAC kind, so it can't be swapped for a `vod` URL). Jellyfin probes a `.strm` on
+  every playback (`MediaSourceManager.GetPlaybackMediaSources` forces a remote probe), which also gives the episode
+  its runtime. The URL is on this server's local address, and jellyfin-web direct-plays any remote http source, so
+  `FollowPlaybackFilter` (an MVC action filter on `POST /Items/{id}/PlaybackInfo`) turns off direct play and direct
+  stream for items in the library: Jellyfin's ffmpeg opens the URL and serves HLS, as for channel items.
+- **The library** (`FollowLibrary`): created on the first followed show (Jellyfin gives an empty library folder no
+  item), as a TV library with no metadata/image fetchers, trickplay or chapter images, or file watcher. Scanned
+  through its physical folders (a library's top `CollectionFolder` holds no items itself). Every run adds its id to
+  each user's `MyMediaExcludes` (hidden from menus; read only by `UserViewManager.GetUserViews`) and, for users
+  limited to some libraries who can open the channel, to `EnabledFolders`. `LatestItemExcludes` is never touched:
+  Next Up and Continue Watching skip only those.
+- **Progress** (`WatchState`): a user's newer play of a channel episode is copied onto its library copy (that's what
+  puts the show in Next Up), and the channel copy's resume point is cleared so Continue Watching doesn't list it twice.
+- **When**: `FollowSyncTask` ("Sincronizar Portalito · Siguiendo") at startup and every 30 minutes, and
+  `FollowTrigger` queues it whenever someone stops a channel episode.
 
 ## Live TV service
 
@@ -174,6 +204,7 @@ TMDB never decides what plays: everything played is the portal's.
 
 | Task | Schedule | What it does |
 |---|---|---|
+| Sincronizar Portalito · Siguiendo | at startup, every 30 min, and after a channel episode stops | mirrors followed series into the hidden Next Up library (see above) |
 | Reparar series Portalito | at startup, Sundays 03:45 | fills runtimes and episode seasons into titles Jellyfin saved before they were known (what Continue Watching needs) |
 | Indexar catálogo Portalito | Sundays 04:00 | walks the catalogs and live categories so their items exist in Jellyfin's library and show up in search |
 | Reparar imágenes Portalito | Sundays 03:30 | re-applies the folder collages Jellyfin's image providers may have replaced |
@@ -188,4 +219,5 @@ TMDB never decides what plays: everything played is the portal's.
 | TMDB lists (Destacado) | `TmdbClient` | 6 h |
 | Reconciled Destacado rows / per-title portal matches | `DiscoveryBrowser` | 6 h / 1 day |
 | Title runtimes | `RuntimeStore` (`<data>/portalito/runtimes.json`) | permanent |
+| Followed shows | `FollowStore` (`<data>/portalito/following.json`) | while followed; episode lists refetched every 12 h |
 | CDN sessions | `StreamSessionCache` | until shortly before the CDN auth expires (max 2 h) |

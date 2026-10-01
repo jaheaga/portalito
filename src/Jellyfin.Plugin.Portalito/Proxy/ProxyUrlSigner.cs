@@ -51,6 +51,21 @@ public sealed class ProxyUrlSigner
     }
 
     /// <summary>
+    /// A VOD URL that never expires, for the "Siguiendo" library's <c>.strm</c> files: Jellyfin reads a .strm's URL when it
+    /// plays the episode, maybe months after the file was written, so it can't carry an expiry. It still carries an HMAC
+    /// over its ids (a different kind than <see cref="VodUrl"/>, so neither can stand in for the other), and rotating
+    /// the signing secret revokes every one of them -- the next sync rewrites the files.
+    /// </summary>
+    public string PlayUrl(string contentId, string seriesId)
+    {
+        var series = string.IsNullOrEmpty(seriesId) ? string.Empty : $"series={Uri.EscapeDataString(seriesId)}&";
+        return $"{_baseUrl}/Portalito/play/{Uri.EscapeDataString(contentId)}?{series}s={Sign("play", 0, contentId, seriesId)}";
+    }
+
+    public bool VerifyPlay(string contentId, string seriesId, string? signature)
+        => VerifyMac(signature, "play", 0, contentId, seriesId);
+
+    /// <summary>
     /// A poster URL routed through the plugin's own proxy instead of hotlinked straight to Portalito's CDN: the CDN
     /// serves images as <c>Content-Type: image/jpg</c> (non-standard -- confirmed live 2026-09-23), and Jellyfin's
     /// own image cache/converter throws ("Unable to determine image file extension from mime type image/jpg") on
@@ -92,7 +107,12 @@ public sealed class ProxyUrlSigner
 
     private bool Verify(string? signature, long expiry, string kind, params string[] parts)
     {
-        if (string.IsNullOrEmpty(signature) || expiry < _clock.GetUtcNow().ToUnixTimeSeconds())
+        return expiry >= _clock.GetUtcNow().ToUnixTimeSeconds() && VerifyMac(signature, kind, expiry, parts);
+    }
+
+    private bool VerifyMac(string? signature, string kind, long expiry, params string[] parts)
+    {
+        if (string.IsNullOrEmpty(signature))
         {
             return false;
         }

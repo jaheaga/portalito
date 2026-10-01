@@ -1,5 +1,19 @@
 # Changelog
 
+## Unreleased
+
+- **Portalito series now show up in Jellyfin's "Next Up".** Jellyfin builds Next Up only from libraries, never
+  from channels, so the plugin now keeps a library called **"Portalito · Siguiendo"** with just the series people
+  are watching (played in the last 60 days, or marked favorite), not the whole catalog. It's hidden from everyone's
+  menus; its episodes appear only in Next Up and Continue Watching, and play through the plugin like the channel.
+  Each person sees only the series they watched.
+- What you already watched in the channel carries over, and the sync runs right after you stop an episode, so the
+  next one is waiting on the home screen. New episodes and seasons appear within 12 hours.
+- New settings: **Keep the hidden "Portalito · Siguiendo" library** (on by default) and its folder. New scheduled
+  task **"Sincronizar Portalito · Siguiendo"** (at startup, every 30 minutes).
+- Known issue: if the portal's CDN times out when an episode starts, the player shows an error; pressing play again
+  works. The channel has the same behavior.
+
 ## 0.1.0.9 — 2026-10-01
 
 - **Movies and episodes now show up in Jellyfin's "Continue Watching" and resume where you left off.** Jellyfin

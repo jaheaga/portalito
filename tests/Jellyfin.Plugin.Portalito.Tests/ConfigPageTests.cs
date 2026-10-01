@@ -82,14 +82,20 @@ public class ConfigPageTests
     }
 
     [Fact]
-    public void The_checkbox_input_is_a_boolean_property_handled_by_the_script()
+    public void Every_checkbox_input_is_a_boolean_property_handled_by_the_script()
     {
         var checkboxes = Regex.Matches(Html.Value, @"<input\s+id=""(\w+)""[^>]*type=""checkbox""").Select(m => m.Groups[1].Value).ToArray();
+        var list = Regex.Match(Html.Value, @"var boolFields = \[(.*?)\];").Groups[1].Value;
+        var scripted = Regex.Matches(list, @"'(\w+)'").Select(m => m.Groups[1].Value).ToArray();
 
-        var id = Assert.Single(checkboxes);
-        Assert.Equal(typeof(bool), typeof(PluginConfiguration).GetProperty(id)!.PropertyType);
-        Assert.Contains($"config.{id} = ", Html.Value);
-        Assert.Contains($"'#{id}').checked = !!config.{id}", Html.Value);
+        Assert.NotEmpty(checkboxes);
+        Assert.Equal(checkboxes.OrderBy(x => x), scripted.OrderBy(x => x));
+        foreach (var id in checkboxes)
+        {
+            Assert.Equal(typeof(bool), typeof(PluginConfiguration).GetProperty(id)!.PropertyType);
+            Assert.Contains($"config.{id} = ", Html.Value);
+            Assert.Contains($"'#{id}').checked = !!config.{id}", Html.Value);
+        }
     }
 
     [Fact]

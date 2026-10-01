@@ -89,6 +89,18 @@
                 </div>
                 <div class="checkboxContainer checkboxContainer-withDescription">
                     <label class="emby-checkbox-label">
+                        <input id="FollowLibraryEnabled" name="FollowLibraryEnabled" type="checkbox" is="emby-checkbox" />
+                        <span>Keep the hidden "Portalito · Siguiendo" library (for Next Up)</span>
+                    </label>
+                    <div class="fieldDescription checkboxFieldDescription">Jellyfin's "Next Up" only reads libraries, never channels. With this on, the series people watch in the channel are mirrored into a TV library that's hidden from every user's menus but feeds Next Up and Continue Watching. Only followed series are mirrored (watched in the last 60 days, or marked favorite), not the catalog. Turning it off stops the sync; delete the library from Dashboard → Libraries to remove it.</div>
+                </div>
+                <div class="inputContainer">
+                    <label class="inputLabel inputLabelUnfocused" for="FollowLibraryPath">Siguiendo library folder (optional)</label>
+                    <input id="FollowLibraryPath" name="FollowLibraryPath" type="text" is="emby-input" placeholder="empty = portalito/siguiendo in Jellyfin's data folder" autocomplete="off" />
+                    <div class="fieldDescription">Where the library's small .strm/.nfo files and posters are written. Jellyfin must be able to write it.</div>
+                </div>
+                <div class="checkboxContainer checkboxContainer-withDescription">
+                    <label class="emby-checkbox-label">
                         <input id="SkipPortalTlsVerification" name="SkipPortalTlsVerification" type="checkbox" is="emby-checkbox" />
                         <span>Skip portal TLS certificate verification</span>
                     </label>
@@ -179,18 +191,18 @@
     <script type="text/javascript">
         (function () {
             var pluginId = '0bae4700-9bef-4e03-ad7f-cc99bf8f51ab';
-            var textFields = ['TripleDesKeyHex', 'Hosts', 'AppId', 'ApkVersion', 'DeviceSn', 'DeviceDrmId', 'DeviceToken', 'DeviceReserve1', 'ProxyBaseUrl', 'AccountEmail', 'AccountPassword', 'TmdbApiKey', 'FeaturedRows', 'ChannelImageUrl', 'EpgTimeZone', 'ContentAuthMethod', 'ContentAuthSaltHex', 'ContentAuthMd5Schedule', 'ContentAuthMd5KOverrides', 'PortalCode', 'ApiBasePath', 'PortalApkVer', 'PortalSpkgVer', 'PortalUserAgent', 'CdnUserAgent', 'LoginPasswordSalt', 'SnTokenSalt', 'LiveColumnCode', 'AllChannelsColumnId', 'Catalogs'];
+            var textFields = ['TripleDesKeyHex', 'Hosts', 'AppId', 'ApkVersion', 'DeviceSn', 'DeviceDrmId', 'DeviceToken', 'DeviceReserve1', 'ProxyBaseUrl', 'AccountEmail', 'AccountPassword', 'TmdbApiKey', 'FeaturedRows', 'ChannelImageUrl', 'FollowLibraryPath', 'EpgTimeZone', 'ContentAuthMethod', 'ContentAuthSaltHex', 'ContentAuthMd5Schedule', 'ContentAuthMd5KOverrides', 'PortalCode', 'ApiBasePath', 'PortalApkVer', 'PortalSpkgVer', 'PortalUserAgent', 'CdnUserAgent', 'LoginPasswordSalt', 'SnTokenSalt', 'LiveColumnCode', 'AllChannelsColumnId', 'Catalogs'];
             var marks = { ok: '\u2705', warning: '\u26A0\uFE0F', error: '\u274C' };
 
             // Bulk import/export. Every key is matched by its normalized form (uppercase, no PORTALITO_
             // prefix, no separators), so ".env" keys, raw property names and underscore variants all resolve
             // to the same field -- e.g. PORTALITO_CONTENT_AUTH_MD5_K_OVERRIDES == ContentAuthMd5KOverrides.
-            var boolField = 'SkipPortalTlsVerification';
+            var boolFields = ['SkipPortalTlsVerification', 'FollowLibraryEnabled'];
             function normalizeKey(k) {
                 return String(k).toUpperCase().replace(/^PORTALITO_/, '').replace(/[^A-Z0-9]/g, '');
             }
             var normIndex = {};
-            textFields.concat([boolField]).forEach(function (name) { normIndex[normalizeKey(name)] = name; });
+            textFields.concat(boolFields).forEach(function (name) { normIndex[normalizeKey(name)] = name; });
 
             function parseImport(text) {
                 var pairs = [], out = {}, ignored = 0;
@@ -224,9 +236,9 @@
                 var applied = 0;
                 Object.keys(parsed.values).forEach(function (name) {
                     var value = parsed.values[name];
-                    if (name === boolField) {
+                    if (boolFields.indexOf(name) >= 0) {
                         var s = String(value).toLowerCase();
-                        document.querySelector('#' + boolField).checked = (s === 'true' || s === '1' || s === 'yes' || s === 'on');
+                        document.querySelector('#' + name).checked = (s === 'true' || s === '1' || s === 'yes' || s === 'on');
                     } else {
                         document.querySelector('#' + name).value = value == null ? '' : String(value);
                     }
@@ -242,8 +254,9 @@
                 var lines = textFields.map(function (name) {
                     return envKey(name) + '=' + (document.querySelector('#' + name).value || '');
                 });
-                lines.push('PORTALITO_' + boolField.replace(/([a-z0-9])([A-Z])/g, '$1_$2').toUpperCase()
-                    + '=' + (document.querySelector('#' + boolField).checked ? 'true' : 'false'));
+                boolFields.forEach(function (name) {
+                    lines.push(envKey(name) + '=' + (document.querySelector('#' + name).checked ? 'true' : 'false'));
+                });
                 document.querySelector('#ImportExportText').value = lines.join('\n');
                 document.querySelector('#PortalitoImportStatus').textContent = marks.ok + ' Exported current values \u2014 copy them from the box.';
             }
@@ -254,6 +267,7 @@
                         config[name] = document.querySelector('#' + name).value;
                     });
                     config.SkipPortalTlsVerification = document.querySelector('#SkipPortalTlsVerification').checked;
+                    config.FollowLibraryEnabled = document.querySelector('#FollowLibraryEnabled').checked;
                     return ApiClient.updatePluginConfiguration(pluginId, config);
                 });
             }
@@ -276,6 +290,7 @@
                         document.querySelector('#' + name).value = config[name] || '';
                     });
                     document.querySelector('#SkipPortalTlsVerification').checked = !!config.SkipPortalTlsVerification;
+                    document.querySelector('#FollowLibraryEnabled').checked = !!config.FollowLibraryEnabled;
                     Dashboard.hideLoadingMsg();
                 });
             });

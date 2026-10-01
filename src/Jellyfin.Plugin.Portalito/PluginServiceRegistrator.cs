@@ -5,6 +5,7 @@ using MediaBrowser.Controller;
 using MediaBrowser.Controller.Channels;
 using MediaBrowser.Controller.LiveTv;
 using MediaBrowser.Controller.Plugins;
+using Microsoft.AspNetCore.Mvc;
 using Microsoft.Extensions.DependencyInjection;
 
 namespace Jellyfin.Plugin.Portalito;
@@ -40,6 +41,12 @@ public class PluginServiceRegistrator : IPluginServiceRegistrator
         // Known title runtimes (what lets Jellyfin keep playback positions); data path so it survives cache cleanup.
         serviceCollection.AddSingleton(sp => new Catalog.RuntimeStore(
             Path.Combine(sp.GetRequiredService<IApplicationPaths>().DataPath, "portalito", "runtimes.json")));
+        // The hidden "Portalito · Siguiendo" library (Next Up): which shows it mirrors, the sync on playback stop, and
+        // making Jellyfin stream its .strm episodes itself (see Following/FollowPlaybackFilter).
+        serviceCollection.AddSingleton(sp => new Following.FollowStore(
+            Path.Combine(sp.GetRequiredService<IApplicationPaths>().DataPath, "portalito", "following.json")));
+        serviceCollection.AddHostedService<Following.FollowTrigger>();
+        serviceCollection.Configure<MvcOptions>(options => options.Filters.Add<Following.FollowPlaybackFilter>());
         serviceCollection.AddSingleton<ILiveTvService, PortalitoLiveTvService>();
         serviceCollection.AddSingleton<IChannel, PortalitoVodChannel>();
     }

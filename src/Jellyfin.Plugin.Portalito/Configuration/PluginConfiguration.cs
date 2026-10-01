@@ -163,6 +163,20 @@ public class PluginConfiguration : BasePluginConfiguration
     /// </summary>
     public string ChannelImageUrl { get; set; } = string.Empty;
 
+    /// <summary>
+    /// Gets or sets a value indicating whether the plugin keeps the hidden "Portalito · Siguiendo" library: a TV library
+    /// mirroring only the series people are watching in the channel, so they show up in Jellyfin's "Next Up" (which
+    /// only reads libraries, never channels). On by default. Turning it off stops the sync; it doesn't delete the
+    /// library (remove it from Dashboard → Libraries).
+    /// </summary>
+    public bool FollowLibraryEnabled { get; set; } = true;
+
+    /// <summary>
+    /// Gets or sets the folder the "Siguiendo" library's files (.strm, .nfo, posters) are written to. Empty (the default)
+    /// means <c>portalito/siguiendo</c> under Jellyfin's data folder. Jellyfin must be able to write it.
+    /// </summary>
+    public string FollowLibraryPath { get; set; } = string.Empty;
+
     /// <summary>Gets or sets the secret that signs proxy URLs. Generated on first use when empty.</summary>
     public string ProxySigningSecret { get; set; } = string.Empty;
 

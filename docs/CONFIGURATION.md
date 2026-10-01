@@ -71,6 +71,13 @@ plugin. A wrong value only shows up as live streams that won't play (VOD doesn't
 | `TmdbApiKey` | `PORTALITO_TMDB_API_KEY` | Optional TMDB v3 key. Fills blank synopses/posters, and powers `FeaturedRows`. |
 | `FeaturedRows` | `PORTALITO_FEATURED_ROWS` | Builds **Destacado** from TMDB lists, keeping only titles the portal has. **Pre-filled with 11 default rows** (trending, popular, anime JP/KR, Korean series…), active as soon as a TMDB key is set. Clear it to use the portal's own rows. Syntax, sources and the default list: [DESTACADO.md](DESTACADO.md). |
 
+## Next Up ("Portalito · Siguiendo")
+
+| Field | `.env` key | What it is |
+|---|---|---|
+| `FollowLibraryEnabled` | `PORTALITO_FOLLOW_LIBRARY_ENABLED` | On by default. Keeps a TV library, hidden from every user's menus, mirroring only the series people watch in the channel (played in the last 60 days, or marked favorite), so they reach Jellyfin's **Next Up**, which never reads channels. Off stops the sync; it doesn't delete the library (Dashboard → Libraries). How it works: [ARCHITECTURE.md](ARCHITECTURE.md#next-up-the-hidden-portalito--siguiendo-library). |
+| `FollowLibraryPath` | `PORTALITO_FOLLOW_LIBRARY_PATH` | Where that library's .strm/.nfo files and posters go. Empty = `portalito/siguiendo` under Jellyfin's data folder. Jellyfin must be able to write it. |
+
 ## Server / network
 
 | Field | `.env` key | What it is |
@@ -79,7 +86,7 @@ plugin. A wrong value only shows up as live streams that won't play (VOD doesn't
 | `ProxyBaseUrl` | `PORTALITO_PROXY_BASE_URL` | How Jellyfin's own ffmpeg reaches this server's proxy, e.g. `http://127.0.0.1:8096`. Empty = the server's own local address (port, HTTPS and base path included). Must be `http(s)://`. |
 | `EpgTimeZone` | `PORTALITO_EPG_TIME_ZONE` | IANA zone the portal's guide times are in (they carry none), e.g. `America/Bogota`. Empty = the server's zone. |
 | `SkipPortalTlsVerification` | `PORTALITO_SKIP_PORTAL_TLS_VERIFICATION` | Off by default. Turn on only if the portal hosts present invalid certificates — without verification, anyone on the network path can capture the login. |
-| `ProxySigningSecret` | — | Generated and saved on first use; signs the proxy URLs. Not on the page. |
+| `ProxySigningSecret` | — | Generated and saved on first use; signs the proxy URLs (including the Siguiendo library's .strm files, which a new secret invalidates until the next sync rewrites them). Not on the page. |
 
 ## Import / export
 
