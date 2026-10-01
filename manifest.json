@@ -9,6 +9,14 @@
     "imageUrl": "https://raw.githubusercontent.com/jaheaga/portalito/main/assets/branding/portalito-banner.png",
     "versions": [
       {
+        "version": "0.1.1.0",
+        "targetAbi": "10.11.0.0",
+        "sourceUrl": "https://github.com/jaheaga/portalito/releases/download/v0.1.1.0/Portalito_0.1.1.0.zip",
+        "checksum": "b15c1e25323ed7893156ce7743a34750",
+        "changelog": "Portalito series now show up in Jellyfin's \"Next Up\". Jellyfin builds Next Up only from libraries, never from channels, so the plugin now keeps a library called \"Portalito \u00b7 Siguiendo\" with just the series people are watching (played in the last 60 days, or marked favorite), not the whole catalog.\u2026",
+        "timestamp": "2026-10-01T15:43:04Z"
+      },
+      {
         "version": "0.1.0.9",
         "targetAbi": "10.11.0.0",
         "sourceUrl": "https://github.com/jaheaga/portalito/releases/download/v0.1.0.9/Portalito_0.1.0.9.zip",
