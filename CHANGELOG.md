@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## 0.1.1.0 — 2026-10-01
 
 - **Portalito series now show up in Jellyfin's "Next Up".** Jellyfin builds Next Up only from libraries, never
   from channels, so the plugin now keeps a library called **"Portalito · Siguiendo"** with just the series people
