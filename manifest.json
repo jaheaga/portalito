@@ -9,6 +9,14 @@
     "imageUrl": "https://raw.githubusercontent.com/jaheaga/portalito/main/assets/branding/portalito-banner.png",
     "versions": [
       {
+        "version": "0.1.1.3",
+        "targetAbi": "10.11.0.0",
+        "sourceUrl": "https://github.com/jaheaga/portalito/releases/download/v0.1.1.3/Portalito_0.1.1.3.zip",
+        "checksum": "1265f4d3381c624ce86a0f3c8074c25f",
+        "changelog": "Destacado rows by streaming platform. Six new default rows list each platform's own series, most popular first, keeping only what your portal has: Originales Netflix, Apple TV+, Disney+, HBO, Prime Video and Paramount+. Measured on a test server: 34 to 60 playable series per row. New row options\u2026",
+        "timestamp": "2026-10-01T20:16:54Z"
+      },
+      {
         "version": "0.1.1.2",
         "targetAbi": "10.11.0.0",
         "sourceUrl": "https://github.com/jaheaga/portalito/releases/download/v0.1.1.2/Portalito_0.1.1.2.zip",
