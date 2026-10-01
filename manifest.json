@@ -9,12 +9,12 @@
     "imageUrl": "https://raw.githubusercontent.com/jaheaga/portalito/main/assets/branding/portalito-banner.png",
     "versions": [
       {
-        "version": "0.1.0.101",
+        "version": "0.1.0.102",
         "targetAbi": "10.11.0.0",
-        "sourceUrl": "https://raw.githubusercontent.com/jaheaga/portalito/testing/Portalito_0.1.0.101.zip",
-        "checksum": "1d02f5e4d4be86e3d65ad6296e854e57",
-        "changelog": "Test build: the hidden \"Portalito \u00b7 Siguiendo\" library for Next Up. Not a release.",
-        "timestamp": "2026-10-01T19:30:00Z"
+        "sourceUrl": "https://raw.githubusercontent.com/jaheaga/portalito/testing/Portalito_0.1.0.102.zip",
+        "checksum": "18201b0d61093ae9b83decb4f9251370",
+        "changelog": "Siguiendo: create the library only once it has a show (Jellyfin skips empty library folders). Not a release.",
+        "timestamp": "2026-10-01T15:21:34Z"
       }
     ]
   }
