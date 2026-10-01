@@ -212,6 +212,7 @@ TMDB never decides what plays: everything played is the portal's.
 | Task | Schedule | What it does |
 |---|---|---|
 | Sincronizar Portalito · Siguiendo | at startup, every 30 min, and after a channel episode stops | mirrors followed series into the hidden Next Up library (see above) |
+| Logo del canal Portalito | at startup, Sundays 03:20 | gives the channel whichever of its images (logo, banner, backdrop) it lacks; Jellyfin only asks a channel for images when it first creates it. Hand-set images are kept |
 | Reparar series Portalito | at startup, Sundays 03:45 | fills runtimes and episode seasons into titles Jellyfin saved before they were known (what Continue Watching needs) |
 | Indexar catálogo Portalito | Sundays 04:00 | walks the catalogs and live categories so their items exist in Jellyfin's library and show up in search |
 | Reparar imágenes Portalito | Sundays 03:30 | re-applies the folder collages Jellyfin's image providers may have replaced |

@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.1.1.5 — 2026-10-01
+
+- **The channel gets the Portalito logo on its own.** Jellyfin only asks a channel for its images when it first
+  creates it, so a server that had the channel before 0.1.0.8 never got the logo without a manual "Refresh metadata".
+  A new task, **"Logo del canal Portalito"** (at startup and weekly), fills in whichever of the channel's images are
+  missing: the square logo, the banner and the backdrop. An image you set by hand is kept.
+
 ## 0.1.1.4 — 2026-10-01
 
 - **Each Destacado row shows its own picture again.** Rows were identified by their position in the list, so adding

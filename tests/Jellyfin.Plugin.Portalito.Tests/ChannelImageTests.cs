@@ -72,4 +72,14 @@ public class ChannelImageTests : IDisposable
 
         Assert.Equal((512, 512), PngSize(image.Stream));
     }
+
+    [Fact]
+    public void The_logo_task_asks_only_for_the_images_the_channel_lacks()
+    {
+        var offered = new[] { ImageType.Primary, ImageType.Thumb, ImageType.Backdrop };
+
+        Assert.Equal(offered, Jellyfin.Plugin.Portalito.Channels.ChannelLogoTask.Missing(offered, _ => false));
+        Assert.Equal(new[] { ImageType.Thumb, ImageType.Backdrop }, Jellyfin.Plugin.Portalito.Channels.ChannelLogoTask.Missing(offered, t => t == ImageType.Primary));
+        Assert.Empty(Jellyfin.Plugin.Portalito.Channels.ChannelLogoTask.Missing(offered, _ => true));
+    }
 }
