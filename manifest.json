@@ -9,6 +9,14 @@
     "imageUrl": "https://raw.githubusercontent.com/jaheaga/portalito/main/assets/branding/portalito-banner.png",
     "versions": [
       {
+        "version": "0.1.1.2",
+        "targetAbi": "10.11.0.0",
+        "sourceUrl": "https://github.com/jaheaga/portalito/releases/download/v0.1.1.2/Portalito_0.1.1.2.zip",
+        "checksum": "794867b4838478b9a4813f10bc6b124c",
+        "changelog": "Subtitles in \"Next Up\" episodes. Episodes played from the hidden \"Portalito \u00b7 Siguiendo\" library now offer the portal's subtitle files (e.g. Spanish and English), like the channel does. They're fetched the first time an episode is played. A series you're watching no longer drops out of\u2026",
+        "timestamp": "2026-10-01T18:45:25Z"
+      },
+      {
         "version": "0.1.1.1",
         "targetAbi": "10.11.0.0",
         "sourceUrl": "https://github.com/jaheaga/portalito/releases/download/v0.1.1.1/Portalito_0.1.1.1.zip",
