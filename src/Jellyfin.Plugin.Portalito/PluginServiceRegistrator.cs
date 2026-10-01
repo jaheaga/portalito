@@ -45,6 +45,7 @@ public class PluginServiceRegistrator : IPluginServiceRegistrator
         // making Jellyfin stream its .strm episodes itself (see Following/FollowPlaybackFilter).
         serviceCollection.AddSingleton(sp => new Following.FollowStore(
             Path.Combine(sp.GetRequiredService<IApplicationPaths>().DataPath, "portalito", "following.json")));
+        serviceCollection.AddSingleton<Following.FollowSubtitles>();
         serviceCollection.AddHostedService<Following.FollowTrigger>();
         serviceCollection.Configure<MvcOptions>(options => options.Filters.Add<Following.FollowPlaybackFilter>());
         serviceCollection.AddSingleton<ILiveTvService, PortalitoLiveTvService>();

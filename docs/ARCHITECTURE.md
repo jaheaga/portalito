@@ -156,7 +156,8 @@ folders only (`TVSeriesManager`), never channels — hence the "Siguiendo" libra
 Next Up only reads libraries, so the plugin mirrors the series people actually watch (not the catalog) into a real TV
 library, hidden from every user's menus. Code in `Following/`.
 
-- **Which shows** (`FollowPlanner`): any show someone played an episode of in the last 60 days — in the channel or in
+- **Which shows** (`FollowPlanner`): any show someone played an episode of in the last 60 days — any play counts, even
+  one stopped under 5% or one that failed (those leave only a play date, not "played"/"in progress") — in the channel or in
   the library — or marked favorite; capped at 100. Played/resumable channel episodes name their season
   (`epi:<season>:<episode>`); the season's `sameSeasonSeriesList` names the show, whose id is its lowest-numbered
   season's contentId. `FollowStore` (`<data>/portalito/following.json`) remembers the mirrored shows and their seasons.
@@ -176,6 +177,12 @@ library, hidden from every user's menus. Code in `Following/`.
   each user's `MyMediaExcludes` (hidden from menus; read only by `UserViewManager.GetUserViews`) and, for users
   limited to some libraries who can open the channel, to `EnabledFolders`. `LatestItemExcludes` is never touched:
   Next Up and Continue Watching skip only those.
+- **Subtitles** (`FollowSubtitles`): the portal names subtitle files only in its per-episode play call, so they're
+  fetched when an episode's playback info is asked for (from `FollowPlaybackFilter`) and saved beside its .strm as
+  `SxxEyy.<lang>.srt`. Jellyfin's re-probe of a .strm lists the folder through a singleton, never-cleared
+  `DirectoryService`, so the folder is evicted from that cache (by reflection) right after writing them.
+- **Never empty**: `portalito-siguiendo.txt` stays in the folder; Jellyfin skips scanning an empty library folder and
+  would keep a removed show's episodes listed.
 - **Progress** (`WatchState`): a user's newer play of a channel episode is copied onto its library copy (that's what
   puts the show in Next Up), and the channel copy's resume point is cleared so Continue Watching doesn't list it twice.
 - **When**: `FollowSyncTask` ("Sincronizar Portalito · Siguiendo") at startup and every 30 minutes, and

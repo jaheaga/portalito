@@ -86,6 +86,40 @@ public class FollowingTests : IDisposable
     public void Episode_titles_that_only_repeat_the_show_become_episodio_n(string? name, string? show, int number, string expected)
         => Assert.Equal(expected, FollowFiles.EpisodeTitle(name, show, number));
 
+    [Fact]
+    public void A_show_id_reads_back_from_its_folder_name()
+    {
+        Assert.Equal("3A0232FD", FollowFiles.ShowIdOfFolder(FollowFiles.ShowFolder("Naruto Shippuden", "3A0232FD")));
+        Assert.Null(FollowFiles.ShowIdOfFolder("Season 01"));
+        Assert.Null(FollowFiles.ShowIdOfFolder(null));
+    }
+
+    [Fact]
+    public void Subtitle_sidecars_are_named_by_language_one_per_language()
+    {
+        var taken = new HashSet<string>();
+
+        Assert.Equal("S01E168.spa.srt", FollowFiles.SubtitleFileName("S01E168", "spa", "srt", taken));
+        Assert.Equal("S01E168.eng.vtt", FollowFiles.SubtitleFileName("S01E168", "ENG", "vtt", taken));
+        Assert.Null(FollowFiles.SubtitleFileName("S01E168", "spa", "srt", taken));
+        Assert.Equal("S01E168.und.srt", FollowFiles.SubtitleFileName("S01E168", "../", "srt", taken));
+    }
+
+    [Fact]
+    public void Evicting_a_folder_drops_it_and_its_files_from_jellyfins_directory_cache()
+    {
+        var service = (MediaBrowser.Controller.Providers.DirectoryService)System.Runtime.CompilerServices.RuntimeHelpers.GetUninitializedObject(typeof(MediaBrowser.Controller.Providers.DirectoryService));
+        var cache = new System.Collections.Concurrent.ConcurrentDictionary<string, List<string>>(StringComparer.Ordinal);
+        cache["/lib/Show/Season 01"] = new List<string>();
+        cache["/lib/Show/Season 01/S01E01.strm"] = new List<string>();
+        cache["/lib/Show/Season 010"] = new List<string>();
+        typeof(MediaBrowser.Controller.Providers.DirectoryService).GetField("_filePathCache", System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.NonPublic)!.SetValue(service, cache);
+
+        FollowSubtitles.Evict(service, "/lib/Show/Season 01");
+
+        Assert.Equal(new[] { "/lib/Show/Season 010" }, cache.Keys);
+    }
+
     // ---- writer ----
 
     private FollowWriter Writer(List<string>? downloads = null, byte[]? image = null)

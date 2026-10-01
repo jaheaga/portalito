@@ -2,6 +2,7 @@ using System.Globalization;
 using System.Text.Json.Nodes;
 using Jellyfin.Data.Enums;
 using Jellyfin.Database.Implementations.Entities;
+using Jellyfin.Database.Implementations.Enums;
 using Jellyfin.Plugin.Portalito.Catalog;
 using Jellyfin.Plugin.Portalito.Metadata;
 using Jellyfin.Plugin.Portalito.Portal;
@@ -118,6 +119,11 @@ public sealed class FollowSyncTask : IScheduledTask
         var root = FollowLibrary.Root(config, _paths.DataPath);
         var host = new FollowLibrary(_library, _users, _logger);
         Directory.CreateDirectory(root);
+        var marker = Path.Combine(root, FollowFiles.MarkerFile);
+        if (!File.Exists(marker))
+        {
+            File.WriteAllText(marker, FollowFiles.MarkerText);
+        }
 
         // An existing library is hidden (and shared) first, so it's readable before its episodes are queried per user.
         var library = host.Find(root);
@@ -148,7 +154,7 @@ public sealed class FollowSyncTask : IScheduledTask
         // library is created -- or, if it was created empty, finally indexed -- only once it has a show in it.
         if (library is null)
         {
-            if (!Directory.EnumerateFileSystemEntries(root).Any())
+            if (!Directory.EnumerateDirectories(root).Any())
             {
                 _logger.LogInformation("Siguiendo: nobody follows a Portalito series yet; nothing to mirror");
                 return;
@@ -199,10 +205,9 @@ public sealed class FollowSyncTask : IScheduledTask
         foreach (var user in users)
         {
             // Channel episodes: an id "epi:<season>:<episode>" names the season, and through it the show.
-            foreach (var item in Played(user, new InternalItemsQuery(user) { ChannelIds = new[] { channelId }, IncludeItemTypes = new[] { BaseItemKind.Episode } }))
+            foreach (var (item, data) in RecentlyPlayed(user, new InternalItemsQuery(user) { ChannelIds = new[] { channelId }, IncludeItemTypes = new[] { BaseItemKind.Episode } }))
             {
                 if (VodItemId.TryParse(item.ExternalId, out var id) && id.Kind == VodItemKind.Episode
-                    && _userData.GetUserData(user, item) is { } data
                     && await ShowOfSeasonAsync(services, id.Primary, cancellationToken).ConfigureAwait(false) is { } showId)
                 {
                     plays.Add(new ChannelPlay(user, item, data, id.Secondary!));
@@ -227,19 +232,19 @@ public sealed class FollowSyncTask : IScheduledTask
                 continue;
             }
 
-            foreach (var item in Played(user, new InternalItemsQuery(user) { IncludeItemTypes = new[] { BaseItemKind.Episode }, AncestorIds = new[] { inLibrary } }))
+            foreach (var (item, data) in RecentlyPlayed(user, new InternalItemsQuery(user) { IncludeItemTypes = new[] { BaseItemKind.Episode }, AncestorIds = new[] { inLibrary } }))
             {
-                if (ShowOfPath(item.Path) is { } show && _userData.GetUserData(user, item) is { } data)
+                if (ShowOfPath(item.Path) is { } showId)
                 {
-                    activity.Add(new ShowActivity(show.ShowId, data.LastPlayedDate));
+                    activity.Add(new ShowActivity(showId, data.LastPlayedDate));
                 }
             }
 
             foreach (var item in _library.GetItemList(new InternalItemsQuery(user) { IsFavorite = true, IncludeItemTypes = new[] { BaseItemKind.Series }, AncestorIds = new[] { inLibrary } }))
             {
-                if (ShowOfPath(item.Path) is { } show)
+                if (ShowOfPath(item.Path) is { } showId)
                 {
-                    activity.Add(new ShowActivity(show.ShowId, null, Favorite: true));
+                    activity.Add(new ShowActivity(showId, null, Favorite: true));
                 }
             }
         }
@@ -247,24 +252,49 @@ public sealed class FollowSyncTask : IScheduledTask
         return (activity, plays);
     }
 
-    /// <summary>The query's items the user played or started (two queries: played and resumable), each once.</summary>
-    private IEnumerable<BaseItem> Played(User user, InternalItemsQuery query)
+    /// <summary>How many of a user's most recently played items each query looks at (besides every played or in-progress one).</summary>
+    private const int RecentPlaysPerUser = 200;
+
+    /// <summary>
+    /// The query's items the user played within <see cref="FollowPlanner.ActivityWindow"/>, with their user data: played,
+    /// in progress, or just started. A play that ended under 5% of the runtime, or failed to start, leaves an episode
+    /// neither played nor in progress, only with its play date; counting only played/in-progress episodes dropped a show
+    /// someone was watching (measured on production 2026-10-01: two failed plays wiped the only progress, and the next
+    /// sync deleted the show). Three queries, each bounded: played, in progress, and the most recent by play date.
+    /// </summary>
+    private IEnumerable<(BaseItem Item, UserItemData Data)> RecentlyPlayed(User user, InternalItemsQuery query)
     {
+        var cutoff = DateTime.UtcNow - FollowPlanner.ActivityWindow;
         query.IsPlayed = true;
-        var played = _library.GetItemList(query);
+        var items = _library.GetItemList(query).ToList();
         query.IsPlayed = null;
         query.IsResumable = true;
-        return played.Concat(_library.GetItemList(query)).DistinctBy(i => i.Id);
+        items.AddRange(_library.GetItemList(query));
+        query.IsResumable = null;
+        query.OrderBy = new[] { (ItemSortBy.DatePlayed, SortOrder.Descending) };
+        query.Limit = RecentPlaysPerUser;
+        items.AddRange(_library.GetItemList(query));
+
+        foreach (var item in items.DistinctBy(i => i.Id))
+        {
+            if (_userData.GetUserData(user, item) is { LastPlayedDate: { } played } data && played >= cutoff)
+            {
+                yield return (item, data);
+            }
+        }
     }
 
-    /// <summary>The followed show whose folder holds <paramref name="path"/> (an episode's file or a show's folder).</summary>
-    private FollowedShow? ShowOfPath(string? path)
+    /// <summary>
+    /// The id of the show whose folder holds <paramref name="path"/> (an episode's file or a show's folder), from the
+    /// folder's <c>[portalito-id]</c> tag -- so it works even for a show no longer in the store.
+    /// </summary>
+    private static string? ShowOfPath(string? path)
     {
         for (var dir = path; !string.IsNullOrEmpty(dir); dir = Path.GetDirectoryName(dir))
         {
-            if (_store.ShowForFolder(Path.GetFileName(dir)) is { } show)
+            if (FollowFiles.ShowIdOfFolder(Path.GetFileName(dir)) is { } showId)
             {
-                return show;
+                return showId;
             }
         }
 

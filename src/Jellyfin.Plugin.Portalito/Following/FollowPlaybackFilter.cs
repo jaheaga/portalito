@@ -18,14 +18,16 @@ public sealed class FollowPlaybackFilter : IAsyncActionFilter
 {
     private readonly ILibraryManager _library;
     private readonly IApplicationPaths _paths;
+    private readonly FollowSubtitles _subtitles;
 
-    public FollowPlaybackFilter(ILibraryManager library, IApplicationPaths paths)
+    public FollowPlaybackFilter(ILibraryManager library, IApplicationPaths paths, FollowSubtitles subtitles)
     {
         _library = library;
         _paths = paths;
+        _subtitles = subtitles;
     }
 
-    public Task OnActionExecutionAsync(ActionExecutingContext context, ActionExecutionDelegate next)
+    public async Task OnActionExecutionAsync(ActionExecutingContext context, ActionExecutionDelegate next)
     {
         if (IsPlaybackInfo(context.ActionDescriptor as ControllerActionDescriptor)
             && context.ActionArguments.TryGetValue("itemId", out var raw) && raw is Guid itemId
@@ -36,9 +38,12 @@ public sealed class FollowPlaybackFilter : IAsyncActionFilter
             // The query parameters win over the body's (MediaInfoController: "enableDirectPlay ??= dto.EnableDirectPlay").
             context.ActionArguments["enableDirectPlay"] = false;
             context.ActionArguments["enableDirectStream"] = false;
+
+            // Before the action: its re-probe of the .strm is what picks up the subtitle files written here.
+            await _subtitles.EnsureAsync(item.Path, context.HttpContext.RequestAborted).ConfigureAwait(false);
         }
 
-        return next();
+        await next().ConfigureAwait(false);
     }
 
     /// <summary><c>POST /Items/{itemId}/PlaybackInfo</c>, the call every current client makes before playing.</summary>

@@ -1,5 +1,18 @@
 # Changelog
 
+## 0.1.1.2 — 2026-10-01
+
+- **Subtitles in "Next Up" episodes.** Episodes played from the hidden "Portalito · Siguiendo" library now offer the
+  portal's subtitle files (e.g. Spanish and English), like the channel does. They're fetched the first time an
+  episode is played.
+- **A series you're watching no longer drops out of "Siguiendo".** Only finished or half-watched episodes counted as
+  watching, so an episode stopped in the first minute, or one that failed to start, could make the sync drop the
+  series and delete its files. Any play in the last 60 days now counts.
+- **A series that leaves the library really leaves.** When the last series was removed, Jellyfin skipped scanning the
+  now-empty folder and kept listing its episodes, which then failed to play. The folder now always holds a small
+  `portalito-siguiendo.txt`, so Jellyfin always scans it.
+- Upgrading: a series dropped by mistake comes back on the next sync (at startup).
+
 ## 0.1.1.1 — 2026-10-01
 
 - **Resuming or jumping into the middle of a movie or episode no longer fails at random.** To seek, Jellyfin's
