@@ -9,6 +9,14 @@
     "imageUrl": "https://raw.githubusercontent.com/jaheaga/portalito/main/assets/branding/portalito-banner.png",
     "versions": [
       {
+        "version": "0.1.0.9",
+        "targetAbi": "10.11.0.0",
+        "sourceUrl": "https://github.com/jaheaga/portalito/releases/download/v0.1.0.9/Portalito_0.1.0.9.zip",
+        "checksum": "d3127d1b3834a3058bcd22fe70176584",
+        "changelog": "Movies and episodes now show up in Jellyfin's \"Continue Watching\" and resume where you left off. Jellyfin only keeps a playback position when it knows a title's length; Portalito never told it, so Jellyfin marked everything as watched the moment it started. The plugin now gives each title its\u2026",
+        "timestamp": "2026-10-01T12:55:16Z"
+      },
+      {
         "version": "0.1.0.8",
         "targetAbi": "10.11.0.0",
         "sourceUrl": "https://github.com/jaheaga/portalito/releases/download/v0.1.0.8/Portalito_0.1.0.8.zip",
