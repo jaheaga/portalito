@@ -19,6 +19,12 @@ browses the portal's own catalog.
 | Próximamente | `upcoming` |
 | Películas populares | `popular-movies` |
 | Series populares | `popular-tv` |
+| Originales Netflix | `discover-tv \| network=netflix nogenre=10762,10763,10764,10767 minvotes=100 pages=3` |
+| Apple TV+ | same, `network=apple` |
+| Disney+ | same, `network=disney` |
+| HBO | same, `network=hbo` (HBO and HBO Max) |
+| Prime Video | same, `network=prime` |
+| Paramount+ | same, `network=paramount` |
 | En emisión hoy | `airing-today` |
 | Anime del momento | `discover-tv \| country=JP,KR genre=16 pages=3` |
 | Películas de anime | `discover-movies \| country=JP,KR genre=16` |
@@ -28,7 +34,13 @@ browses the portal's own catalog.
 
 The exact string is `PluginConfiguration.DefaultFeaturedRows`. Existing installs get it too: a one-time
 migration (0.1.0.6) fills the field when it's empty and was never seeded — including configs that 0.1.0.4
-saved empty. After that, clearing the field keeps it cleared.
+saved empty. After that, clearing the field keeps it cleared. Since 0.1.1.3, a field still holding exactly the
+previous 11-row default gets the platform rows the same way; a field anyone edited is left alone (add the
+platform rows by hand from the table above).
+
+The platform rows list each platform's **own** series (TMDB *networks*: what it produced), most popular first.
+Without `minvotes=100` and the excluded genres (kids, news, reality, talk) popularity alone ranks daily shows and
+regional fillers first (measured 2026-10-01: *WWE Raw* and *Sesame Street* topped Netflix's list).
 
 Changes to the rows show up in the **next** listing: the channel's cache key follows the configuration, so
 Jellyfin's 3-hour channel cache doesn't hide them. (A client app may still show its own cached screen until
@@ -73,7 +85,18 @@ Rows with no label or an unknown source are skipped.
 | `sort` | discover | `sort_by` (default `popularity.desc`) | `sort=vote_average.desc` |
 | `year` | discover | `primary_release_year` / `first_air_date_year` | `year=2024` |
 | `minvotes` | discover | `vote_count.gte` (filters obscure titles) | `minvotes=20` |
+| `network` | discover-tv | `with_networks`: the platform that **made** the series (its originals) | `network=netflix`, `network=hbo,prime` |
+| `provider` | discover | `with_watch_providers`: titles **included in the subscription** of a platform in `region`, licensed ones too | `provider=netflix region=CO` |
+| `region` | discover, with `provider` | `watch_region` (ISO 3166-1, default `US`) | `region=CO` |
 | `pages` | all | TMDB pages of 20 to fetch, 1–3 (default 2) | `pages=3` |
+
+Platform names for `network`: `netflix`, `apple`, `disney`, `hbo` (HBO + HBO Max), `max`, `prime`, `paramount`,
+`hulu`, `peacock`, `crunchyroll`. For `provider`: `netflix`, `prime`, `apple`, `disney`, `hbo`/`max`, `paramount`,
+`vix`, `crunchyroll`, `mubi`. Both also take raw TMDB ids (`network=213`). Unknown names are ignored.
+
+**network or provider?** `network` gives a platform's identity (its originals, the same everywhere);
+`provider` gives what you can watch there in your country, which mixes in lots of licensed catalog and changes
+over time. For "the Netflix row", `network` is usually what people mean.
 
 Useful TMDB genre ids: 16 Animation, 28 Action, 35 Comedy, 18 Drama, 27 Horror, 10749 Romance,
 878 Science Fiction, 99 Documentary, 10751 Family; TV only: 10759 Action & Adventure, 10762 Kids,
@@ -94,6 +117,8 @@ Series mejor valoradas | top-tv
 ```
 
 - **Anime (Japanese/Korean only):** `discover-tv` with `country=JP,KR genre=16` (animation from Japan or Korea).
+- **A platform's originals:** `Originales Netflix | discover-tv | network=netflix nogenre=10762,10763,10764,10767 minvotes=100 pages=3`.
+- **What's on a platform in your country** (movies too): `En Prime Video | discover-movies | provider=prime region=CO minvotes=100`.
 - **Korean TV series:** `discover-tv` with `country=KR`, excluding animation, reality and talk shows
   (`nogenre=16,10764,10767`) and obscure entries (`minvotes=20`).
 

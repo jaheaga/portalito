@@ -117,9 +117,27 @@ public class PluginConfiguration : BasePluginConfiguration
 
     /// <summary>
     /// The out-of-the-box "Destacado" rows: generic TMDB lists (no portal-specific value), so a fresh install with a TMDB
-    /// key gets them without any setup. Owner decision 2026-09-30.
+    /// key gets them without any setup. Owner decisions 2026-09-30 (the first 11) and 2026-10-01 (the platform rows: each
+    /// platform's own series -- TMDB "network" -- most popular first, without kids/news/reality/talk shows and with at least
+    /// 100 votes, which keeps out the daily shows and regional fillers popularity alone ranks high).
     /// </summary>
     public const string DefaultFeaturedRows =
+        "Tendencias | trending | window=week; Estrenos en cine | now-playing; Próximamente | upcoming; Películas populares | popular-movies; Series populares | popular-tv; "
+        + PlatformRows
+        + "En emisión hoy | airing-today; Anime del momento | discover-tv | country=JP,KR genre=16 pages=3; Películas de anime | discover-movies | country=JP,KR genre=16; Series coreanas | discover-tv | country=KR nogenre=16,10764,10767 minvotes=20 pages=3; Películas mejor valoradas | top-movies; Series mejor valoradas | top-tv";
+
+    private const string PlatformFilter = "nogenre=10762,10763,10764,10767 minvotes=100 pages=3; ";
+
+    private const string PlatformRows =
+        "Originales Netflix | discover-tv | network=netflix " + PlatformFilter
+        + "Apple TV+ | discover-tv | network=apple " + PlatformFilter
+        + "Disney+ | discover-tv | network=disney " + PlatformFilter
+        + "HBO | discover-tv | network=hbo " + PlatformFilter
+        + "Prime Video | discover-tv | network=prime " + PlatformFilter
+        + "Paramount+ | discover-tv | network=paramount " + PlatformFilter;
+
+    /// <summary>The default rows before the platform rows (0.1.0.5 to 0.1.1.2); a config still holding exactly these is upgraded.</summary>
+    internal const string PreviousDefaultFeaturedRows =
         "Tendencias | trending | window=week; Estrenos en cine | now-playing; Próximamente | upcoming; Películas populares | popular-movies; Series populares | popular-tv; En emisión hoy | airing-today; Anime del momento | discover-tv | country=JP,KR genre=16 pages=3; Películas de anime | discover-movies | country=JP,KR genre=16; Series coreanas | discover-tv | country=KR nogenre=16,10764,10767 minvotes=20 pages=3; Películas mejor valoradas | top-movies; Series mejor valoradas | top-tv";
 
     /// <summary>
@@ -138,23 +156,31 @@ public class PluginConfiguration : BasePluginConfiguration
     public bool FeaturedRowsSeeded { get; set; }
 
     /// <summary>
-    /// One-time upgrades of a saved configuration; returns whether anything changed (so the caller saves it). Today: an
-    /// empty <see cref="FeaturedRows"/> that was never seeded gets <see cref="DefaultFeaturedRows"/>.
+    /// One-time upgrades of a saved configuration; returns whether anything changed (so the caller saves it): an empty
+    /// <see cref="FeaturedRows"/> that was never seeded gets <see cref="DefaultFeaturedRows"/>, and rows still exactly the
+    /// previous default (<see cref="PreviousDefaultFeaturedRows"/>) become the current one. Rows anyone edited stay as they are.
     /// </summary>
     public bool ApplyMigrations()
     {
-        if (FeaturedRowsSeeded)
+        var changed = false;
+        if (!FeaturedRowsSeeded)
         {
-            return false;
+            if (string.IsNullOrWhiteSpace(FeaturedRows))
+            {
+                FeaturedRows = DefaultFeaturedRows;
+            }
+
+            FeaturedRowsSeeded = true;
+            changed = true;
         }
 
-        if (string.IsNullOrWhiteSpace(FeaturedRows))
+        if (string.Equals(FeaturedRows.Trim(), PreviousDefaultFeaturedRows, StringComparison.Ordinal))
         {
             FeaturedRows = DefaultFeaturedRows;
+            changed = true;
         }
 
-        FeaturedRowsSeeded = true;
-        return true;
+        return changed;
     }
 
     /// <summary>

@@ -6,7 +6,7 @@ namespace Jellyfin.Plugin.Portalito.Metadata;
 /// <summary>
 /// One configured "Destacado" row: a label, a TMDB list <see cref="Source"/> (see <see cref="TmdbLists.Sources"/>) and
 /// its optional parameters (<c>window</c>, <c>type</c>, <c>country</c>, <c>lang</c>, <c>genre</c>, <c>nogenre</c>,
-/// <c>sort</c>, <c>year</c>, <c>minvotes</c>, <c>pages</c>).
+/// <c>network</c>, <c>provider</c>, <c>region</c>, <c>sort</c>, <c>year</c>, <c>minvotes</c>, <c>pages</c>).
 /// </summary>
 public sealed record FeaturedRow(string Label, string Source, IReadOnlyDictionary<string, string> Params);
 
@@ -34,6 +34,46 @@ public static class TmdbLists
         ["discover-movies"] = ("discover/movie", false),
         ["discover-tv"] = ("discover/tv", true),
     };
+
+    /// <summary>
+    /// Streaming platforms by name, as TMDB <b>networks</b> (who made a series: <c>network=netflix</c> lists Netflix
+    /// originals; series only). Ids checked against TMDB's <c>/network/{id}</c> on 2026-10-01; "hbo" covers HBO and HBO Max.
+    /// </summary>
+    public static readonly IReadOnlyDictionary<string, string> Networks = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase)
+    {
+        ["netflix"] = "213",
+        ["apple"] = "2552",
+        ["disney"] = "2739",
+        ["hbo"] = "49|3186",
+        ["max"] = "3186",
+        ["prime"] = "1024",
+        ["paramount"] = "4330",
+        ["hulu"] = "453",
+        ["peacock"] = "3353",
+        ["crunchyroll"] = "1112",
+    };
+
+    /// <summary>
+    /// Streaming platforms by name, as TMDB <b>watch providers</b> (where a title can be streamed in <c>region</c>, licensed
+    /// titles included; movies and series). Ids from TMDB's <c>/watch/providers/tv?watch_region=CO</c> on 2026-10-01;
+    /// Prime Video is 9 in the US and 119 elsewhere, so both.
+    /// </summary>
+    public static readonly IReadOnlyDictionary<string, string> Providers = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase)
+    {
+        ["netflix"] = "8",
+        ["prime"] = "9|119",
+        ["apple"] = "350",
+        ["disney"] = "337",
+        ["hbo"] = "1899",
+        ["max"] = "1899",
+        ["paramount"] = "531",
+        ["vix"] = "457",
+        ["crunchyroll"] = "283",
+        ["mubi"] = "11",
+    };
+
+    /// <summary>The country a <c>provider=</c> row looks in when it doesn't say (<c>region=</c>, an ISO 3166-1 code).</summary>
+    public const string DefaultRegion = "US";
 
     /// <summary>Pages of 20 fetched per row unless the row says otherwise (bounded: each title costs portal searches).</summary>
     public const int DefaultPages = 2;
@@ -68,6 +108,15 @@ public static class TmdbLists
             Add(query, "with_original_language", Or(Get(p, "lang")));
             Add(query, "with_genres", Or(Get(p, "genre")));
             Add(query, "without_genres", Get(p, "nogenre"));
+            Add(query, "with_networks", Ids(Get(p, "network"), Networks));
+            if (Ids(Get(p, "provider"), Providers) is { } providers)
+            {
+                // Only titles included in the subscription, not ones rented or bought there.
+                query["with_watch_providers"] = providers;
+                query["watch_region"] = Get(p, "region")?.ToUpperInvariant() ?? DefaultRegion;
+                query["with_watch_monetization_types"] = "flatrate";
+            }
+
             Add(query, "vote_count.gte", Get(p, "minvotes"));
             Add(query, isSeries == true ? "first_air_date_year" : "primary_release_year", Get(p, "year"));
         }
@@ -118,6 +167,21 @@ public static class TmdbLists
 
     private static string? Get(IReadOnlyDictionary<string, string> p, string key)
         => p.TryGetValue(key, out var v) && v.Length > 0 ? v : null;
+
+    /// <summary>Comma-separated platform names or raw TMDB ids, as a TMDB "or" list ("netflix,1024" → "213|1024"); unknown names dropped.</summary>
+    private static string? Ids(string? value, IReadOnlyDictionary<string, string> names)
+    {
+        if (value is null)
+        {
+            return null;
+        }
+
+        var ids = value.Split(',', StringSplitOptions.TrimEntries | StringSplitOptions.RemoveEmptyEntries)
+            .SelectMany(v => names.TryGetValue(v, out var known) ? known.Split('|') : v.All(char.IsAsciiDigit) ? new[] { v } : Array.Empty<string>())
+            .Distinct()
+            .ToList();
+        return ids.Count == 0 ? null : string.Join('|', ids);
+    }
 
     // Config lists alternatives with commas ("JP,KR"); TMDB's discover filters take "|" for OR.
     private static string? Or(string? value) => value?.Replace(',', '|');

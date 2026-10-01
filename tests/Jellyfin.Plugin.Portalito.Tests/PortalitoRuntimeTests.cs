@@ -180,7 +180,7 @@ public class PortalitoRuntimeTests
         Assert.Null(runtime.Get().Discovery); // no TMDB key yet
 
         config.TmdbApiKey = "abc123";
-        Assert.Equal(11, runtime.Get().Discovery!.Rows.Count);
+        Assert.Equal(17, runtime.Get().Discovery!.Rows.Count);
 
         config.FeaturedRows = string.Empty;
         Assert.Null(runtime.Get().Discovery); // back to the portal's own rows
@@ -209,6 +209,19 @@ public class PortalitoRuntimeTests
 
         Assert.True(config.ApplyMigrations()); // only marks it seeded
         Assert.Equal("Solo | trending", config.FeaturedRows);
+    }
+
+    [Fact]
+    public void Rows_still_at_the_previous_default_get_the_platform_rows_once()
+    {
+        var config = new PluginConfiguration { FeaturedRows = PluginConfiguration.PreviousDefaultFeaturedRows + " ", FeaturedRowsSeeded = true };
+
+        Assert.True(config.ApplyMigrations());
+        Assert.Equal(PluginConfiguration.DefaultFeaturedRows, config.FeaturedRows);
+        Assert.False(config.ApplyMigrations());
+
+        var edited = new PluginConfiguration { FeaturedRows = PluginConfiguration.PreviousDefaultFeaturedRows + "; Mía | trending", FeaturedRowsSeeded = true };
+        Assert.False(edited.ApplyMigrations());
     }
 
     [Fact]

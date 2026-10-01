@@ -1,5 +1,16 @@
 # Changelog
 
+## 0.1.1.3 — 2026-10-01
+
+- **Destacado rows by streaming platform.** Six new default rows list each platform's own series, most popular
+  first, keeping only what your portal has: **Originales Netflix, Apple TV+, Disney+, HBO, Prime Video and
+  Paramount+**. Measured on a test server: 34 to 60 playable series per row.
+- **New row options** for your own rows: `network=` (a platform's own series: `netflix`, `apple`, `disney`, `hbo`,
+  `prime`, `paramount`, …) and `provider=` with `region=` (what you can stream on a platform in your country, movies
+  too, e.g. `provider=netflix region=CO`). See docs/DESTACADO.md.
+- Upgrading: if your Destacado rows are still the previous default, they get the platform rows automatically. If you
+  changed them, they're left alone; add the rows you want from docs/DESTACADO.md.
+
 ## 0.1.1.2 — 2026-10-01
 
 - **Subtitles in "Next Up" episodes.** Episodes played from the hidden "Portalito · Siguiendo" library now offer the

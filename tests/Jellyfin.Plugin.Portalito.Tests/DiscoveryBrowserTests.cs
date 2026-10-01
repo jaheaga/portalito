@@ -34,21 +34,47 @@ public class DiscoveryBrowserTests
     }
 
     [Fact]
-    public void The_default_rows_are_the_eleven_seeded_tmdb_rows()
+    public void The_default_rows_are_the_seeded_tmdb_rows_with_the_platform_rows()
     {
         var rows = DiscoveryBrowser.ParseRows(Configuration.PluginConfiguration.DefaultFeaturedRows);
 
         Assert.Equal(
             new[]
             {
-                "Tendencias", "Estrenos en cine", "Próximamente", "Películas populares", "Series populares", "En emisión hoy",
+                "Tendencias", "Estrenos en cine", "Próximamente", "Películas populares", "Series populares",
+                "Originales Netflix", "Apple TV+", "Disney+", "HBO", "Prime Video", "Paramount+", "En emisión hoy",
                 "Anime del momento", "Películas de anime", "Series coreanas", "Películas mejor valoradas", "Series mejor valoradas",
             },
             rows.Select(r => r.Label));
         Assert.All(rows, r => Assert.NotNull(TmdbLists.Endpoint(r)));
-        Assert.Equal("JP|KR", TmdbLists.Endpoint(rows[6])!.Value.Query["with_origin_country"]);
-        Assert.Equal("16,10764,10767", TmdbLists.Endpoint(rows[8])!.Value.Query["without_genres"]);
+        Assert.Equal("213", TmdbLists.Endpoint(rows[5])!.Value.Query["with_networks"]);
+        Assert.Equal("100", TmdbLists.Endpoint(rows[5])!.Value.Query["vote_count.gte"]);
+        Assert.Equal("JP|KR", TmdbLists.Endpoint(rows[12])!.Value.Query["with_origin_country"]);
+        Assert.Equal("16,10764,10767", TmdbLists.Endpoint(rows[14])!.Value.Query["without_genres"]);
         Assert.Equal(Configuration.PluginConfiguration.DefaultFeaturedRows, new Configuration.PluginConfiguration().FeaturedRows);
+    }
+
+    [Fact]
+    public void A_network_row_lists_a_platforms_originals_by_name_or_id()
+    {
+        var endpoint = TmdbLists.Endpoint(DiscoveryBrowser.ParseRows("HBO | discover-tv | network=HBO,1024,nope").Single())!.Value;
+
+        Assert.Equal("49|3186|1024", endpoint.Query["with_networks"]);
+        Assert.False(endpoint.Query.ContainsKey("with_watch_providers"));
+    }
+
+    [Fact]
+    public void A_provider_row_lists_what_streams_there_in_a_region()
+    {
+        var inColombia = TmdbLists.Endpoint(DiscoveryBrowser.ParseRows("En Prime | discover-movies | provider=prime region=co").Single())!.Value;
+        var noRegion = TmdbLists.Endpoint(DiscoveryBrowser.ParseRows("Netflix | discover-tv | provider=netflix").Single())!.Value;
+        var unknown = TmdbLists.Endpoint(DiscoveryBrowser.ParseRows("X | discover-tv | provider=unknown").Single())!.Value;
+
+        Assert.Equal("9|119", inColombia.Query["with_watch_providers"]);
+        Assert.Equal("CO", inColombia.Query["watch_region"]);
+        Assert.Equal("flatrate", inColombia.Query["with_watch_monetization_types"]);
+        Assert.Equal(TmdbLists.DefaultRegion, noRegion.Query["watch_region"]);
+        Assert.False(unknown.Query.ContainsKey("watch_region"));
     }
 
     [Fact]

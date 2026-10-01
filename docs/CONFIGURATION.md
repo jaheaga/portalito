@@ -69,7 +69,7 @@ plugin. A wrong value only shows up as live streams that won't play (VOD doesn't
 | Field | `.env` key | What it is |
 |---|---|---|
 | `TmdbApiKey` | `PORTALITO_TMDB_API_KEY` | Optional TMDB v3 key. Fills blank synopses/posters, and powers `FeaturedRows`. |
-| `FeaturedRows` | `PORTALITO_FEATURED_ROWS` | Builds **Destacado** from TMDB lists, keeping only titles the portal has. **Pre-filled with 11 default rows** (trending, popular, anime JP/KR, Korean series…), active as soon as a TMDB key is set. Clear it to use the portal's own rows. Syntax, sources and the default list: [DESTACADO.md](DESTACADO.md). |
+| `FeaturedRows` | `PORTALITO_FEATURED_ROWS` | Builds **Destacado** from TMDB lists, keeping only titles the portal has. **Pre-filled with 17 default rows** (trending, popular, the Netflix/Apple TV+/Disney+/HBO/Prime Video/Paramount+ series, anime JP/KR, Korean series…), active as soon as a TMDB key is set. Clear it to use the portal's own rows. Syntax, sources and the default list: [DESTACADO.md](DESTACADO.md). |
 
 ## Next Up ("Portalito · Siguiendo")
 
