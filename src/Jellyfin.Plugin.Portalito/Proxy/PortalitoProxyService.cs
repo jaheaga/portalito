@@ -243,8 +243,10 @@ public sealed partial class PortalitoProxyService
     {
         RequireSafeId(contentId);
         var key = contentId + "|" + seriesId;
+        var renewedAuth = false;
+        var connectFailures = 0;
 
-        for (var attempt = 0; ; attempt++)
+        while (true)
         {
             var session = await _vod.GetAsync(key, ct => _resolver.ResolveVodAsync(contentId, seriesId, ct), cancellationToken)
                 .ConfigureAwait(false);
@@ -261,11 +263,21 @@ public sealed partial class PortalitoProxyService
                 request.Headers.TryAddWithoutValidation("If-Range", ifRange);
             }
 
-            var response = await _http.SendAsync(request, HttpCompletionOption.ResponseHeadersRead, cancellationToken)
-                .ConfigureAwait(false);
-
-            if (attempt == 0 && IsAuthFailure(response.StatusCode))
+            HttpResponseMessage response;
+            try
             {
+                response = await _http.SendAsync(request, HttpCompletionOption.ResponseHeadersRead, cancellationToken)
+                    .ConfigureAwait(false);
+            }
+            catch (Exception ex) when (IsConnectFailure(ex, cancellationToken) && ++connectFailures < VodConnectAttempts)
+            {
+                // Nothing has reached the player yet, and a GET/HEAD is safe to repeat: try a fresh connection.
+                continue;
+            }
+
+            if (!renewedAuth && IsAuthFailure(response.StatusCode))
+            {
+                renewedAuth = true;
                 response.Dispose();
                 _vod.Invalidate(key, session);
                 continue;
@@ -327,6 +339,20 @@ public sealed partial class PortalitoProxyService
             request.Headers.TryAddWithoutValidation("X-Buffer", "0");
         }
     }
+
+    /// <summary>
+    /// How many connections one VOD request may try. A seek makes ffmpeg fire ~20-25 range requests within a few
+    /// seconds, each a brand-new CDN connection (it drops the previous one mid-body, so none is reused); now and then one
+    /// doesn't connect within the 4 s connect timeout, ffmpeg gets a 504, gives up the seek ("could not seek to
+    /// position") and the playback fails. Measured 2026-10-01 resuming an episode at 18 min: 1 run in 3, always a
+    /// single request.
+    /// </summary>
+    internal const int VodConnectAttempts = 3;
+
+    // The connection never got an answer: a connect timeout (a TaskCanceledException not from the caller) or a refused
+    // or reset connection. A CDN that answered with any status is not a connect failure.
+    private static bool IsConnectFailure(Exception ex, CancellationToken cancellationToken)
+        => ex is HttpRequestException || (ex is OperationCanceledException && !cancellationToken.IsCancellationRequested);
 
     private static bool IsAuthFailure(HttpStatusCode status)
         => status is HttpStatusCode.Unauthorized or HttpStatusCode.Forbidden;

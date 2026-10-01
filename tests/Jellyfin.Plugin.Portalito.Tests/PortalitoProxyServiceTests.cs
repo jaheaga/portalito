@@ -479,6 +479,45 @@ public class PortalitoProxyServiceTests
     }
 
     [Fact]
+    public async Task Vod_retries_a_connection_that_timed_out_with_the_same_range()
+    {
+        var calls = 0;
+        _upstream.Respond = _ => ++calls <= 2
+            ? throw new TaskCanceledException("connect timed out")
+            : new HttpResponseMessage(HttpStatusCode.PartialContent) { Content = new ByteArrayContent(new byte[10]) };
+
+        using var response = await _service.OpenVodAsync("CONTENT1", string.Empty, HttpMethod.Get, "bytes=142551000-", null, default);
+
+        Assert.Equal(HttpStatusCode.PartialContent, response.StatusCode);
+        Assert.Equal(3, _upstream.Requests.Count);
+        Assert.All(_upstream.Requests, r => Assert.Equal("bytes=142551000-", r.Header("Range")));
+        Assert.Equal(1, _resolver.VodCalls);
+    }
+
+    [Fact]
+    public async Task Vod_whose_connection_keeps_failing_gives_up_after_three_attempts()
+    {
+        _upstream.Respond = _ => throw new HttpRequestException("connection refused");
+
+        await Assert.ThrowsAsync<HttpRequestException>(() => _service.OpenVodAsync("CONTENT1", string.Empty, HttpMethod.Get, null, null, default));
+        Assert.Equal(PortalitoProxyService.VodConnectAttempts, _upstream.Requests.Count);
+    }
+
+    [Fact]
+    public async Task Vod_cancelled_by_the_player_is_not_retried()
+    {
+        using var cts = new CancellationTokenSource();
+        _upstream.Respond = _ =>
+        {
+            cts.Cancel();
+            throw new TaskCanceledException("player went away");
+        };
+
+        await Assert.ThrowsAnyAsync<OperationCanceledException>(() => _service.OpenVodAsync("CONTENT1", string.Empty, HttpMethod.Get, null, null, cts.Token));
+        Assert.Single(_upstream.Requests);
+    }
+
+    [Fact]
     public async Task Vod_session_is_cached_per_content_and_series()
     {
         _upstream.Respond = _ => new HttpResponseMessage(HttpStatusCode.OK);

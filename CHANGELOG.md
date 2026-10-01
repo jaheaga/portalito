@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.1.1.1 — 2026-10-01
+
+- **Resuming or jumping into the middle of a movie or episode no longer fails at random.** To seek, Jellyfin's
+  ffmpeg makes 20-30 quick requests, each opening a new connection to the portal's CDN; when one of them took longer
+  than 4 seconds to connect, the seek failed and playback stopped with an error (about 1 try in 5 when resuming an
+  episode). The plugin now retries such a connection up to 3 times. Measured: 0 failures in 15 resumes, from 2 in 10.
+
 ## 0.1.1.0 — 2026-10-01
 
 - **Portalito series now show up in Jellyfin's "Next Up".** Jellyfin builds Next Up only from libraries, never
