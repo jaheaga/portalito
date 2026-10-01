@@ -9,12 +9,12 @@
     "imageUrl": "https://raw.githubusercontent.com/jaheaga/portalito/main/assets/branding/portalito-banner.png",
     "versions": [
       {
-        "version": "0.1.1.102",
+        "version": "0.1.1.103",
         "targetAbi": "10.11.0.0",
-        "sourceUrl": "https://raw.githubusercontent.com/jaheaga/portalito/testing/Portalito_0.1.1.102.zip",
-        "checksum": "856e5235512b61ba317f221b04ba264e",
-        "changelog": "Siguiendo: any recent play keeps a show followed; marker file; subtitles at playback. Not a release.",
-        "timestamp": "2026-10-01T18:43:14Z"
+        "sourceUrl": "https://raw.githubusercontent.com/jaheaga/portalito/testing/Portalito_0.1.1.103.zip",
+        "checksum": "8df8403b3262da4586c20ae05e2ebdea",
+        "changelog": "Destacado: network= and provider= options for platform rows. Not a release.",
+        "timestamp": "2026-10-01T20:10:43Z"
       }
     ]
   }
