@@ -9,6 +9,14 @@
     "imageUrl": "https://raw.githubusercontent.com/jaheaga/portalito/main/assets/branding/portalito-banner.png",
     "versions": [
       {
+        "version": "0.1.2.3",
+        "targetAbi": "10.11.0.0",
+        "sourceUrl": "https://github.com/jaheaga/portalito/releases/download/v0.1.2.3/Portalito_0.1.2.3.zip",
+        "checksum": "9992cc0e22de5d1ab834d1ee42570613",
+        "changelog": "Fix: subtitles picked for a \"Siguiendo\" episode never showed in Wholphin and Jellyfin for Android TV (the audio track change worked). For a .strm episode Jellyfin took the subtitle file next to it for a remote URL and handed the apps its path on the server's disk, which they can't open. The plugin\u2026",
+        "timestamp": "2026-10-02T18:22:40Z"
+      },
+      {
         "version": "0.1.2.2",
         "targetAbi": "10.11.0.0",
         "sourceUrl": "https://github.com/jaheaga/portalito/releases/download/v0.1.2.2/Portalito_0.1.2.2.zip",
