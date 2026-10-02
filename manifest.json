@@ -9,12 +9,12 @@
     "imageUrl": "https://raw.githubusercontent.com/jaheaga/portalito/main/assets/branding/portalito-banner.png",
     "versions": [
       {
-        "version": "0.1.2.104",
+        "version": "0.1.2.105",
         "targetAbi": "10.11.0.0",
-        "sourceUrl": "https://raw.githubusercontent.com/jaheaga/portalito/testing/Portalito_0.1.2.104.zip",
-        "checksum": "3096d887ebf039bce388fa8ce67bea79",
-        "changelog": "Siguiendo: subtitles handed out as a server disk path are served by Jellyfin instead. Not a release.",
-        "timestamp": "2026-10-02T18:18:18Z"
+        "sourceUrl": "https://raw.githubusercontent.com/jaheaga/portalito/testing/Portalito_0.1.2.105.zip",
+        "checksum": "09ade2a759048f18997b1e62ccd5ba74",
+        "changelog": "Siguiendo: backdrop, thumb, logo and episode stills from TMDB. Not a release.",
+        "timestamp": "2026-10-02T18:37:31Z"
       }
     ]
   }
