@@ -9,6 +9,14 @@
     "imageUrl": "https://raw.githubusercontent.com/jaheaga/portalito/main/assets/branding/portalito-banner.png",
     "versions": [
       {
+        "version": "0.1.2.2",
+        "targetAbi": "10.11.0.0",
+        "sourceUrl": "https://github.com/jaheaga/portalito/releases/download/v0.1.2.2/Portalito_0.1.2.2.zip",
+        "checksum": "cb93f9f3c37cb1be392698f7bce7f6ab",
+        "changelog": "Fix: \"Siguiendo\" episodes wouldn't play from Continue Watching or Next Up in the web app (\"Unable to find a valid media source to play\"). 0.1.1.6 gave each show a stable id, and Jellyfin re-keyed the series by it while their episodes kept the old key, so the series listed no episodes -- and the\u2026",
+        "timestamp": "2026-10-02T15:57:45Z"
+      },
+      {
         "version": "0.1.2.1",
         "targetAbi": "10.11.0.0",
         "sourceUrl": "https://github.com/jaheaga/portalito/releases/download/v0.1.2.1/Portalito_0.1.2.1.zip",
