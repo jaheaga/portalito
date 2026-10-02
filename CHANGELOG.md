@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## 0.1.2.1 — 2026-10-02
 
 - **Destacado rows are listed best-rated first** instead of A–Z. TMDB rows use TMDB's rating (from 10 votes up), else
   the portal's; unrated titles go last. Another order picked in the app's sort menu still applies. New setting
