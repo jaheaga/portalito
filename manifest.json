@@ -9,6 +9,14 @@
     "imageUrl": "https://raw.githubusercontent.com/jaheaga/portalito/main/assets/branding/portalito-banner.png",
     "versions": [
       {
+        "version": "0.1.2.1",
+        "targetAbi": "10.11.0.0",
+        "sourceUrl": "https://github.com/jaheaga/portalito/releases/download/v0.1.2.1/Portalito_0.1.2.1.zip",
+        "checksum": "eb29d69fc376e1130d6ddd6647cce4f8",
+        "changelog": "Destacado rows are listed best-rated first instead of A\u2013Z. TMDB rows use TMDB's rating (from 10 votes up), else the portal's; unrated titles go last. Another order picked in the app's sort menu still applies. New setting SortFeaturedByRating (on by default) turns it off.",
+        "timestamp": "2026-10-02T15:13:24Z"
+      },
+      {
         "version": "0.1.2.0",
         "targetAbi": "10.11.0.0",
         "sourceUrl": "https://github.com/jaheaga/portalito/releases/download/v0.1.2.0/Portalito_0.1.2.0.zip",
