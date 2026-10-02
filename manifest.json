@@ -9,6 +9,14 @@
     "imageUrl": "https://raw.githubusercontent.com/jaheaga/portalito/main/assets/branding/portalito-banner.png",
     "versions": [
       {
+        "version": "0.1.1.6",
+        "targetAbi": "10.11.0.0",
+        "sourceUrl": "https://github.com/jaheaga/portalito/releases/download/v0.1.1.6/Portalito_0.1.1.6.zip",
+        "checksum": "40e3df04a79d53e97ae9c252ccc46e11",
+        "changelog": "Fixes from a code review. \"Siguiendo\" keeps your progress if a show is renamed. Jellyfin tied a show's watch history to its folder, and the folder follows the show's name; each show now carries a stable id that Jellyfin keys the history by. \"Siguiendo\" series are hidden from users who can't open\u2026",
+        "timestamp": "2026-10-02T13:04:17Z"
+      },
+      {
         "version": "0.1.1.5",
         "targetAbi": "10.11.0.0",
         "sourceUrl": "https://github.com/jaheaga/portalito/releases/download/v0.1.1.5/Portalito_0.1.1.5.zip",
