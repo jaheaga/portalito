@@ -158,6 +158,44 @@ public sealed class FollowLibrary
         return stale;
     }
 
+    /// <summary>
+    /// Points every season and episode at its series' current key. Jellyfin lists a series' seasons and episodes by the
+    /// series key each of them stored (<c>SeriesPresentationUniqueKey</c>), and only updates it when that season or
+    /// episode is itself refreshed. With automatic series grouping on (Jellyfin's default) a series' key follows its
+    /// first watch-data id, so giving the shows a Custom id (0.1.1.6) changed every key while their episodes kept the
+    /// old one: the series listed no episodes, and jellyfin-web -- which plays an episode from its series' list -- failed
+    /// with "Unable to find a valid media source to play" (production, 2026-10-02). Returns how many were fixed.
+    /// </summary>
+    public async Task<int> RepairSeriesKeysAsync(Folder library, CancellationToken cancellationToken)
+    {
+        var fixedCount = 0;
+        var items = _library.GetItemList(new InternalItemsQuery
+        {
+            IncludeItemTypes = new[] { Jellyfin.Data.Enums.BaseItemKind.Season, Jellyfin.Data.Enums.BaseItemKind.Episode },
+            AncestorIds = new[] { library.Id },
+        });
+        foreach (var item in items)
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            switch (item)
+            {
+                case MediaBrowser.Controller.Entities.TV.Episode episode when episode.FindSeriesPresentationUniqueKey() is { Length: > 0 } key && key != episode.SeriesPresentationUniqueKey:
+                    episode.SeriesPresentationUniqueKey = key;
+                    break;
+                case MediaBrowser.Controller.Entities.TV.Season season when season.FindSeriesPresentationUniqueKey() is { Length: > 0 } key && key != season.SeriesPresentationUniqueKey:
+                    season.SeriesPresentationUniqueKey = key;
+                    break;
+                default:
+                    continue;
+            }
+
+            await item.UpdateToRepositoryAsync(ItemUpdateType.MetadataEdit, cancellationToken).ConfigureAwait(false);
+            fixedCount++;
+        }
+
+        return fixedCount;
+    }
+
     /// <summary>The library's top folder, if a library points at <paramref name="root"/> and Jellyfin has indexed it.</summary>
     public Folder? Find(string root)
         => FindByPath(root)?.ItemId is { Length: > 0 } id && Guid.TryParse(id, out var guid) ? _library.GetItemById(guid) as Folder : null;

@@ -1,5 +1,13 @@
 # Changelog
 
+## 0.1.2.2 — 2026-10-02
+
+- **Fix: "Siguiendo" episodes wouldn't play from Continue Watching or Next Up in the web app** ("Unable to find a
+  valid media source to play"). 0.1.1.6 gave each show a stable id, and Jellyfin re-keyed the series by it while their
+  episodes kept the old key, so the series listed no episodes -- and the web app plays an episode from its series'
+  list. The sync now points every season and episode at its series' current key (once per start and after changes),
+  which repairs servers already affected on the first sync after updating.
+
 ## 0.1.2.1 — 2026-10-02
 
 - **Destacado rows are listed best-rated first** instead of A–Z. TMDB rows use TMDB's rating (from 10 votes up), else

@@ -50,6 +50,8 @@ public sealed class FollowSyncTask : IScheduledTask
     private readonly FollowStore _store;
     private readonly ILogger<FollowSyncTask> _logger;
 
+    private bool _seriesKeysChecked;
+
     // A season's show (the canonical show id), for seasons of shows not followed yet: one portal call each, once per run of Jellyfin.
     private readonly Dictionary<string, string> _showOfSeason = new(StringComparer.Ordinal);
 
@@ -197,6 +199,17 @@ public sealed class FollowSyncTask : IScheduledTask
         if (changed || indexed < _store.All.Count)
         {
             await host.ScanAsync(library, new DirectoryService(_fileSystem), cancellationToken).ConfigureAwait(false);
+        }
+
+        // Once per Jellyfin start (series keys may have changed under episodes saved earlier), and after any file change.
+        if (changed || !_seriesKeysChecked)
+        {
+            if (await host.RepairSeriesKeysAsync(library, cancellationToken).ConfigureAwait(false) is > 0 and var repaired)
+            {
+                _logger.LogInformation("Siguiendo: {Count} seasons/episodes pointed at their series again", repaired);
+            }
+
+            _seriesKeysChecked = true;
         }
 
         progress.Report(90);
