@@ -1,5 +1,14 @@
 # Changelog
 
+## 0.1.2.4 — 2026-10-02
+
+- **"Siguiendo" shows get the images a library series has**, so Next Up, Continue Watching and the home carousels
+  show a picture instead of a blank card: a backdrop, a landscape thumbnail and a logo for each show, and each
+  episode's still. They come from TMDB (when a TMDB key is set), else the show's landscape image from the portal.
+  An episode only gets a TMDB still when TMDB numbers its season the same way the portal does (same episode count);
+  otherwise it shows the series' art rather than another episode's picture. Every followed show is rewritten once
+  after updating to fetch them.
+
 ## 0.1.2.3 — 2026-10-02
 
 - **Fix: subtitles picked for a "Siguiendo" episode never showed** in Wholphin and Jellyfin for Android TV (the audio

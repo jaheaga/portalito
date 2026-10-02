@@ -1,3 +1,4 @@
+using System.Text.Json.Nodes;
 using System.Xml.Linq;
 using Jellyfin.Plugin.Portalito.Configuration;
 using Jellyfin.Plugin.Portalito.Following;
@@ -216,6 +217,50 @@ public class FollowingTests : IDisposable
 
         Assert.True(await writer.WriteAsync(Show(Episode(1, 1)), _signer.PlayUrl, null, default));
         Assert.True(File.Exists(Path.Combine(_root, "Alquimia de Almas [portalito-111]", "poster.jpg")));
+    }
+
+    [Fact]
+    public async Task A_show_gets_the_landscape_art_a_library_series_has_and_keeps_it()
+    {
+        var downloads = new List<string>();
+        var writer = Writer(downloads, new byte[] { 0xFF, 0xD8, 0xFF });
+        var show = Show(Episode(1, 1)) with { BackdropUrl = "http://img/back.jpg", ThumbUrl = "http://img/land.jpg", LogoUrl = "http://img/logo.png" };
+
+        await writer.WriteAsync(show, _signer.PlayUrl, null, default);
+        await writer.WriteAsync(show, _signer.PlayUrl, null, default);
+
+        var dir = Path.Combine(_root, "Alquimia de Almas [portalito-111]");
+        foreach (var name in new[] { "poster", "backdrop", "landscape", "logo" })
+        {
+            Assert.True(Directory.EnumerateFiles(dir, name + ".*").Any(), name);
+        }
+
+        Assert.Equal(4, downloads.Count); // fetched once, kept on the next write
+    }
+
+    [Fact]
+    public void A_tmdb_still_is_used_only_when_tmdb_numbers_the_season_the_same_way()
+    {
+        var stills = new Dictionary<int, string> { [3] = "http://img/s3.jpg" };
+
+        Assert.Equal("http://img/s3.jpg", FollowFiles.StillFor(3, portalSeasonCount: 10, tmdbSeasonCount: 10, stills));
+        Assert.Null(FollowFiles.StillFor(3, portalSeasonCount: 500, tmdbSeasonCount: 10, stills)); // one portal season of 500
+        Assert.Null(FollowFiles.StillFor(3, portalSeasonCount: 10, tmdbSeasonCount: 0, stills)); // TMDB has no such season
+        Assert.Null(FollowFiles.StillFor(4, portalSeasonCount: 10, tmdbSeasonCount: 10, stills)); // no still yet
+    }
+
+    [Fact]
+    public void The_portal_landscape_image_is_its_poster_file_type()
+    {
+        var content = new JsonObject
+        {
+            ["posterList"] = new JsonArray(
+                new JsonObject { ["fileType"] = "icon", ["fileUrl"] = "http://img/icon.jpg" },
+                new JsonObject { ["fileType"] = "poster", ["fileUrl"] = "http://img/wide.jpg" }),
+        };
+
+        Assert.Equal("http://img/wide.jpg", Jellyfin.Plugin.Portalito.Catalog.PortalJson.BackdropUrl(content));
+        Assert.Null(Jellyfin.Plugin.Portalito.Catalog.PortalJson.BackdropUrl(new JsonObject()));
     }
 
     [Fact]

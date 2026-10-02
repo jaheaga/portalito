@@ -402,7 +402,7 @@ public sealed class FollowSyncTask : IScheduledTask
         => FilesFormat + ":" + Convert.ToHexString(System.Security.Cryptography.SHA256.HashData(System.Text.Encoding.UTF8.GetBytes(services.Signer.PlayUrl("stamp", string.Empty))))[..16];
 
     /// <summary>Bumped when what the files hold changes. "2": tvshow.nfo carries a Custom id and the hidden tag (0.1.1.6).</summary>
-    private const string FilesFormat = "2";
+    private const string FilesFormat = "3";
 
     /// <summary>Writes (or refreshes) one followed show's files; returns whether any file changed.</summary>
     private async Task<bool> MirrorAsync(PortalitoServices services, FollowWriter writer, string root, string showId, string stamp, CancellationToken cancellationToken)
@@ -471,8 +471,12 @@ public sealed class FollowSyncTask : IScheduledTask
         var poster = PortalJson.PosterUrl(asset);
         var plot = PortalJson.NonBlank(asset["description"]);
         var year = PortalJson.Year(asset["releaseTime"]);
-        if ((poster is null || plot is null) && services.Tmdb is { } tmdb)
+        var artwork = TmdbArtwork.None;
+        int? tmdbId = null;
+        if (services.Tmdb is { } tmdb)
         {
+            // TMDB fills what the portal leaves blank, and gives the show the landscape art and episode stills a local
+            // library's series has. Looked up for every show (both calls are cached).
             var alias = PortalJson.NonBlank(asset["alias"]) is { } a ? SeasonGrouping.StripSeasonForDisplay(a) : null;
             try
             {
@@ -480,13 +484,20 @@ public sealed class FollowSyncTask : IScheduledTask
                 {
                     poster ??= info.PosterUrl;
                     plot ??= info.Overview;
+                    tmdbId = info.Id;
+                    if (info.Id is { } id)
+                    {
+                        artwork = await tmdb.ArtworkAsync(id, cancellationToken).ConfigureAwait(false);
+                    }
                 }
             }
-            catch (Exception ex) when (ex is HttpRequestException or System.Text.Json.JsonException || (ex is OperationCanceledException && !cancellationToken.IsCancellationRequested))
+            catch (Exception ex) when (IsTmdbFailure(ex, cancellationToken))
             {
                 _logger.LogDebug("Siguiendo: no TMDB fallback for {Show} ({Reason})", name, ex.Message);
             }
         }
+
+        var backdrop = artwork.BackdropUrl ?? PortalJson.BackdropUrl(asset);
 
         var episodes = new List<MirrorEpisode>();
         var emptySeasons = new List<int>();
@@ -497,6 +508,19 @@ public sealed class FollowSyncTask : IScheduledTask
             if (listing.Episodes.Count == 0)
             {
                 emptySeasons.Add(listing.SeasonNumber);
+            }
+
+            var tmdbSeason = TmdbSeason.None;
+            if (tmdbId is { } tvId && listing.Episodes.Count > 0 && services.Tmdb is { } client)
+            {
+                try
+                {
+                    tmdbSeason = await client.SeasonAsync(tvId, listing.SeasonNumber, cancellationToken).ConfigureAwait(false);
+                }
+                catch (Exception ex) when (IsTmdbFailure(ex, cancellationToken))
+                {
+                    _logger.LogDebug("Siguiendo: no TMDB stills for {Show} season {Season} ({Reason})", name, listing.SeasonNumber, ex.Message);
+                }
             }
 
             for (var i = 0; i < listing.Episodes.Count; i++)
@@ -519,14 +543,19 @@ public sealed class FollowSyncTask : IScheduledTask
                     FollowFiles.EpisodeTitle(PortalJson.Str(e["name"]), listing.ShowName ?? name, number),
                     PortalJson.NonBlank(e["description"]),
                     runtime,
-                    PortalJson.PosterUrl(e),
+                    PortalJson.PosterUrl(e) ?? FollowFiles.StillFor(number, listing.Episodes.Count, tmdbSeason.EpisodeCount, tmdbSeason.Stills),
                     aired));
             }
         }
 
         var genres = PortalJson.CommaList(asset["tags"]).Select(GenreLabels.ToSpanish).ToList();
-        return (new MirrorShow(showId, name, episodes, plot, year, genres, poster), seasons.Select(s => s.ContentId).ToList(), emptySeasons);
+        var show = new MirrorShow(showId, name, episodes, plot, year, genres, poster, backdrop, artwork.ThumbUrl ?? backdrop, artwork.LogoUrl);
+        return (show, seasons.Select(s => s.ContentId).ToList(), emptySeasons);
     }
+
+    /// <summary>A TMDB failure the sync carries on through without art (never the sync's own cancellation).</summary>
+    private static bool IsTmdbFailure(Exception ex, CancellationToken cancellationToken)
+        => ex is HttpRequestException or System.Text.Json.JsonException || (ex is OperationCanceledException && !cancellationToken.IsCancellationRequested);
 
     private static async Task<byte[]?> DownloadAsync(PortalitoServices services, string url, CancellationToken cancellationToken)
     {

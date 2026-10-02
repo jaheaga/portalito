@@ -294,3 +294,67 @@ public class PortalJsonImdbTests
         Assert.Equal("Arrakis.", (await client.LookupAsync(query, default))!.Overview); // looked up again, not a cached miss
     }
 }
+
+public class TmdbArtworkTests
+{
+    private static JsonObject Image(string path, string? language, double votes)
+        => new() { ["file_path"] = path, ["iso_639_1"] = language, ["vote_average"] = votes };
+
+    [Fact]
+    public void The_backdrop_is_textless_the_thumb_titled_and_the_logo_spanish_first()
+    {
+        var images = new JsonObject
+        {
+            ["backdrops"] = new JsonArray(Image("/en.jpg", "en", 9), Image("/plain-low.jpg", null, 3), Image("/plain.jpg", null, 5), Image("/es.jpg", "es", 1)),
+            ["logos"] = new JsonArray(Image("/logo-en.png", "en", 9), Image("/logo-es.png", "es", 2)),
+        };
+
+        var art = TmdbClient.PickArtwork(images);
+
+        Assert.Equal(TmdbClient.BackdropBase + "/plain.jpg", art.BackdropUrl);
+        Assert.Equal(TmdbClient.BackdropBase + "/es.jpg", art.ThumbUrl);
+        Assert.Equal(TmdbClient.LogoBase + "/logo-es.png", art.LogoUrl);
+    }
+
+    [Fact]
+    public void Missing_kinds_fall_back_to_what_there_is()
+    {
+        var art = TmdbClient.PickArtwork(new JsonObject { ["backdrops"] = new JsonArray(Image("/en.jpg", "en", 1)) });
+
+        Assert.Equal(TmdbClient.BackdropBase + "/en.jpg", art.BackdropUrl);
+        Assert.Equal(TmdbClient.BackdropBase + "/en.jpg", art.ThumbUrl);
+        Assert.Null(art.LogoUrl);
+        Assert.Equal(TmdbArtwork.None, TmdbClient.PickArtwork(null));
+    }
+
+    [Fact]
+    public async Task A_season_with_every_still_is_kept_two_weeks_and_an_airing_one_a_day()
+    {
+        var clock = new ManualClock(DateTimeOffset.FromUnixTimeSeconds(1_786_000_000));
+        static JsonObject Ep(int n, string? still) => new() { ["episode_number"] = n, ["still_path"] = still };
+        var transport = new FakeTmdbTransport
+        {
+            Body = (path, _) => path switch
+            {
+                "tv/7/season/1" => new JsonObject { ["episodes"] = new JsonArray(Ep(1, "/a.jpg"), Ep(2, "/b.jpg")) }.ToJsonString(),
+                "tv/7/season/2" => new JsonObject { ["episodes"] = new JsonArray(Ep(1, "/c.jpg"), Ep(2, null)) }.ToJsonString(),
+                _ => null,
+            },
+        };
+        var client = new TmdbClient(transport, "KEY123", clock);
+
+        var complete = await client.SeasonAsync(7, 1, default);
+        var airing = await client.SeasonAsync(7, 2, default);
+        Assert.Equal(2, complete.EpisodeCount);
+        Assert.Equal(TmdbClient.StillBase + "/b.jpg", complete.Stills[2]);
+        Assert.Equal(2, airing.EpisodeCount);
+        Assert.False(airing.Stills.ContainsKey(2));
+        Assert.Equal(TmdbSeason.None, await client.SeasonAsync(7, 9, default));
+
+        clock.Now += TimeSpan.FromDays(2);
+        var before = transport.Requests.Count;
+        await client.SeasonAsync(7, 1, default);
+        await client.SeasonAsync(7, 2, default);
+        Assert.Equal(new[] { "tv/7/season/2" }, transport.Requests.Skip(before).Select(r => r.Path)); // only the airing one again
+    }
+}

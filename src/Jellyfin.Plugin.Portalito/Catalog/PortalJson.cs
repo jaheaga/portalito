@@ -59,6 +59,13 @@ internal static class PortalJson
             ? Str(poster["fileUrl"])
             : null;
 
+    /// <summary>A content item's landscape image (the <c>posterList</c> entry of <c>fileType</c> <c>"poster"</c>), or null.</summary>
+    public static string? BackdropUrl(JsonObject content)
+        => Objects(content["posterList"])
+            .FirstOrDefault(p => Str(p["fileType"]) == "poster") is { } backdrop
+            ? NonBlank(backdrop["fileUrl"])
+            : null;
+
     /// <summary>Returns a non-blank string value, or null (never empty) -- so callers can null-coalesce cleanly.</summary>
     public static string? NonBlank(JsonNode? node) => Str(node) is { Length: > 0 } s ? s : null;
 

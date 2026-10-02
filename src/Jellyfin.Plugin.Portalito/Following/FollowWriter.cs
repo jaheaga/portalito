@@ -35,10 +35,10 @@ public sealed class FollowWriter
 
         // Images are fetched once: an existing poster/thumb is kept, a failed fetch is retried on the next refresh.
         var images = new HashSet<string>(StringComparer.Ordinal);
-        if (show.PosterUrl is { } poster)
+        foreach (var (name, url) in FollowFiles.ShowImages(show))
         {
-            images.Add("poster");
-            changed |= await ImageAsync(Path.Combine(showDir, "poster"), poster, cancellationToken).ConfigureAwait(false);
+            images.Add(name);
+            changed |= await ImageAsync(Path.Combine(showDir, name), url, cancellationToken).ConfigureAwait(false);
         }
 
         foreach (var episode in show.Episodes.Where(e => e.ImageUrl is not null && e.ImageUrl != show.PosterUrl))

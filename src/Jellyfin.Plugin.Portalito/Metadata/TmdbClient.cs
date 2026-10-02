@@ -48,8 +48,20 @@ public sealed class HttpTmdbTransport : ITmdbTransport
 /// </summary>
 public sealed record TitleQuery(string Title, string? OriginalTitle, int? Year, bool IsSeries, string? ImdbId = null);
 
-/// <summary>What TMDB can fill in. Any field may be null.</summary>
-public sealed record TmdbInfo(string? Overview, string? PosterUrl, int? Year = null, double? Rating = null);
+/// <summary>What TMDB can fill in. Any field may be null. <see cref="Id"/> is the match's TMDB id.</summary>
+public sealed record TmdbInfo(string? Overview, string? PosterUrl, int? Year = null, double? Rating = null, int? Id = null);
+
+/// <summary>A show's landscape art: a textless backdrop, a titled landscape (Jellyfin's Thumb), and its logo. Any may be null.</summary>
+public sealed record TmdbArtwork(string? BackdropUrl, string? ThumbUrl, string? LogoUrl)
+{
+    internal static readonly TmdbArtwork None = new(null, null, null);
+}
+
+/// <summary>One TMDB season: how many episodes it lists, and the still of each episode number that has one.</summary>
+public sealed record TmdbSeason(int EpisodeCount, IReadOnlyDictionary<int, string> Stills)
+{
+    internal static readonly TmdbSeason None = new(0, new Dictionary<int, string>());
+}
 
 /// <summary>Picks the TMDB search result that is really the same title, or none.</summary>
 public static class TmdbMatching
@@ -116,6 +128,9 @@ public sealed class TmdbClient
     private const string Language = "es-MX";
     private const string FallbackLanguage = "en-US";
     internal const string PosterBase = "https://image.tmdb.org/t/p/w342";
+    internal const string BackdropBase = "https://image.tmdb.org/t/p/w1280";
+    internal const string LogoBase = "https://image.tmdb.org/t/p/w500";
+    internal const string StillBase = "https://image.tmdb.org/t/p/original";
 
     private static readonly TmdbInfo NoMatch = new(null, null);
 
@@ -128,12 +143,96 @@ public sealed class TmdbClient
     // Trending/popular move during the day; six hours keeps a row fresh without refetching on every listing.
     private readonly TtlCache<IReadOnlyList<TmdbEntry>> _lists;
 
+    // "Siguiendo" art. A season whose every episode has a still won't change; one with gaps is likely airing, and TMDB
+    // adds a new episode's still days after it airs -- so it's asked again daily.
+    private readonly TtlCache<TmdbArtwork> _artwork;
+    private readonly TtlCache<TmdbSeason> _completeSeasons;
+    private readonly TtlCache<TmdbSeason> _airingSeasons;
+
     public TmdbClient(ITmdbTransport transport, string apiKey, TimeProvider clock)
     {
         _transport = transport;
         _apiKey = apiKey;
         _cache = new TtlCache<TmdbInfo>(clock, TimeSpan.FromDays(7), capacity: 20_000);
         _lists = new TtlCache<IReadOnlyList<TmdbEntry>>(clock, TimeSpan.FromHours(6), capacity: 64);
+        _artwork = new TtlCache<TmdbArtwork>(clock, TimeSpan.FromDays(7), capacity: 512);
+        _completeSeasons = new TtlCache<TmdbSeason>(clock, TimeSpan.FromDays(14), capacity: 2_048);
+        _airingSeasons = new TtlCache<TmdbSeason>(clock, TimeSpan.FromHours(24), capacity: 2_048);
+    }
+
+    /// <summary>A TV show's backdrop, landscape and logo (<see cref="PickArtwork"/>). A failed request throws and isn't cached.</summary>
+    public async Task<TmdbArtwork> ArtworkAsync(int tvId, CancellationToken cancellationToken)
+    {
+        var key = tvId.ToString(CultureInfo.InvariantCulture);
+        if (_artwork.TryGet(key, out var cached))
+        {
+            return cached;
+        }
+
+        var body = await _transport.GetAsync(
+            $"tv/{key}/images",
+            new Dictionary<string, string> { ["api_key"] = _apiKey, ["include_image_language"] = "es,en,null" },
+            cancellationToken).ConfigureAwait(false);
+        var artwork = body is null ? TmdbArtwork.None : PickArtwork(JsonNode.Parse(body) as JsonObject);
+        _artwork.Set(key, artwork);
+        return artwork;
+    }
+
+    /// <summary>One season's episode count and stills; <see cref="TmdbSeason.None"/> when TMDB has no such season.</summary>
+    public async Task<TmdbSeason> SeasonAsync(int tvId, int season, CancellationToken cancellationToken)
+    {
+        var key = string.Create(CultureInfo.InvariantCulture, $"{tvId}/{season}");
+        if (_completeSeasons.TryGet(key, out var cached) || _airingSeasons.TryGet(key, out cached))
+        {
+            return cached;
+        }
+
+        var body = await _transport.GetAsync(
+            $"tv/{key.Replace("/", "/season/", StringComparison.Ordinal)}",
+            new Dictionary<string, string> { ["api_key"] = _apiKey, ["language"] = Language },
+            cancellationToken).ConfigureAwait(false);
+        var episodes = body is null ? new List<JsonObject>() : PortalJson.Objects(JsonNode.Parse(body)?["episodes"]).ToList();
+        var stills = new Dictionary<int, string>();
+        foreach (var episode in episodes)
+        {
+            if (PortalJson.Int(episode["episode_number"]) is { } number && PortalJson.NonBlank(episode["still_path"]) is { } still)
+            {
+                stills.TryAdd(number, StillBase + still);
+            }
+        }
+
+        var result = episodes.Count == 0 ? TmdbSeason.None : new TmdbSeason(episodes.Count, stills);
+        (stills.Count == episodes.Count ? _completeSeasons : _airingSeasons).Set(key, result);
+        return result;
+    }
+
+    /// <summary>
+    /// Picks from a <c>tv/{id}/images</c> answer, best-voted first: the backdrop without text (<c>iso_639_1</c> null) as
+    /// Jellyfin's Backdrop, a Spanish then English one (it carries the title, as a library's landscape does) as its
+    /// Thumb, and a Spanish then English logo. A missing kind falls back to whatever backdrop/logo there is.
+    /// </summary>
+    internal static TmdbArtwork PickArtwork(JsonObject? images)
+    {
+        static IReadOnlyList<(string Path, string? Language)> Ranked(JsonNode? list)
+            => PortalJson.Objects(list)
+                .Select(i => (Path: PortalJson.NonBlank(i["file_path"]), Language: PortalJson.NonBlank(i["iso_639_1"]), Votes: double.TryParse(PortalJson.Str(i["vote_average"]), NumberStyles.Float, CultureInfo.InvariantCulture, out var v) ? v : 0))
+                .Where(i => i.Path is not null)
+                .OrderByDescending(i => i.Votes)
+                .Select(i => (i.Path!, i.Language))
+                .ToList();
+
+        static string? First(IReadOnlyList<(string Path, string? Language)> ranked, params string?[] languages)
+            => languages.Select(l => ranked.FirstOrDefault(i => i.Language == l).Path).FirstOrDefault(p => p is not null);
+
+        var backdrops = Ranked(images?["backdrops"]);
+        var logos = Ranked(images?["logos"]);
+        var backdrop = First(backdrops, null, "es", "en") ?? backdrops.FirstOrDefault().Path;
+        var thumb = First(backdrops, "es", "en") ?? backdrop;
+        var logo = First(logos, "es", "en", null) ?? logos.FirstOrDefault().Path;
+        return new TmdbArtwork(
+            backdrop is null ? null : BackdropBase + backdrop,
+            thumb is null ? null : BackdropBase + thumb,
+            logo is null ? null : LogoBase + logo);
     }
 
     /// <summary>
@@ -265,7 +364,8 @@ public sealed class TmdbClient
             overview,
             poster,
             PortalJson.Year(match[query.IsSeries ? "first_air_date" : "release_date"]),
-            PortalJson.Str(match["vote_average"]) is { } v && double.TryParse(v, NumberStyles.Float, CultureInfo.InvariantCulture, out var rating) && rating > 0 ? rating : null);
+            PortalJson.Str(match["vote_average"]) is { } v && double.TryParse(v, NumberStyles.Float, CultureInfo.InvariantCulture, out var rating) && rating > 0 ? rating : null,
+            PortalJson.Int(match["id"]));
         _cache.Set(key, info);
         return info;
     }

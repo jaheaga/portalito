@@ -17,7 +17,11 @@ public sealed record MirrorEpisode(
     string? ImageUrl = null,
     DateTime? Aired = null);
 
-/// <summary>A show mirrored into the "Siguiendo" library: its own metadata and every episode the portal lists.</summary>
+/// <summary>
+/// A show mirrored into the "Siguiendo" library: its own metadata and every episode the portal lists. Besides the
+/// poster, the landscape art a local library's series has (Jellyfin's Backdrop, Thumb and Logo), which home carousels
+/// and Next Up cards show.
+/// </summary>
 public sealed record MirrorShow(
     string ShowId,
     string Name,
@@ -25,17 +29,44 @@ public sealed record MirrorShow(
     string? Plot = null,
     int? Year = null,
     IReadOnlyList<string>? Genres = null,
-    string? PosterUrl = null);
+    string? PosterUrl = null,
+    string? BackdropUrl = null,
+    string? ThumbUrl = null,
+    string? LogoUrl = null);
 
 /// <summary>
 /// The "Siguiendo" library's on-disk layout, as Jellyfin's TV resolver reads it: <c>Show [ptl-id]/tvshow.nfo</c>, one
 /// <c>Season NN</c> folder per season, and per episode <c>SxxEyy.strm</c> (the stream URL) plus <c>SxxEyy.nfo</c>
-/// (title, numbering, plot, runtime) and optionally <c>SxxEyy-thumb.jpg</c>. Pure: no file system, no Jellyfin.
+/// (title, numbering, plot, runtime) and optionally <c>SxxEyy-thumb.jpg</c>; the show's images sit next to its
+/// <c>tvshow.nfo</c> under Jellyfin's local names (<see cref="ShowImages"/>). Pure: no file system, no Jellyfin.
 /// </summary>
 public static partial class FollowFiles
 {
     /// <summary>The NFO <c>uniqueid</c> type, and the folder-name tag, that mark a show as Portalito's.</summary>
     public const string ProviderKey = "portalito";
+
+    /// <summary>
+    /// The show's images by the file name (without extension) Jellyfin's local image provider reads: <c>poster</c> is
+    /// the Primary, <c>backdrop</c> the Backdrop, <c>landscape</c> the Thumb, <c>logo</c> the Logo. Absent ones are skipped.
+    /// </summary>
+    public static IEnumerable<(string Name, string Url)> ShowImages(MirrorShow show)
+    {
+        foreach (var (name, url) in new[] { ("poster", show.PosterUrl), ("backdrop", show.BackdropUrl), ("landscape", show.ThumbUrl), ("logo", show.LogoUrl) })
+        {
+            if (url is not null)
+            {
+                yield return (name, url);
+            }
+        }
+    }
+
+    /// <summary>
+    /// TMDB's still for a portal episode, only when TMDB numbers that season the same way: a season with the same number
+    /// and the same episode count. Otherwise none -- a show the portal numbers differently (Naruto Shippuden: one season
+    /// of 500) would get another episode's picture, and a missing one just falls back to the show's art.
+    /// </summary>
+    public static string? StillFor(int episode, int portalSeasonCount, int tmdbSeasonCount, IReadOnlyDictionary<int, string> stills)
+        => portalSeasonCount > 0 && portalSeasonCount == tmdbSeasonCount && stills.TryGetValue(episode, out var still) ? still : null;
 
     /// <summary>The show's Custom provider id: stable for the show's life, unique to Portalito.</summary>
     public static string CustomId(string showId) => ProviderKey + "-" + showId;
