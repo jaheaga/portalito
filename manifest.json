@@ -9,6 +9,14 @@
     "imageUrl": "https://raw.githubusercontent.com/jaheaga/portalito/main/assets/branding/portalito-banner.png",
     "versions": [
       {
+        "version": "0.1.2.4",
+        "targetAbi": "10.11.0.0",
+        "sourceUrl": "https://github.com/jaheaga/portalito/releases/download/v0.1.2.4/Portalito_0.1.2.4.zip",
+        "checksum": "e6aece639efa5c8852931b2ec4bf920d",
+        "changelog": "\"Siguiendo\" shows get the images a library series has, so Next Up, Continue Watching and the home carousels show a picture instead of a blank card: a backdrop, a landscape thumbnail and a logo for each show, and each episode's still. They come from TMDB (when a TMDB key is set), else the show's\u2026",
+        "timestamp": "2026-10-02T18:42:04Z"
+      },
+      {
         "version": "0.1.2.3",
         "targetAbi": "10.11.0.0",
         "sourceUrl": "https://github.com/jaheaga/portalito/releases/download/v0.1.2.3/Portalito_0.1.2.3.zip",
