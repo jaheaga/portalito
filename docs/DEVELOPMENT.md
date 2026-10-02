@@ -36,13 +36,20 @@ private/                           git-ignored operator notes (never committed)
 Portalito is a blank framework. The tree must never contain a real portal's name, hosts, keys, salts,
 signing constants, captured tokens, account data or private paths. This is enforced three ways:
 
-1. `scripts/scrub-check.sh` — a case-insensitive denylist grep over the tree;
-2. `ScrubGuardTests` — the same denylist as an xUnit test, so `dotnet test` fails too;
+1. `scripts/scrub-check.sh` — a case-insensitive scan of the tree for the denylisted tokens;
+2. `ScrubGuardTests` — the same scan as an xUnit test, so `dotnet test` fails too;
 3. the CI `test` workflow runs both.
 
-Keep the script's `deny` array and the test's `Deny` list identical. Both skip `bin/`, `obj/`, `.git/`,
-`artifacts/`, the real `.env` and the git-ignored `private/` directory (they hold the operator's own values
-and are never published); `.env.example` is scanned.
+**The denylist itself holds no tokens.** `scripts/scrub-denylist.sha256` has one line per token: its byte length and
+the SHA-256 of its lowercase form. Both checks hash every same-length window of every file and compare, so a token
+is found anywhere (inside a longer word too), and a hit is reported by file, line and length only. The literal list
+lives in the git-ignored `private/scrub-denylist.txt`; after editing it, regenerate the hashes with
+`python3 scripts/scrub-hash.py private/scrub-denylist.txt` and commit `scrub-denylist.sha256`. (Until 2026-10-02
+the guard listed the literals, which published the values it was meant to keep out; the repository history was
+rewritten to remove them.)
+
+Both checks skip `bin/`, `obj/`, `.git/`, `artifacts/`, the real `.env` and the git-ignored `private/` directory
+(they hold the operator's own values and are never published); `.env.example` is scanned.
 
 Real values belong in the git-ignored `.env` or `private/`, and in each server's plugin configuration.
 Test data must be synthetic (neutral hosts like `host-a.test`, keys like `PortalCipherTests.TestKeyHex`).

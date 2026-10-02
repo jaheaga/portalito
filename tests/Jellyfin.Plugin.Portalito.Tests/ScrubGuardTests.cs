@@ -1,4 +1,5 @@
-using System.Text.RegularExpressions;
+using System.Security.Cryptography;
+using System.Text;
 using Xunit;
 
 namespace Jellyfin.Plugin.Portalito.Tests;
@@ -6,57 +7,65 @@ namespace Jellyfin.Plugin.Portalito.Tests;
 /// <summary>
 /// Build-time twin of <c>scripts/scrub-check.sh</c>: the public tree must never carry a real portal's name, hosts,
 /// keys, signing constants or captured values. A hand-sync that reintroduces any of them fails the build here, not
-/// only in the CI shell step. Keep this list and the script's <c>deny</c> array identical.
+/// only in the CI shell step. Both read <c>scripts/scrub-denylist.sha256</c>: each token's length and the SHA-256 of
+/// its lowercase form, never the token itself (until 2026-10-02 both listed the literals, publishing the very values
+/// they were meant to keep out).
 /// </summary>
 public class ScrubGuardTests
 {
-    // Case-insensitive regexes, mirroring scripts/scrub-check.sh.
-    private static readonly string[] Deny =
-    {
-        "***REMOVED***", "***REMOVED***", "***REMOVED***", "***REMOVED***", "***REMOVED***", "kino-?light", "***REMOVED***", "***REMOVED***", "***REMOVED***",
-        "***REMOVED***", "***REMOVED***", "***REMOVED***", "***REMOVED***", @"okhttp/3\.12\.12", @"com\.android\.msandroid",
-        "***REMOVED***", "***REMOVED***", "***REMOVED***", "***REMOVED***",
-        "***REMOVED***", "***REMOVED***",
-        "***REMOVED***",
-        @"100\.64\.0\.5", "***REMOVED***", "***REMOVED***", "***REMOVED***",
-        "***REMOVED***", "***REMOVED***",
-    };
+    private static readonly string[] SkipDirs = { ".git", "bin", "obj", "artifacts", "private" };
 
-    // "private" holds the operator's git-ignored real-portal notes (never published), like .env.
-    private static readonly string[] SkipDirs = { "bin", "obj", ".git", "artifacts", "node_modules", "private" };
-    private static readonly string[] SkipFiles = { "scrub-check.sh", "ScrubGuardTests.cs" };
+    [Fact]
+    public void The_denylist_holds_only_hashes()
+    {
+        var lines = DenylistLines(RepoRoot());
+
+        Assert.NotEmpty(lines);
+        Assert.All(lines, l => Assert.Matches("^[0-9]{1,3} [0-9a-f]{64}$", l));
+    }
 
     [Fact]
     public void No_source_file_carries_a_forbidden_token()
     {
         var root = RepoRoot();
-        var pattern = new Regex(string.Join("|", Deny), RegexOptions.IgnoreCase | RegexOptions.Compiled);
+        var wanted = DenylistLines(root)
+            .Select(l => l.Split(' '))
+            .GroupBy(p => int.Parse(p[0], System.Globalization.CultureInfo.InvariantCulture))
+            .ToDictionary(g => g.Key, g => g.Select(p => p[1]).ToHashSet(StringComparer.Ordinal));
 
         var offenders = new List<string>();
         foreach (var file in EnumerateFiles(root))
         {
-            string text;
-            try
+            var data = File.ReadAllBytes(file);
+            if (Array.IndexOf(data, (byte)0, 0, Math.Min(data.Length, 8000)) >= 0)
             {
-                text = File.ReadAllText(file);
-            }
-            catch (IOException)
-            {
-                continue; // binary/locked — the shell scan is the backstop for those
+                continue; // binary
             }
 
-            var lines = text.Split('\n');
+            var lines = Encoding.UTF8.GetString(data).ToLowerInvariant().Split('\n');
             for (var i = 0; i < lines.Length; i++)
             {
-                if (pattern.IsMatch(lines[i]))
+                var bytes = Encoding.UTF8.GetBytes(lines[i]);
+                foreach (var (length, digests) in wanted)
                 {
-                    offenders.Add($"{Path.GetRelativePath(root, file)}:{i + 1}: {lines[i].Trim()}");
+                    if (Enumerable.Range(0, Math.Max(0, bytes.Length - length + 1))
+                        .Any(at => digests.Contains(Convert.ToHexString(SHA256.HashData(bytes.AsSpan(at, length))).ToLowerInvariant())))
+                    {
+                        offenders.Add($"{Path.GetRelativePath(root, file)}:{i + 1}: a forbidden {length}-byte token");
+                        break;
+                    }
                 }
             }
         }
 
         Assert.True(offenders.Count == 0, "Forbidden tokens found:\n" + string.Join("\n", offenders));
     }
+
+    private static string[] DenylistLines(string root)
+        => File.ReadAllLines(Path.Combine(root, "scripts", "scrub-denylist.sha256"))
+            .Select(l => l.Trim())
+            .Where(l => l.Length > 0 && !l.StartsWith('#'))
+            .ToArray();
 
     private static IEnumerable<string> EnumerateFiles(string root)
     {
@@ -68,14 +77,9 @@ public class ScrubGuardTests
                 continue;
             }
 
-            var name = Path.GetFileName(file);
-            if (SkipFiles.Contains(name))
-            {
-                continue;
-            }
-
             // The operator's real .env is git-ignored and never published, so it is not scanned; the blank
             // .env.example template still is.
+            var name = Path.GetFileName(file);
             if ((name == ".env" || name.StartsWith(".env.", StringComparison.Ordinal)) && name != ".env.example")
             {
                 continue;
