@@ -94,6 +94,11 @@ Portalito VOD
     reconciled with the portal — see [DESTACADO.md](DESTACADO.md).
   - **Portal rows** (no TMDB key, or `FeaturedRows` cleared): newest of the newest year and best-rated
     recent titles, per catalog.
+
+  Either way a row lists best-rated first: `FeaturedSortFilter` (an MVC action filter) turns the app's default A–Z
+  request for a row folder into a rating sort — the only way to order a channel folder, since Jellyfin sorts it with
+  the request's sort — and the row writes its ratings onto titles Jellyfin saved earlier. See
+  [DESTACADO.md](DESTACADO.md#rating-order).
 - **Item ids** (`VodItemId`) encode what an item stands for (`mov:<contentId>`, `shw:…`, `row:<index>:<mode>`,
   `flt:<catalog>:g<tag>`…) in a strict charset, because they end up in portal requests and proxy URLs.
 - **Listing cache.** Jellyfin caches each folder's listing for 3 hours in a file named from `DataVersion` and

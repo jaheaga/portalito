@@ -1,3 +1,4 @@
+using System.Globalization;
 using System.Text.Json.Nodes;
 using Jellyfin.Plugin.Portalito.Catalog;
 
@@ -12,13 +13,20 @@ public sealed record FeaturedRow(string Label, string Source, IReadOnlyDictionar
 
 /// <summary>
 /// One title from a TMDB list: its localized (es-MX) and English titles plus the original one, so it can be matched
-/// against the portal, whose <c>name</c> is usually Spanish and <c>alias</c> usually English.
+/// against the portal, whose <c>name</c> is usually Spanish and <c>alias</c> usually English. <see cref="Rating"/> is
+/// TMDB's vote average (0-10), null when too few people voted for it to mean anything (<see cref="TmdbLists.MinRatingVotes"/>).
 /// </summary>
-public sealed record TmdbEntry(string Id, bool IsSeries, string? Title, string? EnglishTitle, string? OriginalTitle, int? Year, string? PosterUrl);
+public sealed record TmdbEntry(string Id, bool IsSeries, string? Title, string? EnglishTitle, string? OriginalTitle, int? Year, string? PosterUrl, double? Rating = null);
 
 /// <summary>Maps a <see cref="FeaturedRow"/> to the TMDB v3 endpoint that lists it, and parses that listing.</summary>
 public static class TmdbLists
 {
+    /// <summary>
+    /// A vote average from fewer votes isn't used: Destacado rows are ordered by rating, and an upcoming film's 10.0 from
+    /// two votes would otherwise lead its row.
+    /// </summary>
+    public const int MinRatingVotes = 10;
+
     /// <summary>Every supported row source, with its TMDB path and whether it lists series (null: both, per result).</summary>
     public static readonly IReadOnlyDictionary<string, (string Path, bool? IsSeries)> Sources = new Dictionary<string, (string, bool?)>(StringComparer.OrdinalIgnoreCase)
     {
@@ -151,11 +159,21 @@ public static class TmdbLists
                 en is null ? null : PortalJson.NonBlank(en[series ? "name" : "title"]),
                 PortalJson.NonBlank(r[series ? "original_name" : "original_title"]),
                 PortalJson.Year(r[series ? "first_air_date" : "release_date"]),
-                PortalJson.NonBlank(r["poster_path"]) is { } poster ? posterBase + poster : null));
+                PortalJson.NonBlank(r["poster_path"]) is { } poster ? posterBase + poster : null,
+                Rating(r)));
         }
 
         return entries;
     }
+
+    /// <summary>A result's vote average, or null when it has none or fewer than <see cref="MinRatingVotes"/> votes.</summary>
+    public static double? Rating(JsonObject result)
+        => PortalJson.Int(result["vote_count"]) is >= MinRatingVotes
+           && PortalJson.Str(result["vote_average"]) is { } text
+           && double.TryParse(text, NumberStyles.Float, CultureInfo.InvariantCulture, out var average)
+           && average > 0
+            ? Math.Round(average, 1)
+            : null;
 
     /// <summary>The key a result is filed under when pairing the es-MX and en-US listings.</summary>
     public static string? Key(JsonObject result, bool? isSeries)

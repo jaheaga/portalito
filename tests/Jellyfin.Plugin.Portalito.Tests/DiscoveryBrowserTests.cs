@@ -172,6 +172,22 @@ public class DiscoveryBrowserTests
         Assert.Null(DiscoveryBrowser.PickMatch(new[] { candidates[0] }, entry));
     }
 
+    [Theory]
+    [InlineData(7.84, 12000, 7.8)]
+    [InlineData(8.0, 10, 8.0)]
+    [InlineData(10.0, 9, null)] // too few votes to mean anything
+    [InlineData(0.0, 500, null)]
+    public void A_list_entry_carries_tmdbs_vote_average_once_enough_people_voted(double average, int votes, double? expected)
+    {
+        var result = Tv(1, "Serie", "Series", "2020-01-01");
+        result["vote_average"] = average;
+        result["vote_count"] = votes;
+
+        var entry = TmdbLists.ToEntries(new[] { result }, new Dictionary<string, JsonObject>(), isSeries: true, "https://img.test").Single();
+
+        Assert.Equal(expected, entry.Rating);
+    }
+
     [Fact]
     public async Task A_row_keeps_only_portal_matches_in_tmdb_order_one_per_show()
     {
@@ -208,7 +224,7 @@ public class DiscoveryBrowserTests
 
         var row = await browser.RowAsync(portal, 0, CancellationToken.None);
 
-        Assert.Equal(new[] { "SL1", "SQ1" }, row.Select(i => PortalJson.Str(i["contentId"]))); // unmatched show dropped, order kept
+        Assert.Equal(new[] { "SL1", "SQ1" }, row.Select(t => PortalJson.Str(t.Item["contentId"]))); // unmatched show dropped, order kept
         var searches = portalTransport.Count("v3/searchByName");
         await browser.RowAsync(portal, 0, CancellationToken.None);
         Assert.Equal(searches, portalTransport.Count("v3/searchByName")); // cached

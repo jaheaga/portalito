@@ -86,7 +86,10 @@ public sealed class PortalitoVodChannel : IChannel, IRequiresMediaInfoCallback, 
         _logger = logger;
     }
 
-    public string Name => "Portalito VOD";
+    /// <summary>The channel's name, which Jellyfin derives its channel id from (see <see cref="FeaturedSortFilter"/>).</summary>
+    internal const string ChannelName = "Portalito VOD";
+
+    public string Name => ChannelName;
 
     /// <summary>
     /// Part of the file name Jellyfin caches each folder listing under (for 3 hours, alongside <see cref="DataVersion"/>).
@@ -147,8 +150,11 @@ public sealed class PortalitoVodChannel : IChannel, IRequiresMediaInfoCallback, 
     /// <see cref="DiscoveryBrowser.RowKey"/>).
     /// "v25" -> "v26" (2026-10-02): show folders are identified by their name (see <see cref="ShowIndex"/>), not by the
     /// season a listing happened to show first.
+    /// "v26" -> "v27" (2026-10-02): TMDB Destacado rows rate their titles with TMDB's vote average, and every Destacado
+    /// row writes its ratings onto the titles Jellyfin already saved -- the rows are ordered by rating (see
+    /// <see cref="FeaturedSortFilter"/>).
     /// </summary>
-    public string DataVersion => $"v26:{DateTime.UtcNow:yyyyMMdd}";
+    public string DataVersion => $"v27:{DateTime.UtcNow:yyyyMMdd}";
 
     public string HomePageUrl => string.Empty;
 
@@ -723,14 +729,71 @@ public sealed class PortalitoVodChannel : IChannel, IRequiresMediaInfoCallback, 
 
     /// <summary>Maps raw portal items to playable movies and per-show folders, fills blanks from TMDB, and pages.</summary>
     private async Task<ChannelItemResult> MapListingAsync(PortalitoServices services, IReadOnlyList<JsonObject> content, PageWindow window, CancellationToken cancellationToken)
+        => Slice(await MapAsync(services, content, null, cancellationToken).ConfigureAwait(false), window);
+
+    /// <summary>
+    /// A Destacado row's listing: mapped like any other, then its ratings written onto the titles Jellyfin already saved
+    /// (see <see cref="SaveRatingsAsync"/>), since the row is ordered by them.
+    /// </summary>
+    private async Task<ChannelItemResult> FeaturedListingAsync(PortalitoServices services, IReadOnlyList<JsonObject> content, IReadOnlyList<double?>? ratings, PageWindow window, CancellationToken cancellationToken)
     {
-        var grouped = GroupCatalogItems(content, services.Signer, _runtimes, _shows);
+        var items = await MapAsync(services, content, ratings, cancellationToken).ConfigureAwait(false);
+        await SaveRatingsAsync(items, cancellationToken).ConfigureAwait(false);
+        return Slice(items, window);
+    }
+
+    /// <param name="ratings">Ratings that win over the portal's own score, parallel to <paramref name="content"/>; null for none.</param>
+    private async Task<IReadOnlyList<ChannelItemInfo>> MapAsync(PortalitoServices services, IReadOnlyList<JsonObject> content, IReadOnlyList<double?>? ratings, CancellationToken cancellationToken)
+    {
+        var grouped = GroupCatalogItems(content, services.Signer, _runtimes, _shows, ratings);
         if (services.Tmdb is { } tmdb)
         {
             await FillBlanksFromTmdbAsync(tmdb, grouped, cancellationToken).ConfigureAwait(false);
         }
 
-        return Slice(grouped.Select(g => g.Item).ToList(), window);
+        return grouped.Select(g => g.Item).ToList();
+    }
+
+    /// <summary>
+    /// Gives the titles Jellyfin already saved the ratings this listing has for them. Jellyfin copies a channel item's
+    /// <c>CommunityRating</c> only when it first creates the item (v10.11 <c>ChannelManager.GetChannelItemEntityAsync</c>),
+    /// and Destacado rows are sorted by it: a title first saved without a score -- the portal often sends none -- would
+    /// otherwise sort last for good, and one whose TMDB rating moved would keep the old one. Only changed titles are
+    /// written; a failure leaves that title's order as it was and never breaks the listing.
+    /// </summary>
+    private async Task SaveRatingsAsync(IReadOnlyList<ChannelItemInfo> items, CancellationToken cancellationToken)
+    {
+        if (_library is null)
+        {
+            return;
+        }
+
+        var failed = 0;
+        foreach (var item in items)
+        {
+            if (item.CommunityRating is not { } rating)
+            {
+                continue;
+            }
+
+            try
+            {
+                // Same id Jellyfin gives the item (see GiveItemRuntimeAsync); a row lists movies and show folders.
+                var type = item.Type == ChannelItemType.Folder ? typeof(MediaBrowser.Controller.Entities.TV.Series) : typeof(MediaBrowser.Controller.Entities.Movies.Movie);
+                if (_library.GetItemById(_library.GetNewItemId(item.Id + Name + "16", type)) is { } saved && saved.CommunityRating != rating)
+                {
+                    saved.CommunityRating = rating;
+                    await saved.UpdateToRepositoryAsync(ItemUpdateType.MetadataEdit, cancellationToken).ConfigureAwait(false);
+                }
+            }
+            catch (Exception ex) when (ex is not OperationCanceledException)
+            {
+                if (failed++ == 0)
+                {
+                    _logger.LogWarning(ex, "Couldn't save the rating of {Item}; it keeps its old place in its Destacado row", item.Id);
+                }
+            }
+        }
     }
 
     /// <summary>
@@ -812,12 +875,12 @@ public sealed class PortalitoVodChannel : IChannel, IRequiresMediaInfoCallback, 
     /// <summary>A TMDB row's portal titles; empty (not an error) when the row no longer exists or TMDB is unreachable.</summary>
     private async Task<ChannelItemResult> TmdbRowItemsAsync(PortalitoServices services, int rowKey, PageWindow window, CancellationToken cancellationToken)
     {
-        IReadOnlyList<JsonObject> content = Array.Empty<JsonObject>();
+        IReadOnlyList<RowTitle> titles = Array.Empty<RowTitle>();
         if (services.Discovery is { } discovery && discovery.IndexOfRow(rowKey) is >= 0 and var rowIndex)
         {
             try
             {
-                content = await discovery.RowAsync(services.Portal, rowIndex, cancellationToken).ConfigureAwait(false);
+                titles = await discovery.RowAsync(services.Portal, rowIndex, cancellationToken).ConfigureAwait(false);
             }
             catch (Exception ex) when (ex is HttpRequestException or System.Text.Json.JsonException || (ex is OperationCanceledException && !cancellationToken.IsCancellationRequested))
             {
@@ -825,7 +888,8 @@ public sealed class PortalitoVodChannel : IChannel, IRequiresMediaInfoCallback, 
             }
         }
 
-        return await MapListingAsync(services, content, window, cancellationToken).ConfigureAwait(false);
+        // TMDB's rating wins over the portal's score, so most of a row sorts on the one scale.
+        return await FeaturedListingAsync(services, titles.Select(t => t.Item).ToList(), titles.Select(t => t.Rating).ToList(), window, cancellationToken).ConfigureAwait(false);
     }
 
     /// <summary>One curated row's titles: "estrenos" = the newest of the newest year; "top" = the best-rated recent.</summary>
@@ -848,7 +912,7 @@ public sealed class PortalitoVodChannel : IChannel, IRequiresMediaInfoCallback, 
             throw new ArgumentException($"Unrecognised row mode '{mode}'.", nameof(mode));
         }
 
-        return await MapListingAsync(services, content, window, cancellationToken).ConfigureAwait(false);
+        return await FeaturedListingAsync(services, content, null, window, cancellationToken).ConfigureAwait(false);
     }
 
     /// <summary>
@@ -914,12 +978,15 @@ public sealed class PortalitoVodChannel : IChannel, IRequiresMediaInfoCallback, 
     /// from the authoritative <c>sameSeasonSeriesList</c> (see <see cref="ShowSeasonsAsync"/>), not from whatever
     /// happened to appear in this one filtered/paged listing.
     /// </summary>
-    private static IReadOnlyList<(ChannelItemInfo Item, TitleQuery Query)> GroupCatalogItems(IReadOnlyList<JsonObject> content, ProxyUrlSigner signer, RuntimeStore runtimes, ShowIndex shows)
+    /// <param name="ratings">Ratings that win over the portal's own score, parallel to <paramref name="content"/>; null for none.</param>
+    private static IReadOnlyList<(ChannelItemInfo Item, TitleQuery Query)> GroupCatalogItems(IReadOnlyList<JsonObject> content, ProxyUrlSigner signer, RuntimeStore runtimes, ShowIndex shows, IReadOnlyList<double?>? ratings)
     {
         var items = new List<(ChannelItemInfo Item, TitleQuery Query)>();
         var seenShows = new HashSet<string>();
-        foreach (var c in content)
+        for (var i = 0; i < content.Count; i++)
         {
+            var c = content[i];
+            var rating = ratings?[i] is { } r ? (float)r : (float?)null;
             var contentId = PortalJson.Str(c["contentId"]);
             if (!VodItemId.IsSafePart(contentId))
             {
@@ -942,6 +1009,7 @@ public sealed class PortalitoVodChannel : IChannel, IRequiresMediaInfoCallback, 
                     ContentType = ChannelMediaContentType.Movie,
                 };
                 ApplyMetadata(movie, c, signer);
+                movie.CommunityRating = rating ?? movie.CommunityRating;
                 ApplyRuntime(movie, contentId!, c, runtimes);
                 items.Add((movie, new TitleQuery(name, PortalJson.NonBlank(c["alias"]), movie.ProductionYear, IsSeries: false, imdb)));
                 continue;
@@ -956,6 +1024,7 @@ public sealed class PortalitoVodChannel : IChannel, IRequiresMediaInfoCallback, 
 
             var show = Folder(VodItemId.Show(showKey).ToString(), SeasonGrouping.StripSeasonForDisplay(name), ChannelFolderType.Series);
             ApplyMetadata(show, c, signer);
+            show.CommunityRating = rating ?? show.CommunityRating;
 
             // A season's name and alias carry its season marker ("... T2", "... S2"); TMDB knows the show.
             var alias = PortalJson.NonBlank(c["alias"]) is { } a ? SeasonGrouping.StripSeasonForDisplay(a) : null;

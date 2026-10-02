@@ -84,8 +84,8 @@ Test data must be synthetic (neutral hosts like `host-a.test`, keys like `Portal
 - A saved config that needs upgrading (a new default, a renamed value): add it to
   `PluginConfiguration.ApplyMigrations`, which runs once at plugin load, guarded by a flag property.
 - Folders that should be searchable must be opened by `CatalogIndexWalk.ShouldOpen`.
-- Remember that Jellyfin re-sorts channel items client-side (A–Z by default); a listing's order is not
-  under the plugin's control.
+- Remember that Jellyfin sorts channel items with the client's sort (A–Z by default); a listing's order is not
+  under the plugin's control. (Destacado rows get their rating order by rewriting that sort: `FeaturedSortFilter`.)
 
 ## Testing against a real server
 

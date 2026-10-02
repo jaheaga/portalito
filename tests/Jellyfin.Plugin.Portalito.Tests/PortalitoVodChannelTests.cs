@@ -1205,4 +1205,32 @@ public sealed class PortalitoVodChannelTests : IDisposable
         Assert.Equal(new[] { "mov:DUNE1" }, titles.Items.Select(i => i.Id));
         Assert.Empty(stale.Items);
     }
+
+    [Fact]
+    public async Task Tmdb_destacado_rows_rate_titles_with_tmdbs_vote_average_over_the_portals_score()
+    {
+        var h = new WiringHarness(withTmdb: true, featuredRows: "Tendencias | trending");
+        var channel = new PortalitoVodChannel(h, new FakeVodTrackProbe(), new SubtitleFileCache(_subtitleDir, new HttpClient(_subtitleHost)), _collages, NullLogger<PortalitoVodChannel>.Instance);
+        h.Tmdb.Body = (path, q) => q.GetValueOrDefault("page") != "1" ? "{\"results\":[]}"
+            : "{\"results\":["
+              + "{\"id\":1,\"media_type\":\"movie\",\"title\":\"Duna\",\"original_title\":\"Dune\",\"release_date\":\"2021-09-15\",\"vote_average\":7.84,\"vote_count\":12000},"
+              + "{\"id\":2,\"media_type\":\"movie\",\"title\":\"Estreno\",\"original_title\":\"Premiere\",\"release_date\":\"2021-05-01\",\"vote_average\":10,\"vote_count\":2}]}";
+        JsonObject Movie(string id, string name, string score)
+        {
+            var movie = Content(id, name);
+            movie["releaseTime"] = "2021-06-01";
+            movie["score"] = score;
+            return movie;
+        }
+
+        var portal = new Dictionary<string, JsonObject> { ["Duna"] = Movie("DUNE1", "Duna", "9.1"), ["Estreno"] = Movie("NEW1", "Estreno", "6.5") };
+        h.Route = r => r.Path == "v3/searchByName" && portal.TryGetValue(r.Body["value"]!.GetValue<string>(), out var hit)
+            ? h.Ok(new JsonObject { ["searchItemList"] = WiringHarness.Array(new JsonObject { ["itemList"] = WiringHarness.Array((JsonObject)hit.DeepClone()) }) })
+            : FakePortalTransport.Error("x", r.Path);
+
+        var titles = await channel.GetChannelItems(Query("row:" + DiscoveryBrowser.RowKey("Tendencias") + ":tmdb"), default);
+
+        Assert.Equal(7.8f, titles.Items.Single(i => i.Id == "mov:DUNE1").CommunityRating); // TMDB's, one decimal
+        Assert.Equal(6.5f, titles.Items.Single(i => i.Id == "mov:NEW1").CommunityRating); // two votes: the portal's stays
+    }
 }

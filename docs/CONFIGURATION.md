@@ -75,6 +75,7 @@ plugin. A wrong value only shows up as live streams that won't play (VOD doesn't
 
 | Field | `.env` key | What it is |
 |---|---|---|
+| `SortFeaturedByRating` | `PORTALITO_SORT_FEATURED_BY_RATING` | On by default. Lists each Destacado row's titles best-rated first (TMDB's rating in TMDB rows, else the portal's; unrated last) instead of Jellyfin's A–Z. Another order picked in the app's sort menu still applies. How: [DESTACADO.md](DESTACADO.md#rating-order). |
 | `FollowLibraryEnabled` | `PORTALITO_FOLLOW_LIBRARY_ENABLED` | On by default. Keeps a TV library, hidden from every user's menus, mirroring only the series people watch in the channel (played in the last 60 days, or marked favorite), so they reach Jellyfin's **Next Up**, which never reads channels. Off stops the sync; it doesn't delete the library (Dashboard → Libraries). How it works: [ARCHITECTURE.md](ARCHITECTURE.md#next-up-the-hidden-portalito--siguiendo-library). |
 | `FollowLibraryPath` | `PORTALITO_FOLLOW_LIBRARY_PATH` | Where that library's .strm/.nfo files and posters go. Empty = `portalito/siguiendo` under Jellyfin's data folder. Jellyfin must be able to write it. |
 

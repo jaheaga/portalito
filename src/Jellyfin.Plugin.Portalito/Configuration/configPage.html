@@ -89,6 +89,13 @@
                 </div>
                 <div class="checkboxContainer checkboxContainer-withDescription">
                     <label class="emby-checkbox-label">
+                        <input id="SortFeaturedByRating" name="SortFeaturedByRating" type="checkbox" is="emby-checkbox" />
+                        <span>Order Destacado rows by rating</span>
+                    </label>
+                    <div class="fieldDescription checkboxFieldDescription">Jellyfin lists channel folders A-Z unless the app asks for another order. With this on, a Destacado row's titles come best-rated first (TMDB's rating in TMDB rows, else the portal's; unrated titles last). Picking another order in the app's sort menu still works.</div>
+                </div>
+                <div class="checkboxContainer checkboxContainer-withDescription">
+                    <label class="emby-checkbox-label">
                         <input id="FollowLibraryEnabled" name="FollowLibraryEnabled" type="checkbox" is="emby-checkbox" />
                         <span>Keep the hidden "Portalito · Siguiendo" library (for Next Up)</span>
                     </label>
@@ -203,7 +210,7 @@
             // Bulk import/export. Every key is matched by its normalized form (uppercase, no PORTALITO_
             // prefix, no separators), so ".env" keys, raw property names and underscore variants all resolve
             // to the same field -- e.g. PORTALITO_CONTENT_AUTH_MD5_K_OVERRIDES == ContentAuthMd5KOverrides.
-            var boolFields = ['SkipPortalTlsVerification', 'FollowLibraryEnabled'];
+            var boolFields = ['SkipPortalTlsVerification', 'FollowLibraryEnabled', 'SortFeaturedByRating'];
             function normalizeKey(k) {
                 return String(k).toUpperCase().replace(/^PORTALITO_/, '').replace(/[^A-Z0-9]/g, '');
             }
@@ -284,6 +291,7 @@
                     });
                     config.SkipPortalTlsVerification = document.querySelector('#SkipPortalTlsVerification').checked;
                     config.FollowLibraryEnabled = document.querySelector('#FollowLibraryEnabled').checked;
+                    config.SortFeaturedByRating = document.querySelector('#SortFeaturedByRating').checked;
                     return ApiClient.updatePluginConfiguration(pluginId, config);
                 });
             }
@@ -308,6 +316,7 @@
                     Object.keys(serverOwned).forEach(function (name) { serverOwned[name] = false; });
                     document.querySelector('#SkipPortalTlsVerification').checked = !!config.SkipPortalTlsVerification;
                     document.querySelector('#FollowLibraryEnabled').checked = !!config.FollowLibraryEnabled;
+                    document.querySelector('#SortFeaturedByRating').checked = !!config.SortFeaturedByRating;
                     Dashboard.hideLoadingMsg();
                 });
             });
