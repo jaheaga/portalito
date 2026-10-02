@@ -1,6 +1,9 @@
+using System.Globalization;
 using MediaBrowser.Common.Configuration;
 using MediaBrowser.Controller.Entities;
 using MediaBrowser.Controller.Library;
+using MediaBrowser.Model.Dlna;
+using MediaBrowser.Model.Entities;
 using MediaBrowser.Model.MediaInfo;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Mvc.Controllers;
@@ -21,13 +24,18 @@ namespace Jellyfin.Plugin.Portalito.Following;
 /// <item>after it, every returned source of the item is marked not direct-playable either way (the GET call, or a POST
 /// without a profile, skip Jellyfin's profile pass entirely);</item>
 /// <item>before it, too, the episode's subtitles are fetched (<see cref="FollowSubtitles"/>) -- only for a user who can
-/// see the item, since that costs a portal play call.</item>
+/// see the item, since that costs a portal play call;</item>
+/// <item>after it, subtitle links that are a path on this server's disk are pointed at Jellyfin's subtitle endpoint
+/// (<see cref="ServeSubtitlesFromServer"/>).</item>
 /// </list>
 /// </summary>
 public sealed class FollowPlaybackFilter : IAsyncActionFilter
 {
     /// <summary>The claim Jellyfin's auth handler puts the caller's user id in (<c>Jellyfin.Api InternalClaimTypes.UserId</c>).</summary>
     private const string UserIdClaim = "Jellyfin-UserId";
+
+    /// <summary>The claim holding the caller's access token (<c>Jellyfin.Api InternalClaimTypes.Token</c>).</summary>
+    private const string TokenClaim = "Jellyfin-Token";
 
     private readonly ILibraryManager _library;
     private readonly IUserManager _users;
@@ -69,6 +77,36 @@ public sealed class FollowPlaybackFilter : IAsyncActionFilter
         if (item is not null && executed.Result is ObjectResult { Value: PlaybackInfoResponse response })
         {
             ForceServerStreaming(response);
+            ServeSubtitlesFromServer(response, item.Id, context.HttpContext.User.FindFirst(TokenClaim)?.Value);
+        }
+    }
+
+    /// <summary>
+    /// Points every subtitle delivered as a server disk path at Jellyfin's subtitle endpoint instead. For a source that
+    /// isn't a local file (a .strm is http), Jellyfin takes an external subtitle whose codec matches the client's format
+    /// for a remote URL and hands its path out as is (<c>StreamInfo.GetSubtitleStreamInfo</c>, 10.11) -- for these
+    /// episodes that's the .srt next to the .strm, which no client can open: the subtitles were chosen but never shown
+    /// (Wholphin and Jellyfin Android TV, 2026-10-02). The link built here is the one Jellyfin builds for a local file.
+    /// </summary>
+    internal static void ServeSubtitlesFromServer(PlaybackInfoResponse response, Guid itemId, string? accessToken)
+    {
+        foreach (var source in response.MediaSources)
+        {
+            foreach (var stream in source.MediaStreams ?? [])
+            {
+                if (stream is not { Type: MediaStreamType.Subtitle, DeliveryMethod: SubtitleDeliveryMethod.External, DeliveryUrl: { } url }
+                    || Uri.TryCreate(url, UriKind.Absolute, out var remote) && remote.Scheme is "http" or "https"
+                    || url.StartsWith("/Videos/", StringComparison.OrdinalIgnoreCase))
+                {
+                    continue;
+                }
+
+                stream.DeliveryUrl = string.Create(
+                    CultureInfo.InvariantCulture,
+                    $"/Videos/{itemId}/{source.Id}/Subtitles/{stream.Index}/0/Stream.{stream.Codec}")
+                    + (string.IsNullOrEmpty(accessToken) ? string.Empty : "?ApiKey=" + accessToken);
+                stream.IsExternalUrl = false;
+            }
         }
     }
 

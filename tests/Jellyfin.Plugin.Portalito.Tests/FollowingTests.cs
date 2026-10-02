@@ -3,6 +3,8 @@ using Jellyfin.Plugin.Portalito.Configuration;
 using Jellyfin.Plugin.Portalito.Following;
 using Jellyfin.Plugin.Portalito.Proxy;
 using MediaBrowser.Controller.Entities;
+using MediaBrowser.Model.Dlna;
+using MediaBrowser.Model.Entities;
 using Microsoft.AspNetCore.Mvc.Controllers;
 using Xunit;
 
@@ -347,6 +349,42 @@ public class FollowingTests : IDisposable
 
         Assert.All(response.MediaSources, m => Assert.False(m.SupportsDirectPlay || m.SupportsDirectStream));
         Assert.True(response.MediaSources[0].SupportsTranscoding);
+    }
+
+    [Fact]
+    public void Subtitles_handed_out_as_a_disk_path_are_served_by_jellyfin_instead()
+    {
+        MediaStream Sub(int index, string url) => new()
+        {
+            Type = MediaStreamType.Subtitle, Index = index, Codec = "subrip", IsExternal = true, IsExternalUrl = true,
+            DeliveryMethod = SubtitleDeliveryMethod.External, DeliveryUrl = url,
+        };
+        var response = new MediaBrowser.Model.MediaInfo.PlaybackInfoResponse
+        {
+            MediaSources = new[]
+            {
+                new MediaBrowser.Model.Dto.MediaSourceInfo
+                {
+                    Id = "7e9a3a89d4d1743ed9b97235c1cd94dd",
+                    MediaStreams = new List<MediaStream>
+                    {
+                        Sub(0, "/config/data/portalito/siguiendo/Show/Season 01/S01E03.eng.srt"),
+                        Sub(1, "/Videos/x/y/Subtitles/1/0/Stream.srt?ApiKey=k"),
+                        Sub(2, "https://cdn.example/sub.srt"),
+                        new() { Type = MediaStreamType.Audio, Index = 3 },
+                    },
+                },
+            },
+        };
+
+        FollowPlaybackFilter.ServeSubtitlesFromServer(response, Guid.Parse("7e9a3a89d4d1743ed9b97235c1cd94dd"), "tok");
+
+        var streams = response.MediaSources[0].MediaStreams;
+        Assert.Equal("/Videos/7e9a3a89-d4d1-743e-d9b9-7235c1cd94dd/7e9a3a89d4d1743ed9b97235c1cd94dd/Subtitles/0/0/Stream.subrip?ApiKey=tok", streams[0].DeliveryUrl);
+        Assert.False(streams[0].IsExternalUrl);
+        Assert.Equal("/Videos/x/y/Subtitles/1/0/Stream.srt?ApiKey=k", streams[1].DeliveryUrl); // already Jellyfin's link
+        Assert.Equal("https://cdn.example/sub.srt", streams[2].DeliveryUrl); // a real remote subtitle
+        Assert.Null(streams[3].DeliveryUrl);
     }
 
     [Fact]

@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.1.2.3 — 2026-10-02
+
+- **Fix: subtitles picked for a "Siguiendo" episode never showed** in Wholphin and Jellyfin for Android TV (the audio
+  track change worked). For a .strm episode Jellyfin took the subtitle file next to it for a remote URL and handed the
+  apps its path on the server's disk, which they can't open. The plugin now gives them Jellyfin's subtitle link, as for
+  any local file. The web app wasn't affected.
+
 ## 0.1.2.2 — 2026-10-02
 
 - **Fix: "Siguiendo" episodes wouldn't play from Continue Watching or Next Up in the web app** ("Unable to find a
