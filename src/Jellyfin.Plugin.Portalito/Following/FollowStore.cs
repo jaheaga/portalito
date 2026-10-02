@@ -3,7 +3,8 @@ using System.Text.Json;
 namespace Jellyfin.Plugin.Portalito.Following;
 
 /// <summary>A show the "Siguiendo" library mirrors: where its files are and when its episode list was last fetched.</summary>
-public sealed record FollowedShow(string ShowId, string Name, string Folder, IReadOnlyList<string> SeasonIds, DateTime AddedUtc, DateTime RefreshedUtc);
+/// <remarks><see cref="Stamp"/> is the <c>FollowSyncTask.FilesStamp</c> the files were written under (null before 0.1.1.6).</remarks>
+public sealed record FollowedShow(string ShowId, string Name, string Folder, IReadOnlyList<string> SeasonIds, DateTime AddedUtc, DateTime RefreshedUtc, string? Stamp = null);
 
 /// <summary>
 /// The mirrored shows, saved as JSON next to the plugin's other data so a restart doesn't refetch every show. Also the

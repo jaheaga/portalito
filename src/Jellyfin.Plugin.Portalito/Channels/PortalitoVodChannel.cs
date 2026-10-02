@@ -234,6 +234,11 @@ public sealed class PortalitoVodChannel : IChannel, IRequiresMediaInfoCallback, 
                 return Slice(season.Episodes.Select(e => EpisodeItem(services.Signer, folder.Primary, e, season, _runtimes)).OfType<ChannelItemInfo>().ToList(), window);
             case VodItemKind.Featured:
                 return Slice(await DestacadoFoldersAsync(services, cancellationToken).ConfigureAwait(false), window);
+            case VodItemKind.Row when folder.Secondary == TmdbRowMode:
+                return await TmdbRowItemsAsync(services, ParseCatalogIndex(folder.Primary), window, cancellationToken).ConfigureAwait(false);
+            case VodItemKind.Row or VodItemKind.Catalog or VodItemKind.Filter when !HasCatalog(services, folder.Primary):
+                // A folder saved before the catalog list shrank: nothing to list, rather than an error.
+                return Slice(Array.Empty<ChannelItemInfo>(), window);
             case VodItemKind.Row:
                 return await RowItemsAsync(services, ParseCatalogIndex(folder.Primary), folder.Secondary!, window, cancellationToken).ConfigureAwait(false);
             case VodItemKind.Discover:
@@ -738,7 +743,9 @@ public sealed class PortalitoVodChannel : IChannel, IRequiresMediaInfoCallback, 
         var vocabulary = await services.Catalogs.VocabularyAsync(services.Portal, cancellationToken).ConfigureAwait(false);
         var year = vocabulary.Years.DefaultIfEmpty(DateTime.UtcNow.Year).Max();
 
-        // (catalog index, mode, label). Anime uses friendlier labels than "Estrenos {year} · Anime".
+        // (catalog index, mode, label). Anime uses friendlier labels than "Estrenos {year} · Anime". Only the rows whose
+        // catalog is configured: these assume the movies/series/kids/anime order, and with fewer than four catalogs the
+        // anime rows used to throw and take the whole Destacado folder down.
         var rows = new[]
         {
             (Catalog: 0, Mode: "estrenos", Label: $"Estrenos {year} · Películas"),
@@ -747,7 +754,7 @@ public sealed class PortalitoVodChannel : IChannel, IRequiresMediaInfoCallback, 
             (Catalog: 0, Mode: "top", Label: "Películas mejor valoradas"),
             (Catalog: 1, Mode: "top", Label: "Series mejor valoradas"),
             (Catalog: 3, Mode: "top", Label: "Anime mejor valorado"),
-        };
+        }.Where(r => r.Catalog < services.Catalogs.Entries.Count).ToArray();
 
         // Collage posters: an "estrenos" row shows its own newest-year titles; a "top" row uses the catalog's newest
         // (the real ranking is deferred to opening the row), both one small cached call. Those overlap heavily (this
@@ -818,11 +825,6 @@ public sealed class PortalitoVodChannel : IChannel, IRequiresMediaInfoCallback, 
     /// <summary>One curated row's titles: "estrenos" = the newest of the newest year; "top" = the best-rated recent.</summary>
     private async Task<ChannelItemResult> RowItemsAsync(PortalitoServices services, int catalogIndex, string mode, PageWindow window, CancellationToken cancellationToken)
     {
-        if (mode == TmdbRowMode)
-        {
-            return await TmdbRowItemsAsync(services, catalogIndex, window, cancellationToken).ConfigureAwait(false);
-        }
-
         var code = services.Catalogs.Entries[catalogIndex].Code;
         IReadOnlyList<JsonObject> content;
         if (mode == "top")
@@ -994,6 +996,9 @@ public sealed class PortalitoVodChannel : IChannel, IRequiresMediaInfoCallback, 
 
     private static int ParseCatalogIndex(string primary)
         => int.Parse(primary, NumberStyles.None, CultureInfo.InvariantCulture);
+
+    private static bool HasCatalog(PortalitoServices services, string primary)
+        => int.TryParse(primary, NumberStyles.None, CultureInfo.InvariantCulture, out var index) && index < services.Catalogs.Entries.Count;
 
     private static ChannelItemInfo? EpisodeItem(ProxyUrlSigner signer, string seriesId, JsonObject episode, SeasonListing season, RuntimeStore runtimes)
     {

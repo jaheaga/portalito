@@ -24,6 +24,18 @@ jobs:
         with:
           dotnet-version: 9.0.x
 
+      # Fail fast: a tag that isn't meta.json's version would publish the previous version's zip under the new tag (and
+      # point that version's manifest entry at it) -- the stale-asset trap.
+      - name: Tag matches version
+        env:
+          TAG: ${{ github.ref_name }}
+        run: |
+          version=$(python3 -c "import json; print(json.load(open('packaging/meta.json'))['version'])")
+          if [ "$TAG" != "v$version" ]; then
+            echo "Tag $TAG doesn't match packaging/meta.json version $version" >&2
+            exit 1
+          fi
+
       # Fail fast: a release without a CHANGELOG.md entry would ship with empty notes.
       - name: Release notes
         run: |
@@ -52,9 +64,12 @@ jobs:
       - name: Create GitHub Release
         env:
           GH_TOKEN: ${{ github.token }}
+          TAG: ${{ github.ref_name }}
+          ZIP: ${{ steps.package.outputs.zip }}
+          VERSION: ${{ steps.package.outputs.version }}
         run: |
-          gh release create "${{ github.ref_name }}" "${{ steps.package.outputs.zip }}" \
-            --title "Portalito ${{ steps.package.outputs.version }}" \
+          gh release create "$TAG" "$ZIP" \
+            --title "Portalito $VERSION" \
             --notes-file "$RUNNER_TEMP/release-notes.md"
 
       - name: Update manifest.json
@@ -70,13 +85,16 @@ jobs:
           git config user.email "jaheaga@gmail.com"
           git fetch origin main
           git checkout -B main origin/main
+          pushed=false
           for attempt in 1 2 3 4 5; do
             python3 packaging/update_manifest.py "$REPO" "$TAG" "$VERSION" "$MD5" "$ABI"
             git add manifest.json
-            git commit -m "chore(release): manifest for $VERSION" || { echo "nothing to commit"; break; }
-            if git push origin main; then echo "pushed"; break; fi
+            git commit -m "chore(release): manifest for $VERSION" || { echo "nothing to commit"; pushed=true; break; }
+            if git push origin main; then echo "pushed"; pushed=true; break; fi
             echo "push rejected, rebasing (attempt $attempt)"
             git reset --hard origin/main
             git fetch origin main
             git checkout -B main origin/main
           done
+          # A release without its manifest entry is invisible to every server's plugin catalog: fail loudly.
+          [ "$pushed" = true ] || { echo "manifest.json was never pushed" >&2; exit 1; }

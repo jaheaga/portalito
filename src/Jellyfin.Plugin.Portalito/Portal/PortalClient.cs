@@ -25,7 +25,12 @@ public sealed partial class PortalClient : IStreamResolver
     private readonly PortalOptions _options;
     private readonly IPortalTransport _transport;
     private readonly PortalCipher _cipher;
-    private readonly JsonObject _device;
+    // Replaced, never mutated: requests enumerate it without the auth lock while a re-provisioning may swap in a new serial.
+    private volatile JsonObject _device;
+    private readonly TimeProvider _clock;
+
+    // Until when an "aaa100083" (account signed in elsewhere) is accepted as final instead of logging back in.
+    private DateTimeOffset? _takeoverBlockedUntil;
     private readonly Action<string>? _onDeviceProvisioned;
     private readonly SemaphoreSlim _authLock = new(1, 1);
     private volatile PortalSession? _session;
@@ -35,7 +40,8 @@ public sealed partial class PortalClient : IStreamResolver
     /// Called with the device serial when a fresh free-tier device is provisioned (see <see cref="ProvisionDeviceAsync"/>),
     /// so the host can persist it into configuration and later activations use the fast path. Optional.
     /// </param>
-    public PortalClient(PortalOptions options, IPortalTransport transport, Action<string>? onDeviceProvisioned = null)
+    /// <param name="clock">Time source for the account-takeover cooldown; the system clock when not given.</param>
+    public PortalClient(PortalOptions options, IPortalTransport transport, Action<string>? onDeviceProvisioned = null, TimeProvider? clock = null)
     {
         options.Validate();
         _options = options;
@@ -43,7 +49,15 @@ public sealed partial class PortalClient : IStreamResolver
         _cipher = new PortalCipher(options.TripleDesKeyHex);
         _device = BuildDeviceFields(options);
         _onDeviceProvisioned = onDeviceProvisioned;
+        _clock = clock ?? TimeProvider.System;
     }
+
+    /// <summary>
+    /// How long an account signed in elsewhere is left alone before the plugin logs back in (once; each takeover restarts
+    /// it). Refusing forever, as before, left a plugin with an account dead until Jellyfin restarted after the owner opened
+    /// the portal's own app a single time; logging straight back in would bounce the session between the two devices.
+    /// </summary>
+    public static readonly TimeSpan AccountTakeoverCooldown = TimeSpan.FromMinutes(10);
 
     /// <summary>Gets a value indicating whether this client logs in with an account (live TV) rather than as an anonymous device.</summary>
     public bool HasAccount => _options.HasAccount;
@@ -258,11 +272,9 @@ public sealed partial class PortalClient : IStreamResolver
     {
         // aaa100083 with a real account means someone else (the owner's phone, say) signed in with it since.
         // Logging straight back in would sign THEM out, and they'd do the same -- a ping-pong the reference
-        // clients (the reference client's session layer) deliberately refuse. Fail instead.
-        if (_options.HasAccount && errorCode == "aaa100083")
-        {
-            return false;
-        }
+        // clients (the reference client's session layer) deliberately refuse. Fail for AccountTakeoverCooldown, then
+        // take the session back once.
+        var takeover = _options.HasAccount && errorCode == "aaa100083";
 
         await _authLock.WaitAsync(cancellationToken).ConfigureAwait(false);
         try
@@ -270,6 +282,17 @@ public sealed partial class PortalClient : IStreamResolver
             if (!ReferenceEquals(_session, stale))
             {
                 return true;
+            }
+
+            if (takeover)
+            {
+                var now = _clock.GetUtcNow();
+                var blockedUntil = _takeoverBlockedUntil;
+                _takeoverBlockedUntil = blockedUntil is { } until && now >= until ? now + AccountTakeoverCooldown : blockedUntil ?? now + AccountTakeoverCooldown;
+                if (blockedUntil is null || now < blockedUntil)
+                {
+                    return false;
+                }
             }
 
             return (await AuthenticateCoreAsync(cancellationToken).ConfigureAwait(false)).IsSuccess;
@@ -367,7 +390,9 @@ public sealed partial class PortalClient : IStreamResolver
         StoreSession(response);
         if (_session is not null)
         {
-            _device["sn"] = sn;                 // later fast-path activations reuse the provisioned serial
+            var device = (JsonObject)_device.DeepClone();
+            device["sn"] = sn;                  // later fast-path activations reuse the provisioned serial
+            _device = device;
             _onDeviceProvisioned?.Invoke(sn);   // the host persists it into configuration
         }
 

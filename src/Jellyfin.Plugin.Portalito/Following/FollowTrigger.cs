@@ -36,14 +36,27 @@ public sealed class FollowTrigger : IHostedService
         return Task.CompletedTask;
     }
 
+    /// <summary>Stops within this long of a queued sync don't queue another: skipping through episodes would chain full runs.</summary>
+    internal static readonly TimeSpan Debounce = TimeSpan.FromMinutes(1);
+
+    private long _lastQueuedTicks;
+
     private void OnPlaybackStopped(object? sender, PlaybackStopEventArgs e)
     {
         if (Plugin.Instance?.Configuration is { FollowLibraryEnabled: true }
             && e.Item is { SourceType: SourceType.Channel } item
             && VodItemId.TryParse(item.ExternalId, out var id)
-            && id.Kind == VodItemKind.Episode)
+            && id.Kind == VodItemKind.Episode
+            && ShouldQueue(ref _lastQueuedTicks, DateTime.UtcNow.Ticks))
         {
             _tasks.QueueScheduledTask<FollowSyncTask>();
         }
+    }
+
+    /// <summary>Whether a sync may be queued now; records the time when it may. Thread-safe.</summary>
+    internal static bool ShouldQueue(ref long lastQueuedTicks, long nowTicks)
+    {
+        var last = Interlocked.Read(ref lastQueuedTicks);
+        return nowTicks - last >= Debounce.Ticks && Interlocked.CompareExchange(ref lastQueuedTicks, nowTicks, last) == last;
     }
 }

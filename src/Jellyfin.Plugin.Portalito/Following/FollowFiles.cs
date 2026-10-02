@@ -37,6 +37,15 @@ public static partial class FollowFiles
     /// <summary>The NFO <c>uniqueid</c> type, and the folder-name tag, that mark a show as Portalito's.</summary>
     public const string ProviderKey = "portalito";
 
+    /// <summary>The show's Custom provider id: stable for the show's life, unique to Portalito.</summary>
+    public static string CustomId(string showId) => ProviderKey + "-" + showId;
+
+    /// <summary>
+    /// The tag every mirrored show carries. Users who can't open the Portalito channel get it in their blocked tags, so
+    /// the library never shows them its series (see <see cref="FollowLibrary.HideAndShareAsync"/>).
+    /// </summary>
+    public const string HiddenTag = "portalito-siguiendo";
+
     /// <summary>The show's folder: its name made safe for any file system, tagged with its id so two shows never share one.</summary>
     public static string ShowFolder(string name, string showId)
     {
@@ -100,7 +109,13 @@ public static partial class FollowFiles
             Optional("plot", show.Plot),
             Optional("year", show.Year?.ToString(CultureInfo.InvariantCulture)),
             (show.Genres ?? Array.Empty<string>()).Select(g => new XElement("genre", g)),
-            new XElement("uniqueid", new XAttribute("type", ProviderKey), new XAttribute("default", "true"), show.ShowId));
+            new XElement("uniqueid", new XAttribute("type", ProviderKey), new XAttribute("default", "true"), show.ShowId),
+
+            // What Jellyfin keys the show's (and its episodes') watch data by. Series.GetUserDataKeys uses an IMDb, TVDB
+            // or Custom id when there is one, else the item id -- and that comes from the folder path, so a show whose
+            // folder moved (renamed on the portal) lost all its progress. The show id doesn't change with the name.
+            new XElement("uniqueid", new XAttribute("type", "Custom"), CustomId(show.ShowId)),
+            Optional("tag", HiddenTag));
         return Serialize(root);
     }
 

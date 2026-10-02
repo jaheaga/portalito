@@ -175,6 +175,7 @@ public class ImageRepairTests
     [InlineData("cat:0", "https://cdn.portal.test/poster.jpg", false)]
     [InlineData("garbage", "https://cdn.portal.test/poster.jpg", false)]
     [InlineData("mov:ABC", null, false)]
+    [InlineData("mov:ABC", "https://image.tmdb.org/t/p/w342/abc.jpg", false)] // the TMDB fallback poster is fine
     public void Only_titles_pointing_straight_at_a_portal_cdn_are_broken(string externalId, string? path, bool expected)
         => Assert.Equal(expected, Channels.ImageRepair.IsBrokenTitlePoster(externalId, path));
 

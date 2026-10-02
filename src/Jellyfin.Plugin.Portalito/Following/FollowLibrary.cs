@@ -105,6 +105,59 @@ public sealed class FollowLibrary
         }
     }
 
+    /// <summary>
+    /// Why <paramref name="root"/> can't be the library's folder, or null when it can. It must be the plugin's own: not a
+    /// file-system root, not inside, around or equal to another library's folder (the sync would adopt and hide that
+    /// library, and force-transcode it), and either new, empty, or already holding <see cref="FollowFiles.MarkerFile"/>.
+    /// </summary>
+    public string? RootProblem(string root)
+    {
+        var full = root.TrimEnd(Path.DirectorySeparatorChar);
+        if (full.Length == 0 || string.Equals(Path.GetPathRoot(root)?.TrimEnd(Path.DirectorySeparatorChar), full, StringComparison.Ordinal))
+        {
+            return "it is the root of the file system";
+        }
+
+        var ours = File.Exists(Path.Combine(root, FollowFiles.MarkerFile));
+        foreach (var folder in _library.GetVirtualFolders())
+        {
+            foreach (var location in folder.Locations.Select(l => Path.GetFullPath(l).TrimEnd(Path.DirectorySeparatorChar)))
+            {
+                var same = string.Equals(location, full, StringComparison.Ordinal);
+                if ((same && !ours) || (!same && (Contains(location, full) || Contains(full, location))))
+                {
+                    return $"it overlaps the library \"{folder.Name}\" ({location})";
+                }
+            }
+        }
+
+        return Directory.Exists(root) && !ours && Directory.EnumerateFileSystemEntries(root).Any()
+            ? "it already holds files that aren't the plugin's"
+            : null;
+    }
+
+    /// <summary>
+    /// Removes a "Siguiendo" library left on another folder after <c>FollowLibraryPath</c> changed (recognized by its
+    /// <see cref="FollowFiles.MarkerFile"/>): left alone it would stay hidden, stale, and feed Next Up twice. Its files
+    /// stay on disk. Returns the names removed.
+    /// </summary>
+    public async Task<IReadOnlyList<string>> RemoveStaleAsync(string root)
+    {
+        var full = root.TrimEnd(Path.DirectorySeparatorChar);
+        var stale = _library.GetVirtualFolders()
+            .Where(f => f.Locations.Any(l => File.Exists(Path.Combine(l, FollowFiles.MarkerFile)))
+                        && !f.Locations.Any(l => string.Equals(Path.GetFullPath(l).TrimEnd(Path.DirectorySeparatorChar), full, StringComparison.Ordinal)))
+            .Select(f => f.Name)
+            .ToList();
+        foreach (var name in stale)
+        {
+            _logger.LogInformation("Siguiendo: removing the library {Library}, left on the previous folder", name);
+            await _library.RemoveVirtualFolder(name, refreshLibrary: false).ConfigureAwait(false);
+        }
+
+        return stale;
+    }
+
     /// <summary>The library's top folder, if a library points at <paramref name="root"/> and Jellyfin has indexed it.</summary>
     public Folder? Find(string root)
         => FindByPath(root)?.ItemId is { Length: > 0 } id && Guid.TryParse(id, out var guid) ? _library.GetItemById(guid) as Folder : null;
@@ -136,6 +189,18 @@ public sealed class FollowLibrary
                 dirty = true;
             }
 
+            // Someone who can't open the channel mustn't reach its series through this library either: one who sees
+            // every library would otherwise find them in search and play them. Every mirrored show carries
+            // FollowFiles.HiddenTag, and Jellyfin hides an item whose own or inherited tags are blocked
+            // (BaseItem.IsVisibleViaTags, InternalItemsQuery.ExcludeInheritedTags).
+            var blocked = user.GetPreference(PreferenceKind.BlockedTags);
+            var shouldBlock = BlockTag(seesChannel, blocked);
+            if (shouldBlock is { } updated)
+            {
+                user.SetPreference(PreferenceKind.BlockedTags, updated);
+                dirty = true;
+            }
+
             if (dirty)
             {
                 await _users.UpdateUserAsync(user).ConfigureAwait(false);
@@ -144,6 +209,21 @@ public sealed class FollowLibrary
         }
 
         return changed;
+    }
+
+    /// <summary>
+    /// A user's blocked tags with <see cref="FollowFiles.HiddenTag"/> added (they can't open the channel) or removed (they
+    /// can now); null when nothing changes.
+    /// </summary>
+    public static string[]? BlockTag(bool seesChannel, string[] blocked)
+    {
+        var has = blocked.Contains(FollowFiles.HiddenTag, StringComparer.OrdinalIgnoreCase);
+        return (seesChannel, has) switch
+        {
+            (false, false) => blocked.Append(FollowFiles.HiddenTag).ToArray(),
+            (true, true) => blocked.Where(t => !string.Equals(t, FollowFiles.HiddenTag, StringComparison.OrdinalIgnoreCase)).ToArray(),
+            _ => null,
+        };
     }
 
     /// <summary>

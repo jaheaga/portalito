@@ -181,6 +181,16 @@ library, hidden from every user's menus. Code in `Following/`.
   fetched when an episode's playback info is asked for (from `FollowPlaybackFilter`) and saved beside its .strm as
   `SxxEyy.<lang>.srt`. Jellyfin's re-probe of a .strm lists the folder through a singleton, never-cleared
   `DirectoryService`, so the folder is evicted from that cache (by reflection) right after writing them.
+- **Stable ids**: `tvshow.nfo` carries a `Custom` uniqueid (`portalito-<showId>`). Jellyfin keys a series' (and its
+  episodes') watch data by an IMDb/TVDB/Custom id when there is one, else by the item id, which comes from the folder
+  path: without it, a show whose folder moved lost its progress.
+- **Who sees it**: users who can open the channel get the library in `EnabledFolders` if they're limited; users who
+  can't get the `portalito-siguiendo` tag (every show carries it) in their blocked tags, which Jellyfin applies to the
+  show and, inherited, its episodes.
+- **Folder checks**: `FollowLibraryPath` must be the plugin's own (not another library's folder, inside or around
+  one, or a folder with other files); a library left on a previous folder (recognized by its marker file) is removed.
+- **Stamp**: each show records the format and the signing (secret + base URL) its files were written with; a new
+  stamp rewrites it on the next run, not 12 h later.
 - **Never empty**: `portalito-siguiendo.txt` stays in the folder; Jellyfin skips scanning an empty library folder and
   would keep a removed show's episodes listed.
 - **Progress** (`WatchState`): a user's newer play of a channel episode is copied onto its library copy (that's what

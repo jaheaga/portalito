@@ -118,6 +118,13 @@ public sealed class FollowSyncTask : IScheduledTask
 
         var root = FollowLibrary.Root(config, _paths.DataPath);
         var host = new FollowLibrary(_library, _users, _logger);
+        if (host.RootProblem(root) is { } problem)
+        {
+            _logger.LogError("Siguiendo: the folder {Root} can't be used ({Problem}); fix it in the plugin settings", root, problem);
+            return;
+        }
+
+        await host.RemoveStaleAsync(root).ConfigureAwait(false);
         Directory.CreateDirectory(root);
         var marker = Path.Combine(root, FollowFiles.MarkerFile);
         if (!File.Exists(marker))
@@ -143,10 +150,21 @@ public sealed class FollowSyncTask : IScheduledTask
             _store.Remove(gone.ShowId);
         }
 
+        // Show folders the store doesn't know (it was lost or damaged) and nobody follows: nothing else would remove them.
+        foreach (var orphan in Directory.EnumerateDirectories(root).Select(Path.GetFileName).OfType<string>().ToList())
+        {
+            if (FollowFiles.ShowIdOfFolder(orphan) is { } orphanId && !follow.Contains(orphanId) && _store.ShowForFolder(orphan) is null)
+            {
+                _logger.LogInformation("Siguiendo: removing {Folder}, a show nobody follows", orphan);
+                changed |= writer.Delete(orphan);
+            }
+        }
+
+        var stamp = FilesStamp(services);
         for (var i = 0; i < follow.Count; i++)
         {
             cancellationToken.ThrowIfCancellationRequested();
-            changed |= await MirrorAsync(services, writer, root, follow[i], cancellationToken).ConfigureAwait(false);
+            changed |= await MirrorAsync(services, writer, root, follow[i], stamp, cancellationToken).ConfigureAwait(false);
             progress.Report(20 + (60.0 * (i + 1) / follow.Count));
         }
 
@@ -352,27 +370,46 @@ public sealed class FollowSyncTask : IScheduledTask
         return seasons.Count > 0 ? seasons : new[] { (contentId, (int?)null) };
     }
 
+    /// <summary>
+    /// What the files of a show depend on besides the portal's data: the file format and how the .strm URLs are signed
+    /// (secret and base URL). A show written under another stamp is rewritten on the next run, not up to
+    /// <see cref="RefreshEvery"/> later -- with a new signing secret or address every old .strm would fail until then.
+    /// </summary>
+    internal static string FilesStamp(PortalitoServices services)
+        => FilesFormat + ":" + Convert.ToHexString(System.Security.Cryptography.SHA256.HashData(System.Text.Encoding.UTF8.GetBytes(services.Signer.PlayUrl("stamp", string.Empty))))[..16];
+
+    /// <summary>Bumped when what the files hold changes. "2": tvshow.nfo carries a Custom id and the hidden tag (0.1.1.6).</summary>
+    private const string FilesFormat = "2";
+
     /// <summary>Writes (or refreshes) one followed show's files; returns whether any file changed.</summary>
-    private async Task<bool> MirrorAsync(PortalitoServices services, FollowWriter writer, string root, string showId, CancellationToken cancellationToken)
+    private async Task<bool> MirrorAsync(PortalitoServices services, FollowWriter writer, string root, string showId, string stamp, CancellationToken cancellationToken)
     {
         var known = _store.Get(showId);
-        if (known is not null && DateTime.UtcNow - known.RefreshedUtc < RefreshEvery && Directory.Exists(Path.Combine(root, known.Folder)))
+        if (known is not null && known.Stamp == stamp && DateTime.UtcNow - known.RefreshedUtc < RefreshEvery && Directory.Exists(Path.Combine(root, known.Folder)))
         {
             return false;
         }
 
         try
         {
-            var (show, seasonIds) = await BuildShowAsync(services, showId, cancellationToken).ConfigureAwait(false);
+            var (show, seasonIds, emptySeasons) = await BuildShowAsync(services, showId, cancellationToken).ConfigureAwait(false);
             if (show.Episodes.Count == 0)
             {
                 _logger.LogWarning("Siguiendo: the portal lists no episodes for {Show} right now; leaving it as it was", show.Name);
                 return false;
             }
 
+            // A season that has episodes on disk but none in this answer is a portal glitch far more often than a removal:
+            // writing it would delete that season's files, and the next scan its episodes (and their place in Next Up).
+            if (known is not null && emptySeasons.FirstOrDefault(n => SeasonHasFiles(root, known.Folder, n)) is var lost and > 0)
+            {
+                _logger.LogWarning("Siguiendo: the portal lists no episodes for season {Season} of {Show} right now; leaving the show as it was", lost, show.Name);
+                return false;
+            }
+
             var changed = await writer.WriteAsync(show, services.Signer.PlayUrl, known?.Folder, cancellationToken).ConfigureAwait(false);
             var now = DateTime.UtcNow;
-            _store.Set(new FollowedShow(showId, show.Name, FollowFiles.ShowFolder(show.Name, showId), seasonIds, known?.AddedUtc ?? now, now));
+            _store.Set(new FollowedShow(showId, show.Name, FollowFiles.ShowFolder(show.Name, showId), seasonIds, known?.AddedUtc ?? now, now, stamp));
             if (known is null)
             {
                 _logger.LogInformation("Siguiendo: now following {Show} ({Episodes} episodes)", show.Name, show.Episodes.Count);
@@ -387,8 +424,17 @@ public sealed class FollowSyncTask : IScheduledTask
         }
     }
 
-    /// <summary>A show as the library files describe it: its metadata from the first season, and every season's episodes.</summary>
-    private async Task<(MirrorShow Show, IReadOnlyList<string> SeasonIds)> BuildShowAsync(PortalitoServices services, string showId, CancellationToken cancellationToken)
+    private static bool SeasonHasFiles(string root, string folder, int season)
+    {
+        var dir = Path.Combine(root, folder, FollowFiles.SeasonFolder(season));
+        return Directory.Exists(dir) && Directory.EnumerateFiles(dir, "*.strm").Any();
+    }
+
+    /// <summary>
+    /// A show as the library files describe it: its metadata from the first season, and every season's episodes; plus the
+    /// numbers of the seasons the portal listed with no episodes.
+    /// </summary>
+    private async Task<(MirrorShow Show, IReadOnlyList<string> SeasonIds, IReadOnlyList<int> EmptySeasons)> BuildShowAsync(PortalitoServices services, string showId, CancellationToken cancellationToken)
     {
         var detail = (await services.Portal.DetailAsync(showId, type: "0", cancellationToken: cancellationToken).ConfigureAwait(false)).Require();
         var asset = detail["assetData"] as JsonObject ?? detail;
@@ -420,10 +466,16 @@ public sealed class FollowSyncTask : IScheduledTask
         }
 
         var episodes = new List<MirrorEpisode>();
+        var emptySeasons = new List<int>();
         var taken = new HashSet<(int, int)>();
         foreach (var (seasonId, _) in seasons)
         {
             var listing = await services.Portal.SeasonAsync(seasonId, cancellationToken).ConfigureAwait(false);
+            if (listing.Episodes.Count == 0)
+            {
+                emptySeasons.Add(listing.SeasonNumber);
+            }
+
             for (var i = 0; i < listing.Episodes.Count; i++)
             {
                 var e = listing.Episodes[i];
@@ -450,7 +502,7 @@ public sealed class FollowSyncTask : IScheduledTask
         }
 
         var genres = PortalJson.CommaList(asset["tags"]).Select(GenreLabels.ToSpanish).ToList();
-        return (new MirrorShow(showId, name, episodes, plot, year, genres, poster), seasons.Select(s => s.ContentId).ToList());
+        return (new MirrorShow(showId, name, episodes, plot, year, genres, poster), seasons.Select(s => s.ContentId).ToList(), emptySeasons);
     }
 
     private static async Task<byte[]?> DownloadAsync(PortalitoServices services, string url, CancellationToken cancellationToken)
@@ -473,7 +525,13 @@ public sealed class FollowSyncTask : IScheduledTask
         var byEpisode = new Dictionary<string, BaseItem>(StringComparer.Ordinal);
         foreach (var item in _library.GetItemList(new InternalItemsQuery { IncludeItemTypes = new[] { BaseItemKind.Episode }, AncestorIds = new[] { library.Id } }))
         {
-            if (item.Path is { } path && path.EndsWith(".strm", StringComparison.OrdinalIgnoreCase) && File.Exists(path)
+            // The episode's nfo names its contentId (uniqueid "portalito"); only an episode Jellyfin read before that
+            // existed needs its .strm opened.
+            if (item.GetProviderId(FollowFiles.ProviderKey) is { Length: > 0 } episodeId)
+            {
+                byEpisode[episodeId] = item;
+            }
+            else if (item.Path is { } path && path.EndsWith(".strm", StringComparison.OrdinalIgnoreCase) && File.Exists(path)
                 && FollowFiles.ParseStrm(File.ReadAllText(path)) is { } ids)
             {
                 byEpisode[ids.ContentId] = item;

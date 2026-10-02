@@ -1,5 +1,29 @@
 # Changelog
 
+## 0.1.1.6 — 2026-10-02
+
+Fixes from a code review.
+
+- **"Siguiendo" keeps your progress if a show is renamed.** Jellyfin tied a show's watch history to its folder, and
+  the folder follows the show's name; each show now carries a stable id that Jellyfin keys the history by.
+- **"Siguiendo" series are hidden from users who can't open the Portalito channel.** Someone allowed into every
+  library (a kids profile with channels turned off, say) could find and play them in search; such users now get the
+  series blocked.
+- **Changing the plugin's signing secret or server address no longer breaks "Siguiendo" playback** for up to 12
+  hours: the episode links are rewritten on the next sync.
+- **A wrong "Siguiendo library folder" can't take over a real library.** A folder that is another library's, inside
+  or around one, or full of other files is refused (with a log message); after changing the folder, the library left
+  on the old one is removed.
+- **A portal hiccup that returns a season with no episodes no longer deletes that season** from "Siguiendo".
+- **With a Portalito account, "signed in on another device" no longer breaks the plugin until a restart.** It now
+  waits 10 minutes, then signs back in (once; another takeover starts a new wait).
+- **Saving the settings no longer registers a new free device each time** when Device SN is left blank.
+- **TMDB posters are no longer deleted** by the weekly "Reparar imágenes Portalito".
+- **Destacado works with fewer than four catalogs** (without TMDB rows it used to fail entirely).
+- Lighter "Siguiendo" syncs; the release workflow now checks the tag matches the version.
+- Repository: the scrub guard no longer lists the values it guards against (it stores hashes), and the
+  repository's history was rewritten to remove them.
+
 ## 0.1.1.5 — 2026-10-01
 
 - **The channel gets the Portalito logo on its own.** Jellyfin only asks a channel for its images when it first

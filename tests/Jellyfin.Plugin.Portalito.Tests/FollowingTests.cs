@@ -78,6 +78,36 @@ public class FollowingTests : IDisposable
         Assert.Contains("Plot &amp; more", FollowFiles.ShowNfo(show));
     }
 
+    [Fact]
+    public void A_show_is_keyed_by_a_custom_id_and_carries_the_hidden_tag()
+    {
+        var tvshow = XElement.Parse(FollowFiles.ShowNfo(Show(Episode(1, 1))).Split('\n', 2)[1]);
+
+        // Jellyfin keys watch data by a Custom id when there is one, so moving the folder keeps the progress.
+        Assert.Equal("portalito-111", tvshow.Elements("uniqueid").Single(e => (string?)e.Attribute("type") == "Custom").Value);
+        Assert.Equal(FollowFiles.HiddenTag, tvshow.Element("tag")!.Value);
+    }
+
+    [Fact]
+    public void Users_who_cant_open_the_channel_get_the_hidden_tag_blocked_and_lose_it_when_they_can()
+    {
+        Assert.Equal(new[] { "kids", FollowFiles.HiddenTag }, FollowLibrary.BlockTag(seesChannel: false, new[] { "kids" }));
+        Assert.Null(FollowLibrary.BlockTag(seesChannel: false, new[] { FollowFiles.HiddenTag.ToUpperInvariant() }));
+        Assert.Equal(new[] { "kids" }, FollowLibrary.BlockTag(seesChannel: true, new[] { "kids", FollowFiles.HiddenTag }));
+        Assert.Null(FollowLibrary.BlockTag(seesChannel: true, new[] { "kids" }));
+    }
+
+    [Fact]
+    public void Channel_stops_queue_one_sync_per_debounce_window()
+    {
+        long last = 0;
+        var t0 = new DateTime(2026, 10, 2, 12, 0, 0, DateTimeKind.Utc).Ticks;
+
+        Assert.True(FollowTrigger.ShouldQueue(ref last, t0));
+        Assert.False(FollowTrigger.ShouldQueue(ref last, t0 + TimeSpan.FromSeconds(30).Ticks));
+        Assert.True(FollowTrigger.ShouldQueue(ref last, t0 + FollowTrigger.Debounce.Ticks));
+    }
+
     [Theory]
     [InlineData("Alquimia de Almas T1_05", "Alquimia de Almas", 5, "Episodio 5")]
     [InlineData("El reencuentro", "Alquimia de Almas", 5, "El reencuentro")]

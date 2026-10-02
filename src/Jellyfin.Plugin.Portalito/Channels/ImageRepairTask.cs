@@ -21,14 +21,17 @@ public static class ImageRepair
 
     /// <summary>
     /// A title still pointing straight at a portal CDN instead of through <c>/Portalito/img</c>: those predate the proxy
-    /// and Jellyfin can't fetch them. Cleared, so the next listing of its folder sets the proxied one.
+    /// and Jellyfin can't fetch them. Cleared, so the next listing of its folder sets the proxied one. A TMDB poster (the
+    /// fallback for titles the portal sends without one) is fine as it is: treating it as broken deleted every one of
+    /// them weekly.
     /// </summary>
     public static bool IsBrokenTitlePoster(string? externalId, string? primaryImagePath)
         => !string.IsNullOrEmpty(primaryImagePath)
             && VodItemId.TryParse(externalId, out _)
             && !IsCollageFolder(externalId)
             && primaryImagePath.StartsWith("http", StringComparison.OrdinalIgnoreCase)
-            && !primaryImagePath.Contains("/Portalito/", StringComparison.Ordinal);
+            && !primaryImagePath.Contains("/Portalito/", StringComparison.Ordinal)
+            && !primaryImagePath.StartsWith(Metadata.TmdbClient.PosterBase, StringComparison.OrdinalIgnoreCase);
 
     /// <summary>The folders walked to learn every collage folder's current image (a curated row holds titles, not folders).</summary>
     public static bool ShouldOpen(string? externalId)

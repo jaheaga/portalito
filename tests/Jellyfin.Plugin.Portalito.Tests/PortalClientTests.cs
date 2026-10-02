@@ -399,6 +399,41 @@ public class PortalClientTests
     }
 
     [Fact]
+    public async Task An_account_signed_in_elsewhere_is_taken_back_once_after_the_cooldown()
+    {
+        var transport = new FakePortalTransport();
+        var logins = 0;
+        var phoneHasIt = true;
+        transport.Handler = r =>
+        {
+            if (r.Path == "v8/login")
+            {
+                phoneHasIt = false;
+                return transport.Ok(Activation("tok" + Interlocked.Increment(ref logins)));
+            }
+
+            return phoneHasIt ? FakePortalTransport.Error("aaa100083", "logged in on another device") : transport.Ok(new JsonObject());
+        };
+        var clock = new ManualClock(new DateTimeOffset(2026, 10, 2, 12, 0, 0, TimeSpan.Zero));
+        var client = new PortalClient(AccountOptions(), transport, clock: clock);
+        Assert.True((await client.DetailAsync("a")).IsSuccess); // logs in (login 1)
+        phoneHasIt = true;
+
+        Assert.Equal("aaa100083", (await client.DetailAsync("b")).ErrorCode); // refused: no ping-pong
+        clock.Now += TimeSpan.FromMinutes(5);
+        Assert.Equal("aaa100083", (await client.DetailAsync("c")).ErrorCode); // still within the cooldown
+        Assert.Equal(1, logins);
+
+        clock.Now += PortalClient.AccountTakeoverCooldown;
+        Assert.True((await client.DetailAsync("d")).IsSuccess); // taken back once
+        Assert.Equal(2, logins);
+
+        phoneHasIt = true;
+        Assert.Equal("aaa100083", (await client.DetailAsync("e")).ErrorCode); // and a new cooldown starts
+        Assert.Equal(2, logins);
+    }
+
+    [Fact]
     public async Task A_failed_login_surfaces_the_portals_own_error_instead_of_calling_on_with_no_session()
     {
         var transport = new FakePortalTransport();

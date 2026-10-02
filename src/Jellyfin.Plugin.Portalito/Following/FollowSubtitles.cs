@@ -46,8 +46,10 @@ public sealed class FollowSubtitles
     /// <summary>Makes sure the episode at <paramref name="strmPath"/> has its subtitle files beside it. Never throws for a portal or file problem.</summary>
     public async Task EnsureAsync(string strmPath, CancellationToken cancellationToken)
     {
+        // Only the plugin's own .strm files: anything else in the folder could be a whole video file.
         var now = DateTime.UtcNow;
-        if (_checked.TryGetValue(strmPath, out var at) && now - at < CheckedFor)
+        if (!strmPath.EndsWith(".strm", StringComparison.OrdinalIgnoreCase)
+            || (_checked.TryGetValue(strmPath, out var at) && now - at < CheckedFor))
         {
             return;
         }

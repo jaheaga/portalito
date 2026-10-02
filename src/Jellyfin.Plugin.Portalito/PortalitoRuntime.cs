@@ -130,10 +130,13 @@ public sealed class PortalitoRuntime : IPortalitoServicesProvider
         var transport = new HttpPortalTransport(portalHttp, options);
         var portal = new PortalClient(options, transport, provisionedSn =>
         {
-            // A fresh free-tier device was registered: persist its serial so later activations reuse it.
-            config.DeviceSn = provisionedSn;
+            // A fresh free-tier device was registered: persist its serial so later activations reuse it. Into the current
+            // configuration, not the one this client was built from: Jellyfin swaps the instance on every save, and a
+            // serial written to a replaced one was lost (so every re-authentication provisioned yet another device).
+            _getConfig().DeviceSn = provisionedSn;
             _saveConfig();
-        });
+        },
+        _clock);
         var signer = new ProxyUrlSigner(config.ProxySigningSecret, ProxyBaseUrl(config), _clock);
         var contentAuth = BuildContentAuthSigner(config);
         var proxy = new PortalitoProxyService(_upstream, portal, signer, contentAuth, new ProxyIdentity(options.AppId, options.ApkVersion, options.CdnUserAgent), _clock);

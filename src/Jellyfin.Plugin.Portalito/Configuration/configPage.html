@@ -241,6 +241,7 @@
                         document.querySelector('#' + name).checked = (s === 'true' || s === '1' || s === 'yes' || s === 'on');
                     } else {
                         document.querySelector('#' + name).value = value == null ? '' : String(value);
+                        if (name in serverOwned) { serverOwned[name] = true; }
                     }
                     applied++;
                 });
@@ -261,9 +262,18 @@
                 document.querySelector('#PortalitoImportStatus').textContent = marks.ok + ' Exported current values \u2014 copy them from the box.';
             }
 
+            // The device serial is also written by the server: left blank, the plugin provisions a device and saves its
+            // serial. Copying the (still blank) field back on the next Save wiped it, and every save provisioned yet
+            // another device. So it's only sent when the user actually edited it.
+            var serverOwned = { DeviceSn: false };
+            Object.keys(serverOwned).forEach(function (name) {
+                document.querySelector('#' + name).addEventListener('input', function () { serverOwned[name] = true; });
+            });
+
             function save() {
                 return ApiClient.getPluginConfiguration(pluginId).then(function (config) {
                     textFields.forEach(function (name) {
+                        if (name in serverOwned && !serverOwned[name]) { return; }
                         config[name] = document.querySelector('#' + name).value;
                     });
                     config.SkipPortalTlsVerification = document.querySelector('#SkipPortalTlsVerification').checked;
@@ -289,6 +299,7 @@
                     textFields.forEach(function (name) {
                         document.querySelector('#' + name).value = config[name] || '';
                     });
+                    Object.keys(serverOwned).forEach(function (name) { serverOwned[name] = false; });
                     document.querySelector('#SkipPortalTlsVerification').checked = !!config.SkipPortalTlsVerification;
                     document.querySelector('#FollowLibraryEnabled').checked = !!config.FollowLibraryEnabled;
                     Dashboard.hideLoadingMsg();
@@ -317,6 +328,12 @@
                     return ApiClient.ajax({ type: 'POST', url: ApiClient.getUrl('Portalito/Admin/Test'), dataType: 'json' });
                 }).then(function (checks) {
                     showResults(checks);
+                    // The test may just have provisioned a device: show the serial it saved.
+                    return ApiClient.getPluginConfiguration(pluginId).then(function (config) {
+                        Object.keys(serverOwned).forEach(function (name) {
+                            if (!serverOwned[name]) { document.querySelector('#' + name).value = config[name] || ''; }
+                        });
+                    });
                 }, function () {
                     target.textContent = marks.error + ' The test itself could not run (see the server log).';
                 }).then(function () {

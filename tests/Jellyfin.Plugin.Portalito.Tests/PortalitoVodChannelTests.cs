@@ -1119,4 +1119,15 @@ public sealed class PortalitoVodChannelTests : IDisposable
         Assert.Empty(item.Genres);
         Assert.Empty(item.People);
     }
+
+    [Theory]
+    [InlineData("cat:9")]
+    [InlineData("flt:9:all")]
+    [InlineData("row:9:top")]
+    public async Task A_folder_for_a_catalog_that_no_longer_exists_lists_nothing_instead_of_failing(string folderId)
+    {
+        var result = await _channel.GetChannelItems(Query(folderId), default);
+
+        Assert.Empty(result.Items);
+    }
 }
