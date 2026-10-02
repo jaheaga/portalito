@@ -9,12 +9,12 @@
     "imageUrl": "https://raw.githubusercontent.com/jaheaga/portalito/main/assets/branding/portalito-banner.png",
     "versions": [
       {
-        "version": "0.1.2.101",
+        "version": "0.1.2.102",
         "targetAbi": "10.11.0.0",
-        "sourceUrl": "https://raw.githubusercontent.com/jaheaga/portalito/testing/Portalito_0.1.2.101.zip",
-        "checksum": "d37ce62328bcfc9c09586d2c350fb01d",
-        "changelog": "Stable show ids + remaining review fixes. Not a release.",
-        "timestamp": "2026-10-02T13:32:06Z"
+        "sourceUrl": "https://raw.githubusercontent.com/jaheaga/portalito/testing/Portalito_0.1.2.102.zip",
+        "checksum": "f320d20b68586f6a19f402c79cd9e01d",
+        "changelog": "Destacado rows best-rated first (PR #1). Not a release.",
+        "timestamp": "2026-10-02T15:11:02Z"
       }
     ]
   }
