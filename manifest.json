@@ -9,12 +9,12 @@
     "imageUrl": "https://raw.githubusercontent.com/jaheaga/portalito/main/assets/branding/portalito-banner.png",
     "versions": [
       {
-        "version": "0.1.1.106",
+        "version": "0.1.2.101",
         "targetAbi": "10.11.0.0",
-        "sourceUrl": "https://raw.githubusercontent.com/jaheaga/portalito/testing/Portalito_0.1.1.106.zip",
-        "checksum": "00df10ec10b10c9fddee62e7522d77d3",
-        "changelog": "Review fixes: custom ids, hidden tag, stamp, folder checks, cooldown. Not a release.",
-        "timestamp": "2026-10-02T12:59:31Z"
+        "sourceUrl": "https://raw.githubusercontent.com/jaheaga/portalito/testing/Portalito_0.1.2.101.zip",
+        "checksum": "d37ce62328bcfc9c09586d2c350fb01d",
+        "changelog": "Stable show ids + remaining review fixes. Not a release.",
+        "timestamp": "2026-10-02T13:32:06Z"
       }
     ]
   }
