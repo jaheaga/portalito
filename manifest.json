@@ -9,12 +9,12 @@
     "imageUrl": "https://raw.githubusercontent.com/jaheaga/portalito/main/assets/branding/portalito-banner.png",
     "versions": [
       {
-        "version": "0.1.2.102",
+        "version": "0.1.2.103",
         "targetAbi": "10.11.0.0",
-        "sourceUrl": "https://raw.githubusercontent.com/jaheaga/portalito/testing/Portalito_0.1.2.102.zip",
-        "checksum": "f320d20b68586f6a19f402c79cd9e01d",
-        "changelog": "Destacado rows best-rated first (PR #1). Not a release.",
-        "timestamp": "2026-10-02T15:11:02Z"
+        "sourceUrl": "https://raw.githubusercontent.com/jaheaga/portalito/testing/Portalito_0.1.2.103.zip",
+        "checksum": "bfa5659b06739b82b6b8ca3b43806ea8",
+        "changelog": "Siguiendo: repair episodes' series keys. Not a release.",
+        "timestamp": "2026-10-02T15:45:36Z"
       }
     ]
   }
