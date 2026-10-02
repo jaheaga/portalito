@@ -136,6 +136,24 @@ For each TMDB title (fetched in **es-MX** and **en-US**):
 
 The row's items are ordinary portal items — the same ids, seasons, episodes and playback as in Descubrir.
 
+## Rating order
+
+Inside every Destacado row (TMDB rows and the portal's own rows alike), titles are listed by **community rating,
+highest first**, unrated titles last, ties A–Z.
+
+- **Which rating.** In a TMDB row, a title's rating is TMDB's vote average from the row's own list (no extra calls),
+  once at least 10 people voted (`TmdbLists.MinRatingVotes`: an upcoming film's 10.0 from two votes would lead
+  otherwise). Without it, the portal's `score` is used; without that, the TMDB lookup that fills a blank synopsis or
+  poster may supply one. Portal rows use the portal's score.
+- **How.** Jellyfin decides the order from the sort the app asks for. `FeaturedSortFilter` sees the item-listing
+  calls (`/Items`, `/Users/{id}/Items`, `/Channels/{id}/Items`) for a row folder and, when the app asks for plain
+  A–Z (its default), asks for rating instead. Any other order picked in the app's sort menu (release date, Z–A,
+  rating ascending…) is kept; picking "Name" A–Z can't be told apart from the default, so it shows by rating too.
+- **Saved titles.** Jellyfin copies a channel item's rating only when it first saves the item, so each listing of a
+  row also writes its ratings onto the titles Jellyfin already had — otherwise a title first seen without a rating
+  would sort last for good.
+- Turn it off with `SortFeaturedByRating` (config page: "Order Destacado rows by rating").
+
 ## Caching and performance
 
 - TMDB lists are cached 6 h; a reconciled row 6 h; each title's portal match (or miss) a day.
@@ -145,9 +163,10 @@ The row's items are ordinary portal items — the same ids, seasons, episodes an
 
 ## Limits
 
-- **Order.** Jellyfin sorts channel items with the *client's* sort — A–Z by default in the web app — and a
-  channel plugin can't set a rank. Rows show the right titles, not TMDB's ranking; use the sort menu
-  (Rating, Release date…) if you prefer. The rows themselves also appear A–Z.
+- **Order.** Jellyfin sorts channel items with the *client's* sort — A–Z by default — and a channel can't set a
+  rank of its own. So, with `SortFeaturedByRating` on (the default), a row's A–Z request is served **best-rated
+  first** instead (see [Rating order](#rating-order)); TMDB's own ranking (popularity, trending) isn't kept. The
+  rows themselves still appear A–Z.
 - **Coverage.** Only what the portal carries is shown. Trending, popular, top-rated and country/genre
   discover rows fill well; `airing-today` and `upcoming` are often thin, since a VOD portal rarely has
   titles that are still airing or not yet released.

@@ -4,6 +4,9 @@ using Jellyfin.Plugin.Portalito.Portal;
 
 namespace Jellyfin.Plugin.Portalito.Catalog;
 
+/// <summary>A row's portal title (a raw asset, the same shape as a catalog listing's) and TMDB's rating of it, if any.</summary>
+public sealed record RowTitle(JsonObject Item, double? Rating);
+
 /// <summary>
 /// "Destacado" rows built from TMDB lists (trending, popular, discover by country/genre...) and reconciled against the
 /// portal: each TMDB title is searched for in the portal and kept only if the portal really has it, so every listed
@@ -23,14 +26,14 @@ public sealed class DiscoveryBrowser
     private static readonly JsonObject NoMatch = new();
 
     private readonly TmdbClient _tmdb;
-    private readonly TtlCache<IReadOnlyList<JsonObject>> _rows;
+    private readonly TtlCache<IReadOnlyList<RowTitle>> _rows;
     private readonly TtlCache<JsonObject> _titles;
 
     public DiscoveryBrowser(TmdbClient tmdb, TimeProvider clock, IReadOnlyList<FeaturedRow> rows)
     {
         _tmdb = tmdb;
         Rows = rows;
-        _rows = new TtlCache<IReadOnlyList<JsonObject>>(clock, TimeSpan.FromHours(6), capacity: Math.Max(rows.Count, 1));
+        _rows = new TtlCache<IReadOnlyList<RowTitle>>(clock, TimeSpan.FromHours(6), capacity: Math.Max(rows.Count, 1));
         _titles = new TtlCache<JsonObject>(clock, TimeSpan.FromDays(1), capacity: 5_000);
     }
 
@@ -110,10 +113,10 @@ public sealed class DiscoveryBrowser
 
     /// <summary>
     /// The row's portal titles: its TMDB list, each title searched in the portal and matched, unmatched ones dropped,
-    /// TMDB's order kept, one entry per show, capped at <see cref="RowCap"/>. The items are raw portal assets, the same
-    /// shape as a catalog listing.
+    /// TMDB's order kept, one entry per show, capped at <see cref="RowCap"/>. Each title carries TMDB's rating from the
+    /// list itself (no extra calls): the portal often sends no score, and the row is ordered by rating.
     /// </summary>
-    public async Task<IReadOnlyList<JsonObject>> RowAsync(PortalClient portal, int rowIndex, CancellationToken cancellationToken)
+    public async Task<IReadOnlyList<RowTitle>> RowAsync(PortalClient portal, int rowIndex, CancellationToken cancellationToken)
     {
         var key = rowIndex.ToString(System.Globalization.CultureInfo.InvariantCulture);
         if (_rows.TryGet(key, out var cached))
@@ -143,16 +146,16 @@ public sealed class DiscoveryBrowser
             }
         })).ConfigureAwait(false);
 
-        var row = new List<JsonObject>();
+        var row = new List<RowTitle>();
         var seen = new HashSet<string>(StringComparer.Ordinal);
-        foreach (var match in matches)
+        for (var i = 0; i < matches.Length; i++)
         {
-            if (match is null || !seen.Add(ShowKey(match)))
+            if (matches[i] is not { } match || !seen.Add(ShowKey(match)))
             {
                 continue;
             }
 
-            row.Add(match);
+            row.Add(new RowTitle(match, entries[i].Rating));
             if (row.Count >= RowCap)
             {
                 break;

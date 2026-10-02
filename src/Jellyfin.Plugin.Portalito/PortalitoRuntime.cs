@@ -318,6 +318,7 @@ public sealed class PortalitoRuntime : IPortalitoServicesProvider
             // Without it here, saving a key on the config page wouldn't take effect until a restart (the 2026-09-22 bug).
             c.TmdbApiKey,
             c.FeaturedRows,
+            c.SortFeaturedByRating,
             c.ChannelImageUrl,
             c.EpgTimeZone,
             c.ProxySigningSecret,

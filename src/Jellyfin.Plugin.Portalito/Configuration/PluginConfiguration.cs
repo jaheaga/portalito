@@ -190,6 +190,13 @@ public class PluginConfiguration : BasePluginConfiguration
     public string ChannelImageUrl { get; set; } = string.Empty;
 
     /// <summary>
+    /// Gets or sets a value indicating whether Destacado rows list their titles best-rated first. On by default. Jellyfin
+    /// sorts channel folders itself, A-Z unless the client asks otherwise; with this on, a row's A-Z request is served by
+    /// rating instead (any other sort the client picks is kept). Off leaves Jellyfin's A-Z.
+    /// </summary>
+    public bool SortFeaturedByRating { get; set; } = true;
+
+    /// <summary>
     /// Gets or sets a value indicating whether the plugin keeps the hidden "Portalito · Siguiendo" library: a TV library
     /// mirroring only the series people are watching in the channel, so they show up in Jellyfin's "Next Up" (which
     /// only reads libraries, never channels). On by default. Turning it off stops the sync; it doesn't delete the
