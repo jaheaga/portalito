@@ -31,6 +31,22 @@ public sealed partial class PortalitoProxyService
     private const int SegmentAttempts = 3;
     private static readonly TimeSpan SegmentRetryDelay = TimeSpan.FromMilliseconds(800);
 
+    /// <summary>
+    /// How long an upstream request may take to answer with headers before it counts as failed (and its retry, if any,
+    /// runs). The shared client has no overall timeout -- it streams whole VOD files -- so a CDN that accepted the
+    /// connection and then stalled used to hold the request until the player gave up.
+    /// </summary>
+    public static readonly TimeSpan HeadersTimeout = TimeSpan.FromSeconds(20);
+
+    /// <summary>
+    /// After a live playlist answered 409 (the shared license is playing on another device), how long re-resolving is
+    /// skipped: ffmpeg reloads the playlist every few seconds, and each re-resolve is two portal calls and a new license
+    /// that can bounce the stream between the two devices.
+    /// </summary>
+    public static readonly TimeSpan ConflictBackoff = TimeSpan.FromSeconds(30);
+
+    private readonly System.Collections.Concurrent.ConcurrentDictionary<string, DateTimeOffset> _conflictUntil = new(StringComparer.Ordinal);
+
     // Remembers, per channel, which CDN last served a good playlist, so failover starts from it next time.
     private readonly System.Collections.Concurrent.ConcurrentDictionary<string, string> _lastGoodCdn = new(StringComparer.Ordinal);
 
@@ -95,10 +111,16 @@ public sealed partial class PortalitoProxyService
 
                 lastStatus = status;
 
-                // A rejected signature or a shared-license conflict is about the session, not the CDN: re-resolve once.
-                if (IsAuthFailure(status) || status == HttpStatusCode.Conflict)
+                // A rejected signature or a shared-license conflict is about the session, not the CDN: re-resolve once
+                // (for a conflict, at most once per ConflictBackoff).
+                if (IsAuthFailure(status) || (status == HttpStatusCode.Conflict && ConflictMayReResolve(channel)))
                 {
                     reResolve = true;
+                    break;
+                }
+
+                if (status == HttpStatusCode.Conflict)
+                {
                     break;
                 }
 
@@ -115,6 +137,19 @@ public sealed partial class PortalitoProxyService
         }
 
         return new PlaylistResult(HttpStatusCode.BadGateway, null);
+    }
+
+    /// <summary>Whether a 409 on <paramref name="channel"/> may re-resolve now; starts a new backoff when it may.</summary>
+    private bool ConflictMayReResolve(string channel)
+    {
+        var now = _clock.GetUtcNow();
+        if (_conflictUntil.TryGetValue(channel, out var until) && now < until)
+        {
+            return false;
+        }
+
+        _conflictUntil[channel] = now + ConflictBackoff;
+        return true;
     }
 
     /// <summary>
@@ -135,6 +170,9 @@ public sealed partial class PortalitoProxyService
                 ApplyHeaders(request, SignedAuth(cdn), license, xBuffer: true);
                 using var response = await _http.SendAsync(request, HttpCompletionOption.ResponseContentRead, timeout.Token)
                     .ConfigureAwait(false);
+
+                // Relative segment URIs resolve against where the playlist actually came from, after any redirect.
+                uri = response.RequestMessage?.RequestUri ?? uri;
                 if (!response.IsSuccessStatusCode)
                 {
                     return (response.StatusCode, null, uri);
@@ -198,8 +236,7 @@ public sealed partial class PortalitoProxyService
             HttpResponseMessage response;
             try
             {
-                response = await _http.SendAsync(request, HttpCompletionOption.ResponseHeadersRead, cancellationToken)
-                    .ConfigureAwait(false);
+                response = await SendForHeadersAsync(request, cancellationToken).ConfigureAwait(false);
             }
             catch (Exception ex) when (attempt + 1 < SegmentAttempts
                 && (ex is HttpRequestException || (ex is OperationCanceledException && !cancellationToken.IsCancellationRequested)))
@@ -216,6 +253,7 @@ public sealed partial class PortalitoProxyService
                 _live.Invalidate(channel, session);
                 session = await _live.GetAsync(channel, ct => _resolver.ResolveLiveAsync(channel, ct), cancellationToken).ConfigureAwait(false);
                 cdn = session.Cdns.FirstOrDefault(c => string.Equals(c.Host, upstream.Authority, StringComparison.OrdinalIgnoreCase)) ?? session.Cdns[0];
+                attempt--; // a renewed session isn't a retry: the edge 404/5xx budget stays whole
                 continue;
             }
 
@@ -266,8 +304,7 @@ public sealed partial class PortalitoProxyService
             HttpResponseMessage response;
             try
             {
-                response = await _http.SendAsync(request, HttpCompletionOption.ResponseHeadersRead, cancellationToken)
-                    .ConfigureAwait(false);
+                response = await SendForHeadersAsync(request, cancellationToken).ConfigureAwait(false);
             }
             catch (Exception ex) when (IsConnectFailure(ex, cancellationToken) && ++connectFailures < VodConnectAttempts)
             {
@@ -295,13 +332,49 @@ public sealed partial class PortalitoProxyService
     /// </summary>
     public async Task<HttpResponseMessage> OpenImageAsync(Uri upstream, CancellationToken cancellationToken)
     {
-        if (upstream.Scheme is not ("http" or "https"))
+        if (upstream.Scheme is not ("http" or "https") || IsLocalHost(upstream))
         {
-            throw new ArgumentException("Image URL must be http(s).", nameof(upstream));
+            // Poster URLs come from the portal's JSON; this server's own or LAN addresses are never a poster.
+            throw new ArgumentException("Image URL must be a public http(s) address.", nameof(upstream));
         }
 
         using var request = new HttpRequestMessage(HttpMethod.Get, upstream);
-        return await _http.SendAsync(request, HttpCompletionOption.ResponseHeadersRead, cancellationToken).ConfigureAwait(false);
+        return await SendForHeadersAsync(request, cancellationToken).ConfigureAwait(false);
+    }
+
+    /// <summary>Whether a URL names this machine or a private, loopback or link-local address (by literal host).</summary>
+    internal static bool IsLocalHost(Uri uri)
+    {
+        if (uri.IsLoopback || uri.Host.EndsWith(".local", StringComparison.OrdinalIgnoreCase) || string.Equals(uri.Host, "localhost", StringComparison.OrdinalIgnoreCase))
+        {
+            return true;
+        }
+
+        if (!IPAddress.TryParse(uri.Host.Trim('[', ']'), out var ip))
+        {
+            return false;
+        }
+
+        if (ip.IsIPv4MappedToIPv6)
+        {
+            ip = ip.MapToIPv4();
+        }
+
+        var b = ip.GetAddressBytes();
+        return IPAddress.IsLoopback(ip)
+               || ip.IsIPv6LinkLocal || ip.IsIPv6SiteLocal || ip.IsIPv6UniqueLocal
+               || (b.Length == 4 && (b[0] == 10 || b[0] == 0 || (b[0] == 172 && b[1] >= 16 && b[1] <= 31) || (b[0] == 192 && b[1] == 168) || (b[0] == 169 && b[1] == 254) || (b[0] == 100 && b[1] >= 64 && b[1] <= 127)));
+    }
+
+    /// <summary>
+    /// Sends with <see cref="HeadersTimeout"/> on the wait for headers only. The timer is disposed as soon as headers
+    /// arrive, so it never cuts a body that streams for hours.
+    /// </summary>
+    private async Task<HttpResponseMessage> SendForHeadersAsync(HttpRequestMessage request, CancellationToken cancellationToken)
+    {
+        using var headers = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
+        headers.CancelAfter(HeadersTimeout);
+        return await _http.SendAsync(request, HttpCompletionOption.ResponseHeadersRead, headers.Token).ConfigureAwait(false);
     }
 
     private string SignedAuth(LiveCdn cdn)

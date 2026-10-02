@@ -48,6 +48,10 @@ public class PluginServiceRegistrator : IPluginServiceRegistrator
         serviceCollection.AddSingleton<Following.FollowSubtitles>();
         serviceCollection.AddHostedService<Following.FollowTrigger>();
         serviceCollection.Configure<MvcOptions>(options => options.Filters.Add<Following.FollowPlaybackFilter>());
+        // Name-keyed show ids for the channel's show folders (see Catalog/ShowIndex).
+        serviceCollection.AddSingleton(sp => new Catalog.ShowIndex(
+            Path.Combine(sp.GetRequiredService<IApplicationPaths>().DataPath, "portalito", "shows.json")));
+        serviceCollection.AddHostedService<Channels.RemovalMonitor>();
         serviceCollection.AddSingleton<ILiveTvService, PortalitoLiveTvService>();
         serviceCollection.AddSingleton<IChannel, PortalitoVodChannel>();
     }

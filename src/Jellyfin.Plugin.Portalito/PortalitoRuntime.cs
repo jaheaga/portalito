@@ -53,7 +53,8 @@ public sealed class PortalitoRuntime : IPortalitoServicesProvider
     // 30s value here silently aborted every VOD stream partway through (reported live, 2026-09-21, "stops" at
     // inconsistent points typically under ~6 minutes). Real cancellation comes from the ASP.NET request's own token
     // (ffmpeg's connection via RequestAborted), and the live playlist has its own per-request timeout.
-    private readonly HttpClient _upstream = new(new SocketsHttpHandler { ConnectTimeout = TimeSpan.FromSeconds(4) }) { Timeout = Timeout.InfiniteTimeSpan };
+    // PooledConnectionLifetime: a long-lived pooled connection otherwise keeps a CDN's old DNS answer forever.
+    private readonly HttpClient _upstream = new(new SocketsHttpHandler { ConnectTimeout = TimeSpan.FromSeconds(4), PooledConnectionLifetime = TimeSpan.FromMinutes(5) }) { Timeout = Timeout.InfiniteTimeSpan };
     private readonly HttpClient _tmdbHttp = new() { Timeout = TimeSpan.FromSeconds(10) };
     private readonly Dictionary<bool, HttpClient> _portalHttp = new();
 
@@ -61,6 +62,16 @@ public sealed class PortalitoRuntime : IPortalitoServicesProvider
 
     private string? _fingerprint;
     private PortalitoServices? _current;
+
+    // The parts rebuilt only when their own settings change (see Build): a new portal client means a new login -- with an
+    // account that signs out whatever else holds it -- and a new proxy drops the live/VOD sessions of whatever is playing,
+    // so a TMDB key or a Destacado row must not cause either.
+    private (PortalClient Portal, ProxyUrlSigner Signer, PortalitoProxyService Proxy)? _core;
+    private string? _coreFingerprint;
+    private string? _coreDeviceSn;
+    private volatile string? _selfProvisionedSn;
+    private (string Key, Metadata.TmdbClient? Client)? _tmdb;
+    private (string Catalogs, CatalogBrowser Browser)? _catalogs;
     private string? _stampFingerprint;
     private long _stampGeneration;
 
@@ -120,6 +131,46 @@ public sealed class PortalitoRuntime : IPortalitoServicesProvider
 
     private PortalitoServices Build(PluginConfiguration config)
     {
+        // The serial the current client provisioned and saved itself is not a new device: rebuilding for it threw away
+        // the session that client had just made.
+        var coreFingerprint = CoreFingerprint(config);
+        var deviceChanged = config.DeviceSn != _coreDeviceSn && config.DeviceSn != _selfProvisionedSn;
+        if (_core is null || coreFingerprint != _coreFingerprint || deviceChanged)
+        {
+            _core = BuildCore(config);
+            _coreFingerprint = coreFingerprint;
+            _selfProvisionedSn = null;
+        }
+
+        _coreDeviceSn = config.DeviceSn;
+        var (portal, signer, proxy) = _core.Value;
+
+        if (_catalogs is not { } catalogs || catalogs.Catalogs != config.Catalogs)
+        {
+            _catalogs = catalogs = (config.Catalogs, new CatalogBrowser(_clock, CatalogBrowser.ParseCatalogs(config.Catalogs)));
+        }
+
+        // Optional: without a key the TMDB fallback is simply off. Kept across other changes, with its caches.
+        var key = config.TmdbApiKey?.Trim() ?? string.Empty;
+        if (_tmdb is not { } tmdbEntry || tmdbEntry.Key != key)
+        {
+            _tmdb = tmdbEntry = (key, key.Length == 0 ? null : new Metadata.TmdbClient(new Metadata.HttpTmdbTransport(_tmdbHttp), key, _clock));
+        }
+
+        var tmdb = tmdbEntry.Client;
+        var epgZone = Live.EpgMapper.ResolveZone(config.EpgTimeZone, out var epgZoneProblem);
+
+        // TMDB-driven "Destacado" rows: only with a TMDB key and at least one valid configured row.
+        var featuredRows = DiscoveryBrowser.ParseRows(config.FeaturedRows);
+        var discovery = tmdb is not null && featuredRows.Count > 0 ? new DiscoveryBrowser(tmdb, _clock, featuredRows) : null;
+        var channelImage = Uri.TryCreate(config.ChannelImageUrl.Trim(), UriKind.Absolute, out var image) && image.Scheme is "http" or "https"
+            ? image.ToString()
+            : null;
+        return new PortalitoServices(portal, signer, proxy, catalogs.Browser, tmdb, epgZone, epgZoneProblem, discovery, channelImage);
+    }
+
+    private (PortalClient Portal, ProxyUrlSigner Signer, PortalitoProxyService Proxy) BuildCore(PluginConfiguration config)
+    {
         var options = PortalOptions.FromConfiguration(config);
         if (!_portalHttp.TryGetValue(config.SkipPortalTlsVerification, out var portalHttp))
         {
@@ -133,6 +184,7 @@ public sealed class PortalitoRuntime : IPortalitoServicesProvider
             // A fresh free-tier device was registered: persist its serial so later activations reuse it. Into the current
             // configuration, not the one this client was built from: Jellyfin swaps the instance on every save, and a
             // serial written to a replaced one was lost (so every re-authentication provisioned yet another device).
+            _selfProvisionedSn = provisionedSn;
             _getConfig().DeviceSn = provisionedSn;
             _saveConfig();
         },
@@ -140,22 +192,39 @@ public sealed class PortalitoRuntime : IPortalitoServicesProvider
         var signer = new ProxyUrlSigner(config.ProxySigningSecret, ProxyBaseUrl(config), _clock);
         var contentAuth = BuildContentAuthSigner(config);
         var proxy = new PortalitoProxyService(_upstream, portal, signer, contentAuth, new ProxyIdentity(options.AppId, options.ApkVersion, options.CdnUserAgent), _clock);
-        var catalogs = new CatalogBrowser(_clock, CatalogBrowser.ParseCatalogs(config.Catalogs));
-
-        // Optional: without a key the TMDB fallback is simply off.
-        var tmdb = string.IsNullOrWhiteSpace(config.TmdbApiKey)
-            ? null
-            : new Metadata.TmdbClient(new Metadata.HttpTmdbTransport(_tmdbHttp), config.TmdbApiKey.Trim(), _clock);
-        var epgZone = Live.EpgMapper.ResolveZone(config.EpgTimeZone, out var epgZoneProblem);
-
-        // TMDB-driven "Destacado" rows: only with a TMDB key and at least one valid configured row.
-        var featuredRows = DiscoveryBrowser.ParseRows(config.FeaturedRows);
-        var discovery = tmdb is not null && featuredRows.Count > 0 ? new DiscoveryBrowser(tmdb, _clock, featuredRows) : null;
-        var channelImage = Uri.TryCreate(config.ChannelImageUrl.Trim(), UriKind.Absolute, out var image) && image.Scheme is "http" or "https"
-            ? image.ToString()
-            : null;
-        return new PortalitoServices(portal, signer, proxy, catalogs, tmdb, epgZone, epgZoneProblem, discovery, channelImage);
+        return (portal, signer, proxy);
     }
+
+    /// <summary>The settings the portal client, the URL signer and the proxy are built from (the device serial is compared apart).</summary>
+    private static string CoreFingerprint(PluginConfiguration c)
+        => string.Join(
+            '\u001f',
+            c.TripleDesKeyHex,
+            c.Hosts,
+            c.AppId,
+            c.ApkVersion,
+            c.DeviceDrmId,
+            c.DeviceToken,
+            c.DeviceReserve1,
+            c.SnTokenSalt,
+            c.SkipPortalTlsVerification,
+            c.ProxyBaseUrl,
+            c.AccountEmail,
+            c.AccountPassword,
+            c.ProxySigningSecret,
+            c.ContentAuthMethod,
+            c.ContentAuthSaltHex,
+            c.ContentAuthMd5Schedule,
+            c.ContentAuthMd5KOverrides,
+            c.PortalCode,
+            c.ApiBasePath,
+            c.PortalApkVer,
+            c.PortalSpkgVer,
+            c.PortalUserAgent,
+            c.CdnUserAgent,
+            c.LoginPasswordSalt,
+            c.LiveColumnCode,
+            c.AllChannelsColumnId);
 
     /// <summary>Builds the CDN Content-Auth signer from config: signing method, salt bytes, and any non-standard MD5 deviation.</summary>
     private static IContentAuthSigner BuildContentAuthSigner(PluginConfiguration config)

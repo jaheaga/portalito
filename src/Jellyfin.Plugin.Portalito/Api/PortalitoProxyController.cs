@@ -164,15 +164,29 @@ public class PortalitoProxyController : ControllerBase
 
     // Separate from RelayAsync: images need their Content-Type normalized (the CDN's "image/jpg" breaks
     // Jellyfin's own image cache/converter -- see ProxyUrlSigner.ImageUrl), not forwarded verbatim like video's is.
+    /// <summary>The largest poster relayed; anything bigger isn't a poster (an HTML error page, a misnamed file).</summary>
+    internal const long MaxImageBytes = 10 * 1024 * 1024;
+
     private async Task<IActionResult> RelayImageAsync(HttpResponseMessage upstream, CancellationToken cancellationToken)
     {
         Response.RegisterForDispose(upstream);
+        if (upstream.Content.Headers.ContentLength > MaxImageBytes)
+        {
+            return StatusCode(StatusCodes.Status502BadGateway);
+        }
+
         Response.StatusCode = (int)upstream.StatusCode;
 
         if (Proxy.ImageTypes.Normalize(upstream.Content.Headers.ContentType?.MediaType) is not { } contentType)
         {
-            // Missing or vague ("image/*"): buffer the (small) poster and tell its type from its first bytes.
-            var bytes = await upstream.Content.ReadAsByteArrayAsync(cancellationToken).ConfigureAwait(false);
+            // Missing or vague ("image/*"): buffer the (small) poster -- bounded -- and tell its type from its first bytes.
+            var bytes = await ReadBoundedAsync(upstream.Content, MaxImageBytes, cancellationToken).ConfigureAwait(false);
+            if (bytes is null)
+            {
+                Response.StatusCode = StatusCodes.Status502BadGateway;
+                return new EmptyResult();
+            }
+
             Response.ContentType = Proxy.ImageTypes.Sniff(bytes);
             Response.ContentLength = bytes.Length;
             await Response.Body.WriteAsync(bytes, cancellationToken).ConfigureAwait(false);
@@ -188,6 +202,26 @@ public class PortalitoProxyController : ControllerBase
         await using var body = await upstream.Content.ReadAsStreamAsync(cancellationToken).ConfigureAwait(false);
         await body.CopyToAsync(Response.Body, cancellationToken).ConfigureAwait(false);
         return new EmptyResult();
+    }
+
+    /// <summary>The body, or null when it's longer than <paramref name="limit"/> bytes.</summary>
+    private static async Task<byte[]?> ReadBoundedAsync(HttpContent content, long limit, CancellationToken cancellationToken)
+    {
+        await using var body = await content.ReadAsStreamAsync(cancellationToken).ConfigureAwait(false);
+        using var buffer = new MemoryStream();
+        var chunk = new byte[81920];
+        int read;
+        while ((read = await body.ReadAsync(chunk, cancellationToken).ConfigureAwait(false)) > 0)
+        {
+            if (buffer.Length + read > limit)
+            {
+                return null;
+            }
+
+            buffer.Write(chunk, 0, read);
+        }
+
+        return buffer.ToArray();
     }
 
     private async Task<IActionResult> RelayAsync(HttpResponseMessage upstream, string contentType, bool forwardRangeHeaders, CancellationToken cancellationToken)
@@ -227,6 +261,17 @@ public class PortalitoProxyController : ControllerBase
             if (upstream.Headers.AcceptRanges.Count > 0)
             {
                 Response.Headers.AcceptRanges = string.Join(", ", upstream.Headers.AcceptRanges);
+            }
+
+            // The validators a player needs to send a meaningful If-Range (which is forwarded upstream).
+            if (upstream.Headers.ETag is { } etag)
+            {
+                Response.Headers.ETag = etag.ToString();
+            }
+
+            if (headers.LastModified is { } lastModified)
+            {
+                Response.Headers.LastModified = lastModified.ToString("R");
             }
         }
 

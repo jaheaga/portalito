@@ -40,6 +40,7 @@ public sealed class CatalogBrowser
     private readonly TtlCache<FilterVocabulary> _vocabulary;
     private readonly TtlCache<IReadOnlyList<Collage.CollageImage>> _posters;
     private readonly TtlCache<IReadOnlyList<JsonObject>> _topRated;
+    private readonly SingleFlight _flights = new();
 
     public CatalogBrowser(TimeProvider clock, IReadOnlyList<CatalogEntry> catalogs)
     {
@@ -84,12 +85,13 @@ public sealed class CatalogBrowser
     /// root's first shelf via <c>getRecommendColumnContents</c> rather than hardcoded (measured live 2026-09-23:
     /// movies -> 76177, series -> 76178, kids -> 76783, anime -> 76180).</summary>
     public async Task<long> ParentIdAsync(PortalClient portal, string catalogCode, CancellationToken cancellationToken)
-    {
-        if (_parentIds.TryGet(catalogCode, out var cached))
-        {
-            return cached;
-        }
+        => _parentIds.TryGet(catalogCode, out var cached)
+            ? cached
+            : await _flights.RunAsync("parent|" + catalogCode, () => FetchParentIdAsync(portal, catalogCode), cancellationToken).ConfigureAwait(false);
 
+    private async Task<long> FetchParentIdAsync(PortalClient portal, string catalogCode)
+    {
+        var cancellationToken = CancellationToken.None; // shared by every waiting caller (see SingleFlight)
         var shelves = (await portal.NextColumnsAsync(catalogCode, size: 1, cancellationToken: cancellationToken).ConfigureAwait(false)).Require();
         var firstShelf = PortalJson.Objects(shelves["recommendList"]).FirstOrDefault()
             ?? throw new PortalException($"catalog '{catalogCode}' has no shelves to derive a parent id from");
@@ -107,13 +109,13 @@ public sealed class CatalogBrowser
     /// <summary>The genre/year filter vocabulary, shared across every catalog (measured live 2026-09-23: the same
     /// 24 tags and year range regardless of which catalog you're about to filter).</summary>
     public async Task<FilterVocabulary> VocabularyAsync(PortalClient portal, CancellationToken cancellationToken)
-    {
-        if (_vocabulary.TryGet("vocab", out var cached))
-        {
-            return cached;
-        }
+        => _vocabulary.TryGet("vocab", out var cached)
+            ? cached
+            : await _flights.RunAsync("vocab", () => FetchVocabularyAsync(portal), cancellationToken).ConfigureAwait(false);
 
-        var response = (await portal.FilterGenreAsync(cancellationToken: cancellationToken).ConfigureAwait(false)).Require();
+    private async Task<FilterVocabulary> FetchVocabularyAsync(PortalClient portal)
+    {
+        var response = (await portal.FilterGenreAsync(cancellationToken: CancellationToken.None).ConfigureAwait(false)).Require();
         var tags = (response["tags"] as JsonArray)?.Select(n => PortalJson.Str(n)).OfType<string>().ToArray() ?? Array.Empty<string>();
         var years = (response["year"] as JsonArray)?.Select(n => PortalJson.Str(n)).Select(y => int.TryParse(y, out var n) ? n : (int?)null).OfType<int>().ToArray() ?? Array.Empty<int>();
         var vocabulary = new FilterVocabulary(tags, years);
@@ -240,11 +242,14 @@ public sealed class CatalogBrowser
     public async Task<IReadOnlyList<Collage.CollageImage>> PostersAsync(PortalClient portal, string catalogCode, string? tag, int? year, CancellationToken cancellationToken)
     {
         var key = $"{catalogCode}|{tag}|{year}";
-        if (_posters.TryGet(key, out var cached))
-        {
-            return cached;
-        }
+        return _posters.TryGet(key, out var cached)
+            ? cached
+            : await _flights.RunAsync("posters|" + key, () => FetchPostersAsync(portal, catalogCode, tag, year, key), cancellationToken).ConfigureAwait(false);
+    }
 
+    private async Task<IReadOnlyList<Collage.CollageImage>> FetchPostersAsync(PortalClient portal, string catalogCode, string? tag, int? year, string key)
+    {
+        var cancellationToken = CancellationToken.None; // shared by every waiting caller (see SingleFlight)
         var parentId = await ParentIdAsync(portal, catalogCode, cancellationToken).ConfigureAwait(false);
         var response = (await portal.FilterByContentAsync(
             parentId,

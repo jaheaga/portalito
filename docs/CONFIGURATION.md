@@ -86,7 +86,7 @@ plugin. A wrong value only shows up as live streams that won't play (VOD doesn't
 | `ProxyBaseUrl` | `PORTALITO_PROXY_BASE_URL` | How Jellyfin's own ffmpeg reaches this server's proxy, e.g. `http://127.0.0.1:8096`. Empty = the server's own local address (port, HTTPS and base path included). Must be `http(s)://`. |
 | `EpgTimeZone` | `PORTALITO_EPG_TIME_ZONE` | IANA zone the portal's guide times are in (they carry none), e.g. `America/Bogota`. Empty = the server's zone. |
 | `SkipPortalTlsVerification` | `PORTALITO_SKIP_PORTAL_TLS_VERIFICATION` | Off by default. Turn on only if the portal hosts present invalid certificates — without verification, anyone on the network path can capture the login. |
-| `ProxySigningSecret` | — | Generated and saved on first use; signs the proxy URLs (including the Siguiendo library's .strm files, which a new secret invalidates until the next sync rewrites them). Not on the page. |
+| `ProxySigningSecret` | — | Generated and saved on first use; signs the proxy URLs (including the Siguiendo library's .strm files). Not editable on the page; **Advanced → Rotate signing secret** replaces it, revoking every URL handed out, and rewrites the Siguiendo files right away. |
 
 ## Import / export
 

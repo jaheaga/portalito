@@ -192,4 +192,36 @@ public class ImageRepairTests
     [InlineData("shw:ABC", false)]
     public void Walks_only_the_folders_that_hold_collage_folders(string externalId, bool open)
         => Assert.Equal(open, Channels.ImageRepair.ShouldOpen(externalId));
+
+    [Theory]
+    [InlineData("1\n00:00:01,000 --> 00:00:02,000\nHola\n", "srt", true)]
+    [InlineData("\uFEFF1\r\n00:00:01,000 --> 00:00:02,000\r\nHola", "srt", true)]
+    [InlineData("WEBVTT\n\n00:01.000 --> 00:02.000\nHola", "vtt", true)]
+    [InlineData("<html><body>Error 1020</body></html>", "srt", false)]
+    [InlineData("{\"error\":\"not found\"}", "srt", false)]
+    [InlineData("", "srt", false)]
+    public void Only_real_subtitle_files_are_kept(string text, string format, bool kept)
+        => Assert.Equal(kept, Channels.SubtitleFileCache.LooksLikeSubtitles(System.Text.Encoding.UTF8.GetBytes(text), format));
+
+    [Fact]
+    public void The_show_index_survives_a_restart()
+    {
+        var path = Path.Combine(Path.GetTempPath(), "portalito-shows-" + Guid.NewGuid().ToString("N") + ".json");
+        try
+        {
+            var index = new ShowIndex(path);
+            var key = index.Remember("Reacher T2", "S-T2");
+            Assert.Equal(key, index.Remember("REACHER t1", "S-T1")); // same show, any season, any case
+            index.Flush();
+
+            Assert.True(new ShowIndex(path).TryGet(key, out var show));
+            Assert.Equal(new[] { "S-T2", "S-T1" }, show.SeasonIds);
+            Assert.Equal("Reacher", show.Name);
+            Assert.False(ShowIndex.IsKey("S-T2"));
+        }
+        finally
+        {
+            File.Delete(path);
+        }
+    }
 }

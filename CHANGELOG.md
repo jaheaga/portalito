@@ -1,5 +1,32 @@
 # Changelog
 
+## 0.1.2.0 — 2026-10-02
+
+The rest of the 2026-10-02 code review.
+
+- **Each series is one item in Jellyfin.** A show's folder was named after whichever season a listing happened to show
+  first, so the same show appeared as several series, and the old one was deleted with its seasons when a newer season
+  took the lead. Shows are now identified by their name, the same in every folder. Upgrading: old duplicates go away
+  as their folders are browsed again.
+- **New: "Rotate signing secret"** (config page, Advanced). Revokes every stream URL the plugin has handed out,
+  including the permanent ones in the "Siguiendo" files, which are rewritten right away. Use it if a link leaked.
+- **Saving a setting no longer interrupts playback or signs the account in again** unless the setting is about the
+  portal itself (a TMDB key or a Destacado row used to restart everything).
+- **A TMDB outage no longer leaves titles without synopsis or poster for a week**, and a Destacado row built while
+  the portal hiccuped is no longer kept for six hours.
+- **"Siguiendo": playback is forced through the server for every client call**, subtitles are only fetched for users
+  who can see the episode, and copying progress from the channel never undoes newer progress.
+- Streams: a CDN that connects but never answers now fails over after 20 s instead of hanging; a live channel whose
+  license is in use elsewhere no longer re-registers every few seconds; posters can't point the server at its own LAN.
+- Faster start-up (the series repair no longer looks up 30,000 seasons), fewer portal calls when the channel is opened
+  cold, runtimes saved in batches, and a damaged runtimes file is kept aside instead of overwritten.
+- Destacado rows with the same name stay separate; a film with no TMDB year only matches an unambiguous portal title.
+- The log now records any Portalito movie or episode Jellyfin removes (to measure whether movies need the same
+  treatment as series).
+- Known issue (Jellyfin): a portal subtitle that has to be burned into the video (a client that can't show SRT)
+  fails to play; Jellyfin reads the local subtitle file as if it were remote. Clients that show subtitles themselves
+  (web, Android TV) aren't affected.
+
 ## 0.1.1.6 — 2026-10-02
 
 Fixes from a code review.

@@ -577,4 +577,34 @@ public class PortalitoProxyServiceTests
         await Assert.ThrowsAsync<ArgumentException>(() => _service.OpenImageAsync(new Uri(url), default));
         Assert.Empty(_upstream.Requests);
     }
+
+    [Fact]
+    public async Task A_lasting_409_re_resolves_at_most_once_per_backoff()
+    {
+        _upstream.Respond = _ => Text("", HttpStatusCode.Conflict);
+
+        await _service.GetLivePlaylistAsync("chan1", default);
+        Assert.Equal(2, _resolver.LiveCalls); // first conflict: one re-resolve
+
+        await _service.GetLivePlaylistAsync("chan1", default);
+        Assert.Equal(2, _resolver.LiveCalls); // within the backoff: the conflict is reported as-is
+
+        _clock.Now += PortalitoProxyService.ConflictBackoff;
+        await _service.GetLivePlaylistAsync("chan1", default);
+        Assert.Equal(3, _resolver.LiveCalls);
+    }
+
+    [Theory]
+    [InlineData("http://127.0.0.1/p.jpg", true)]
+    [InlineData("http://localhost:8096/p.jpg", true)]
+    [InlineData("http://192.168.0.10/p.jpg", true)]
+    [InlineData("http://10.1.2.3/p.jpg", true)]
+    [InlineData("http://172.20.0.2/p.jpg", true)]
+    [InlineData("http://169.254.1.1/p.jpg", true)]
+    [InlineData("http://[::1]/p.jpg", true)]
+    [InlineData("http://nas.local/p.jpg", true)]
+    [InlineData("https://cdn.example.test/p.jpg", false)]
+    [InlineData("http://8.8.8.8/p.jpg", false)]
+    public void Posters_on_this_machine_or_the_lan_are_refused(string url, bool local)
+        => Assert.Equal(local, PortalitoProxyService.IsLocalHost(new Uri(url)));
 }

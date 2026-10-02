@@ -151,6 +151,20 @@ marks it Played and drops the position on every progress report. The portal almo
 Continue Watching (`/UserItems/Resume`) includes channel items. **Next Up does not**: Jellyfin builds it from library
 folders only (`TVSeriesManager`), never channels — hence the "Siguiendo" library below.
 
+## Show ids and what Jellyfin does with channel items
+
+Jellyfin re-parents a channel item to whichever folder listed it last (a forced save and a queued refresh) and deletes
+the items a folder held but no longer lists (`ChannelManager.GetChannelItemsInternal`). Channel user data is keyed by
+the item's `ExternalId`, so a deleted title gets its history back when it's listed again.
+
+- **Shows** are `shw:n_<key>`, the key a hash of the show's name without its season marker (`ShowIndex.KeyFor`), the
+  same in every listing. `ShowIndex` (`<data>/portalito/shows.json`) maps the key to the season contentIds the
+  listings have seen, which is how the folder is opened. Legacy `shw:<contentId>` ids still open. Before, a show was
+  named after the first season a listing showed: one show became several Series items, and the old one was deleted
+  with its seasons when a newer season led (measured on production 2026-10-01).
+- **Movies and episodes** keep one id everywhere. Production showed no movie/episode deletions over three days;
+  `RemovalMonitor` logs any ("Portalito title removed by Jellyfin", with a daily count) to revisit that.
+
 ## Next Up: the hidden "Portalito · Siguiendo" library
 
 Next Up only reads libraries, so the plugin mirrors the series people actually watch (not the catalog) into a real TV
@@ -197,6 +211,22 @@ library, hidden from every user's menus. Code in `Following/`.
   puts the show in Next Up), and the channel copy's resume point is cleared so Continue Watching doesn't list it twice.
 - **When**: `FollowSyncTask` ("Sincronizar Portalito · Siguiendo") at startup and every 30 minutes, and
   `FollowTrigger` queues it whenever someone stops a channel episode.
+
+### Signing secret
+
+`ProxySigningSecret` signs every proxy URL (`ProxyUrlSigner`). The config page's **Rotate signing secret**
+(`POST /Portalito/Admin/RotateSecret`, admin only) replaces it, revoking every URL handed out (12 h VOD, 7 d live, and
+the permanent Siguiendo `.strm` ones), and queues the Siguiendo sync, whose files stamp changes, so the `.strm` files
+are re-signed at once.
+
+### Proxy limits
+
+- Upstream segment/VOD/image requests must answer with headers within 20 s (`HeadersTimeout`; scoped to the wait
+  for headers, never the body), so a stalled CDN fails over instead of hanging.
+- A live playlist answering 409 (license in use elsewhere) re-resolves at most once per 30 s (`ConflictBackoff`).
+- Posters on loopback/private/link-local hosts are refused; buffered posters are capped at 10 MB.
+- `PortalitoRuntime` rebuilds the portal client, signer and proxy only when portal settings change (`CoreFingerprint`);
+  TMDB, rows, image URL and Siguiendo settings don't sign the account in again or drop playing sessions.
 
 ## Live TV service
 

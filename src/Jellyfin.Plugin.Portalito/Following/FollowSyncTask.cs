@@ -46,6 +46,7 @@ public sealed class FollowSyncTask : IScheduledTask
     private readonly IFileSystem _fileSystem;
     private readonly IPortalitoServicesProvider _services;
     private readonly RuntimeStore _runtimes;
+    private readonly ShowIndex _shows;
     private readonly FollowStore _store;
     private readonly ILogger<FollowSyncTask> _logger;
 
@@ -61,6 +62,7 @@ public sealed class FollowSyncTask : IScheduledTask
         IFileSystem fileSystem,
         IPortalitoServicesProvider services,
         RuntimeStore runtimes,
+        ShowIndex shows,
         FollowStore store,
         ILogger<FollowSyncTask> logger)
     {
@@ -72,6 +74,7 @@ public sealed class FollowSyncTask : IScheduledTask
         _fileSystem = fileSystem;
         _services = services;
         _runtimes = runtimes;
+        _shows = shows;
         _store = store;
         _logger = logger;
     }
@@ -238,7 +241,8 @@ public sealed class FollowSyncTask : IScheduledTask
             foreach (var item in favorites)
             {
                 if (VodItemId.TryParse(item.ExternalId, out var id) && id.Kind == VodItemKind.Show
-                    && await ShowOfSeasonAsync(services, id.Primary, cancellationToken).ConfigureAwait(false) is { } showId)
+                    && SeasonOfShowFolder(id.Primary) is { } seasonId
+                    && await ShowOfSeasonAsync(services, seasonId, cancellationToken).ConfigureAwait(false) is { } showId)
                 {
                     activity.Add(new ShowActivity(showId, null, Favorite: true));
                 }
@@ -269,6 +273,12 @@ public sealed class FollowSyncTask : IScheduledTask
 
         return (activity, plays);
     }
+
+    /// <summary>A season of the show a channel show folder names: a name key resolves through the show index, a legacy id is one.</summary>
+    private string? SeasonOfShowFolder(string primary)
+        => !ShowIndex.IsKey(primary) ? primary
+            : _shows.TryGet(primary, out var known) && known.SeasonIds.Count > 0 ? known.SeasonIds[0]
+            : null;
 
     /// <summary>How many of a user's most recently played items each query looks at (besides every played or in-progress one).</summary>
     private const int RecentPlaysPerUser = 200;
@@ -541,18 +551,21 @@ public sealed class FollowSyncTask : IScheduledTask
         var copied = 0;
         foreach (var play in plays)
         {
-            if (!byEpisode.TryGetValue(play.EpisodeId, out var mirror) || _userData.GetUserData(play.User, mirror) is not { } mirrorData
-                || !WatchState.ShouldCopy(play.Data, mirrorData))
+            // Read again now: the snapshot is from the start of the run, minutes ago (mirroring, a scan), and the user may
+            // have kept watching in the channel since. Writing the snapshot back would undo that.
+            if (!byEpisode.TryGetValue(play.EpisodeId, out var mirror)
+                || _userData.GetUserData(play.User, play.Item) is not { } channelData
+                || _userData.GetUserData(play.User, mirror) is not { } mirrorData
+                || !WatchState.ShouldCopy(channelData, mirrorData))
             {
                 continue;
             }
 
-            WatchState.Copy(play.Data, mirrorData);
+            WatchState.Copy(channelData, mirrorData);
             _userData.SaveUserData(play.User, mirror, mirrorData, UserDataSaveReason.Import, cancellationToken);
-            if (play.Data.PlaybackPositionTicks > 0)
+            if (WatchState.ClearChannelResume(channelData, mirrorData))
             {
-                play.Data.PlaybackPositionTicks = 0;
-                _userData.SaveUserData(play.User, play.Item, play.Data, UserDataSaveReason.Import, cancellationToken);
+                _userData.SaveUserData(play.User, play.Item, channelData, UserDataSaveReason.Import, cancellationToken);
             }
 
             copied++;

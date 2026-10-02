@@ -6,7 +6,12 @@ using Jellyfin.Plugin.Portalito.Catalog;
 
 namespace Jellyfin.Plugin.Portalito.Metadata;
 
-/// <summary>GETs one TMDB v3 endpoint; the response text, or null on a non-success status. Testable without a network.</summary>
+/// <summary>
+/// GETs one TMDB v3 endpoint: the response text, or null when TMDB says there's nothing there (404). Any other failure (a
+/// rate limit, a 5xx, a rejected key, no network) throws <see cref="HttpRequestException"/>, so it is never cached as
+/// "no match" -- until 0.1.2.0 a TMDB outage left the titles looked up during it without synopsis or poster for a week.
+/// Testable without a network.
+/// </summary>
 public interface ITmdbTransport
 {
     Task<string?> GetAsync(string path, IReadOnlyDictionary<string, string> query, CancellationToken cancellationToken);
@@ -25,7 +30,15 @@ public sealed class HttpTmdbTransport : ITmdbTransport
     {
         var pairs = query.Select(kv => $"{HttpUtility.UrlEncode(kv.Key)}={HttpUtility.UrlEncode(kv.Value)}");
         using var response = await _http.GetAsync(new Uri($"{BaseUrl}{path}?{string.Join('&', pairs)}"), cancellationToken).ConfigureAwait(false);
-        return response.IsSuccessStatusCode ? await response.Content.ReadAsStringAsync(cancellationToken).ConfigureAwait(false) : null;
+        if (response.StatusCode == System.Net.HttpStatusCode.NotFound)
+        {
+            return null;
+        }
+
+        // The status only: the request URL carries the API key.
+        return response.IsSuccessStatusCode
+            ? await response.Content.ReadAsStringAsync(cancellationToken).ConfigureAwait(false)
+            : throw new HttpRequestException($"TMDB answered {(int)response.StatusCode} for {path}", null, response.StatusCode);
     }
 }
 
@@ -143,16 +156,29 @@ public sealed class TmdbClient
 
         var spanish = new List<JsonObject>();
         var english = new Dictionary<string, JsonObject>(StringComparer.Ordinal);
+        var complete = true;
         for (var page = 1; page <= endpoint.Pages; page++)
         {
-            var es = await ListPageAsync(endpoint.Path, endpoint.Query, Language, page, cancellationToken).ConfigureAwait(false);
+            IReadOnlyList<JsonObject> es, en;
+            try
+            {
+                es = await ListPageAsync(endpoint.Path, endpoint.Query, Language, page, cancellationToken).ConfigureAwait(false);
+                en = es.Count == 0 ? Array.Empty<JsonObject>() : await ListPageAsync(endpoint.Path, endpoint.Query, FallbackLanguage, page, cancellationToken).ConfigureAwait(false);
+            }
+            catch (HttpRequestException) when (page > 1)
+            {
+                // A later page failed: show what came, but don't keep a short list for six hours.
+                complete = false;
+                break;
+            }
+
             if (es.Count == 0)
             {
                 break;
             }
 
             spanish.AddRange(es);
-            foreach (var r in await ListPageAsync(endpoint.Path, endpoint.Query, FallbackLanguage, page, cancellationToken).ConfigureAwait(false))
+            foreach (var r in en)
             {
                 if (TmdbLists.Key(r, endpoint.IsSeries) is { } k)
                 {
@@ -162,7 +188,7 @@ public sealed class TmdbClient
         }
 
         var entries = TmdbLists.ToEntries(spanish, english, endpoint.IsSeries, PosterBase);
-        if (entries.Count > 0)
+        if (entries.Count > 0 && complete)
         {
             _lists.Set(key, entries);
         }

@@ -99,7 +99,20 @@ public sealed class StreamSessionCache<T>
                 _entries.TryRemove(pair);
             }
         }
+
+        // And their gates: one per title ever played otherwise. A gate in use (count 0) stays; at worst a key whose gate
+        // goes away mid-request resolves once more.
+        foreach (var pair in _gates)
+        {
+            if (!_entries.ContainsKey(pair.Key) && pair.Value.CurrentCount == 1)
+            {
+                _gates.TryRemove(pair);
+            }
+        }
     }
+
+    /// <summary>Gets the number of per-key gates held (tests).</summary>
+    internal int GateCount => _gates.Count;
 
     private bool IsStale(Entry entry, DateTimeOffset now)
         => now >= entry.ResolvedAt + _maxAge

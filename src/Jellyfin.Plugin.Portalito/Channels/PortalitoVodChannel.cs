@@ -47,6 +47,7 @@ public sealed class PortalitoVodChannel : IChannel, IRequiresMediaInfoCallback, 
     private readonly CollageService _collages;
     private readonly ILogger<PortalitoVodChannel> _logger;
     private readonly RuntimeStore _runtimes;
+    private readonly ShowIndex _shows;
     private readonly ILibraryManager? _library;
 
     // A title's tracks never change, so each is probed once; only the first playback of a title pays for it.
@@ -64,6 +65,7 @@ public sealed class PortalitoVodChannel : IChannel, IRequiresMediaInfoCallback, 
 
     /// <param name="runtimes">Known title runtimes (see <see cref="RuntimeStore"/>); in-memory only when not given.</param>
     /// <param name="library">Jellyfin's library, to give a playing item its runtime right away; optional (tests).</param>
+    /// <param name="shows">The name-keyed show ids (see <see cref="ShowIndex"/>); in-memory only when not given.</param>
     public PortalitoVodChannel(
         IPortalitoServicesProvider services,
         IVodTrackProbe probe,
@@ -71,9 +73,11 @@ public sealed class PortalitoVodChannel : IChannel, IRequiresMediaInfoCallback, 
         CollageService collages,
         ILogger<PortalitoVodChannel> logger,
         RuntimeStore? runtimes = null,
-        ILibraryManager? library = null)
+        ILibraryManager? library = null,
+        ShowIndex? shows = null)
     {
         _runtimes = runtimes ?? new RuntimeStore(null);
+        _shows = shows ?? new ShowIndex(null);
         _library = library;
         _services = services;
         _probe = probe;
@@ -141,8 +145,10 @@ public sealed class PortalitoVodChannel : IChannel, IRequiresMediaInfoCallback, 
     /// show name -- what Jellyfin needs to keep playback positions (Continue Watching) and order episodes.
     /// "v24" -> "v25" (2026-10-01): TMDB Destacado rows are identified by their label, not their position (see
     /// <see cref="DiscoveryBrowser.RowKey"/>).
+    /// "v25" -> "v26" (2026-10-02): show folders are identified by their name (see <see cref="ShowIndex"/>), not by the
+    /// season a listing happened to show first.
     /// </summary>
-    public string DataVersion => $"v25:{DateTime.UtcNow:yyyyMMdd}";
+    public string DataVersion => $"v26:{DateTime.UtcNow:yyyyMMdd}";
 
     public string HomePageUrl => string.Empty;
 
@@ -718,7 +724,7 @@ public sealed class PortalitoVodChannel : IChannel, IRequiresMediaInfoCallback, 
     /// <summary>Maps raw portal items to playable movies and per-show folders, fills blanks from TMDB, and pages.</summary>
     private async Task<ChannelItemResult> MapListingAsync(PortalitoServices services, IReadOnlyList<JsonObject> content, PageWindow window, CancellationToken cancellationToken)
     {
-        var grouped = GroupCatalogItems(content, services.Signer, _runtimes);
+        var grouped = GroupCatalogItems(content, services.Signer, _runtimes, _shows);
         if (services.Tmdb is { } tmdb)
         {
             await FillBlanksFromTmdbAsync(tmdb, grouped, cancellationToken).ConfigureAwait(false);
@@ -908,7 +914,7 @@ public sealed class PortalitoVodChannel : IChannel, IRequiresMediaInfoCallback, 
     /// from the authoritative <c>sameSeasonSeriesList</c> (see <see cref="ShowSeasonsAsync"/>), not from whatever
     /// happened to appear in this one filtered/paged listing.
     /// </summary>
-    private static IReadOnlyList<(ChannelItemInfo Item, TitleQuery Query)> GroupCatalogItems(IReadOnlyList<JsonObject> content, ProxyUrlSigner signer, RuntimeStore runtimes)
+    private static IReadOnlyList<(ChannelItemInfo Item, TitleQuery Query)> GroupCatalogItems(IReadOnlyList<JsonObject> content, ProxyUrlSigner signer, RuntimeStore runtimes, ShowIndex shows)
     {
         var items = new List<(ChannelItemInfo Item, TitleQuery Query)>();
         var seenShows = new HashSet<string>();
@@ -941,13 +947,14 @@ public sealed class PortalitoVodChannel : IChannel, IRequiresMediaInfoCallback, 
                 continue;
             }
 
-            var groupKey = SeasonGrouping.WithoutSeason(name);
-            if (!seenShows.Add(groupKey))
+            // Every season is remembered under the show's name key, the show's id in every listing (see ShowIndex).
+            var showKey = shows.Remember(name, contentId!);
+            if (!seenShows.Add(showKey))
             {
                 continue;
             }
 
-            var show = Folder(VodItemId.Show(contentId!).ToString(), SeasonGrouping.StripSeasonForDisplay(name), ChannelFolderType.Series);
+            var show = Folder(VodItemId.Show(showKey).ToString(), SeasonGrouping.StripSeasonForDisplay(name), ChannelFolderType.Series);
             ApplyMetadata(show, c, signer);
 
             // A season's name and alias carry its season marker ("... T2", "... S2"); TMDB knows the show.
@@ -963,8 +970,24 @@ public sealed class PortalitoVodChannel : IChannel, IRequiresMediaInfoCallback, 
     /// measured live 2026-09-23) rather than from whichever seasons happened to appear in a filtered listing.
     /// Each season is a <see cref="VodItemKind.ShowSeason"/> folder listing its episodes.
     /// </summary>
-    private static async Task<ChannelItemResult> ShowSeasonsAsync(PortalitoServices services, string contentId, PageWindow window, CancellationToken cancellationToken)
+    private async Task<ChannelItemResult> ShowSeasonsAsync(PortalitoServices services, string showId, PageWindow window, CancellationToken cancellationToken)
     {
+        // A name key (the current ids) opens through any season the listings saw; a legacy id is itself a season.
+        string contentId;
+        if (!ShowIndex.IsKey(showId))
+        {
+            contentId = showId;
+        }
+        else if (_shows.TryGet(showId, out var known) && known.SeasonIds.Count > 0)
+        {
+            contentId = known.SeasonIds[0];
+        }
+        else
+        {
+            _logger.LogInformation("Show {Show} isn't in the show index (yet); listing it empty", showId);
+            return Slice(Array.Empty<ChannelItemInfo>(), window);
+        }
+
         var detail = (await services.Portal.DetailAsync(contentId, type: "0", cancellationToken: cancellationToken).ConfigureAwait(false)).Require();
         var asset = detail["assetData"] as JsonObject ?? detail;
         var seasons = PortalJson.Objects(asset["sameSeasonSeriesList"])

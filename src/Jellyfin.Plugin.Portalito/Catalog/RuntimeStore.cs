@@ -18,9 +18,12 @@ public sealed class RuntimeStore
 {
     private static readonly JsonSerializerOptions JsonOptions = new() { WriteIndented = false };
 
+    private static readonly TimeSpan SaveDelay = TimeSpan.FromSeconds(5);
+
     private readonly string? _path;
     private readonly ConcurrentDictionary<string, KnownRuntime> _runtimes;
     private readonly object _saveGate = new();
+    private int _savePending;
 
     /// <param name="path">The JSON file to load and save; null keeps the store in memory only (tests).</param>
     public RuntimeStore(string? path)
@@ -42,8 +45,27 @@ public sealed class RuntimeStore
         }
 
         _runtimes[contentId] = new KnownRuntime(ticks, nowUtc);
-        Save();
+        ScheduleSave();
         return true;
+    }
+
+    /// <summary>Writes pending changes now (tests).</summary>
+    public void Flush()
+    {
+        Interlocked.Exchange(ref _savePending, 0);
+        Save();
+    }
+
+    // One write per burst: a listing whose titles carry a portal duration sets hundreds at once, and rewriting the whole
+    // file for each was quadratic and blocked the listing.
+    private void ScheduleSave()
+    {
+        if (_path is null || Interlocked.Exchange(ref _savePending, 1) == 1)
+        {
+            return;
+        }
+
+        _ = Task.Delay(SaveDelay).ContinueWith(_ => Flush(), TaskScheduler.Default);
     }
 
     /// <summary>
@@ -86,7 +108,16 @@ public sealed class RuntimeStore
         }
         catch (Exception ex) when (ex is IOException or JsonException or UnauthorizedAccessException)
         {
-            // A damaged file only costs re-learning runtimes as titles are played again.
+            // Moved aside, never overwritten by the near-empty store the next save would write: a damaged file is
+            // recoverable by hand, and otherwise only costs re-learning runtimes as titles are played again.
+            try
+            {
+                File.Move(path!, path + ".bad", overwrite: true);
+            }
+            catch (Exception moveFailed) when (moveFailed is IOException or UnauthorizedAccessException)
+            {
+                // Nothing more to do.
+            }
         }
 
         return new Dictionary<string, KnownRuntime>();

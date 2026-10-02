@@ -276,4 +276,21 @@ public class PortalJsonImdbTests
     [Fact]
     public void A_missing_field_has_no_imdb_id()
         => Assert.Null(Jellyfin.Plugin.Portalito.Catalog.PortalJson.ImdbId(null));
+
+    [Fact]
+    public async Task A_tmdb_error_is_not_remembered_as_no_match()
+    {
+        var transport = new FakeTmdbTransport();
+        var client = new TmdbClient(transport, "KEY123", new ManualClock(DateTimeOffset.FromUnixTimeSeconds(1_786_000_000)));
+        var failing = true;
+        transport.Body = (path, q) => failing
+            ? throw new HttpRequestException("TMDB answered 429", null, System.Net.HttpStatusCode.TooManyRequests)
+            : new JsonObject { ["results"] = new JsonArray(new JsonObject { ["title"] = "Duna", ["original_title"] = "Dune", ["release_date"] = "2021-09-15", ["overview"] = "Arrakis.", ["poster_path"] = "/d.jpg" }) }.ToJsonString();
+        var query = new TitleQuery("Duna", "Dune", 2021, false);
+
+        await Assert.ThrowsAsync<HttpRequestException>(() => client.LookupAsync(query, default));
+        failing = false;
+
+        Assert.Equal("Arrakis.", (await client.LookupAsync(query, default))!.Overview); // looked up again, not a cached miss
+    }
 }

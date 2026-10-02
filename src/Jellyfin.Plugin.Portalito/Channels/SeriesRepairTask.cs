@@ -106,7 +106,15 @@ public sealed class SeriesRepairTask : IScheduledTask
         {
             cancellationToken.ThrowIfCancellationRequested();
             var item = items[i];
-            var change = SeriesRepair.Plan(item.ExternalId, item.RunTimeTicks, item.ParentIndexNumber, item.Name, (item as Episode)?.Season?.IndexNumber, _runtimes);
+            if (i % 500 == 0)
+            {
+                progress.Report(100.0 * i / items.Count);
+            }
+
+            // The parent season is a library lookup per item: only for an episode that actually lacks its season (on
+            // production, 30,000 titles were each looked up at every start for nothing).
+            var parentSeason = item is Episode episode && item.ParentIndexNumber is null or 0 ? episode.Season?.IndexNumber : null;
+            var change = SeriesRepair.Plan(item.ExternalId, item.RunTimeTicks, item.ParentIndexNumber, item.Name, parentSeason, _runtimes);
             if (change.IsEmpty)
             {
                 continue;
@@ -125,7 +133,6 @@ public sealed class SeriesRepairTask : IScheduledTask
             }
 
             await item.UpdateToRepositoryAsync(ItemUpdateType.MetadataEdit, cancellationToken).ConfigureAwait(false);
-            progress.Report(100.0 * (i + 1) / items.Count);
         }
 
         _logger.LogInformation(

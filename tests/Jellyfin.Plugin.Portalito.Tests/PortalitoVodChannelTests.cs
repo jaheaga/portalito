@@ -725,7 +725,7 @@ public sealed class PortalitoVodChannelTests : IDisposable
         // (ChannelItemInfo.ImageUrl has no separate backdrop slot) -- and routed through the image proxy, not
         // hotlinked (see ProxyUrlSigner.ImageUrl).
         Assert.Equal(_h.Signer.ImageUrl("https://example.test/movie-poster.jpg", MediaSources.ImageUrlValidity), byId["mov:MOVIE1"].ImageUrl);
-        Assert.Equal(_h.Signer.ImageUrl("https://example.test/series-poster.jpg", MediaSources.ImageUrlValidity), byId["shw:SER1"].ImageUrl);
+        Assert.Equal(_h.Signer.ImageUrl("https://example.test/series-poster.jpg", MediaSources.ImageUrlValidity), byId["shw:" + ShowIndex.KeyFor("A Show")].ImageUrl);
         Assert.Null(byId["mov:MOVIE2"].ImageUrl);
     }
 
@@ -992,8 +992,10 @@ public sealed class PortalitoVodChannelTests : IDisposable
 
         var result = await _channel.GetChannelItems(Query("flt:0:all"), default);
 
-        // One show folder, keyed by the FIRST-seen season's contentId; the later season of the same show collapses.
-        Assert.Equal(new[] { "mov:MOVIE1", "shw:S-T2" }, result.Items.Select(i => i.Id));
+        // One show folder, keyed by the show's name (the same whichever season a listing shows first); the later season
+        // of the same show collapses into it.
+        Assert.Equal(new[] { "mov:MOVIE1", "shw:" + ShowIndex.KeyFor("Reacher T2") }, result.Items.Select(i => i.Id));
+        Assert.Equal(ShowIndex.KeyFor("Reacher T2"), ShowIndex.KeyFor("Reacher T1"));
         Assert.Equal(ChannelItemType.Media, result.Items[0].Type);
         Assert.Equal(ChannelItemType.Folder, result.Items[1].Type);
         Assert.Equal(ChannelFolderType.Series, result.Items[1].FolderType);
@@ -1129,5 +1131,78 @@ public sealed class PortalitoVodChannelTests : IDisposable
         var result = await _channel.GetChannelItems(Query(folderId), default);
 
         Assert.Empty(result.Items);
+    }
+
+    [Fact]
+    public async Task A_show_has_one_id_whichever_season_a_listing_shows_first_and_opens_through_it()
+    {
+        var newestFirst = true;
+        _h.Route = r =>
+        {
+            if (r.Path == "v3/filterByContent")
+            {
+                var t2 = Content("S-T2", "Reacher T2", "teleplay");
+                var t1 = Content("S-T1", "Reacher T1", "teleplay");
+                return _h.Ok(new JsonObject { ["assetList"] = newestFirst ? WiringHarness.Array(t2, t1) : WiringHarness.Array(t1, t2) });
+            }
+
+            if (r.Path == "v4/getItemData")
+            {
+                return _h.Ok(new JsonObject
+                {
+                    ["assetData"] = new JsonObject
+                    {
+                        ["sameSeasonSeriesList"] = WiringHarness.Array(
+                            new JsonObject { ["contentId"] = "S-T1", ["seasonNumber"] = 1 },
+                            new JsonObject { ["contentId"] = "S-T2", ["seasonNumber"] = 2 }),
+                    },
+                });
+            }
+
+            return CatalogRoutes(_h)(r);
+        };
+
+        var first = (await _channel.GetChannelItems(Query("flt:0:all"), default)).Items.Single().Id;
+        newestFirst = false;
+        var second = (await _channel.GetChannelItems(Query("flt:0:g0"), default)).Items.Single().Id;
+        var seasons = await _channel.GetChannelItems(Query(first), default);
+
+        Assert.Equal(first, second); // one Series item in Jellyfin, not one per first-seen season
+        Assert.StartsWith("shw:" + ShowIndex.KeyPrefix, first);
+        Assert.Equal(new[] { "ssn:S-T1", "ssn:S-T2" }, seasons.Items.Select(i => i.Id));
+    }
+
+    [Fact]
+    public async Task A_show_key_the_index_doesnt_know_lists_nothing_instead_of_failing()
+    {
+        var result = await _channel.GetChannelItems(Query("shw:" + ShowIndex.KeyFor("Nunca Vista")), default);
+
+        Assert.Empty(result.Items);
+    }
+
+    [Fact]
+    public async Task Tmdb_destacado_rows_are_listed_by_label_key_and_open_to_the_portals_titles()
+    {
+        var h = new WiringHarness(withTmdb: true, featuredRows: "Tendencias | trending; Apple TV+ | discover-tv | network=apple");
+        var channel = new PortalitoVodChannel(h, new FakeVodTrackProbe(), new SubtitleFileCache(_subtitleDir, new HttpClient(_subtitleHost)), _collages, NullLogger<PortalitoVodChannel>.Instance);
+        h.Tmdb.Body = (path, q) => q.GetValueOrDefault("page") != "1" ? "{\"results\":[]}"
+            : path == "trending/all/week"
+                ? "{\"results\":[{\"id\":1,\"media_type\":\"movie\",\"title\":\"Duna\",\"original_title\":\"Dune\",\"release_date\":\"2021-09-15\"}]}"
+                : "{\"results\":[]}";
+        var dune = Content("DUNE1", "Duna");
+        dune["alias"] = "Dune";
+        dune["releaseTime"] = "2021-10-01";
+        h.Route = r => r.Path == "v3/searchByName"
+            ? h.Ok(new JsonObject { ["searchItemList"] = WiringHarness.Array(new JsonObject { ["itemList"] = WiringHarness.Array((JsonObject)dune.DeepClone()) }) })
+            : FakePortalTransport.Error("x", r.Path);
+
+        var rows = await channel.GetChannelItems(Query("fea:root"), default);
+        var trending = rows.Items.Single(i => i.Name == "Tendencias").Id;
+        var titles = await channel.GetChannelItems(Query(trending), default);
+        var stale = await channel.GetChannelItems(Query("row:0:tmdb"), default); // a position id from before 0.1.1.4
+
+        Assert.Equal("row:" + DiscoveryBrowser.RowKey("Tendencias") + ":tmdb", trending);
+        Assert.Equal(new[] { "mov:DUNE1" }, titles.Items.Select(i => i.Id));
+        Assert.Empty(stale.Items);
     }
 }

@@ -185,6 +185,12 @@
                     </button>
                 </div>
                 <div id="PortalitoTestResults" class="fieldDescription" style="margin-top: 1em;"></div>
+                <details style="margin: 1em 0;">
+                    <summary>Advanced: proxy signing secret</summary>
+                    <div class="fieldDescription" style="margin: 0.5em 0;">Every stream URL the plugin hands out is signed with a secret stored here. Rotating it revokes all of them at once &mdash; including the permanent ones in the "Siguiendo" library files, which are rewritten right away &mdash; and stops anything playing. Use it if a stream URL leaked.</div>
+                    <button is="emby-button" type="button" id="PortalitoRotateButton" class="raised block emby-button"><span>Rotate signing secret</span></button>
+                    <div id="PortalitoRotateStatus" class="fieldDescription" style="margin-top: 0.5em;"></div>
+                </details>
             </form>
         </div>
     </div>
@@ -303,6 +309,23 @@
                     document.querySelector('#SkipPortalTlsVerification').checked = !!config.SkipPortalTlsVerification;
                     document.querySelector('#FollowLibraryEnabled').checked = !!config.FollowLibraryEnabled;
                     Dashboard.hideLoadingMsg();
+                });
+            });
+
+            var rotateArmed = false;
+            document.querySelector('#PortalitoRotateButton').addEventListener('click', function () {
+                var status = document.querySelector('#PortalitoRotateStatus');
+                if (!rotateArmed) {
+                    // Two clicks instead of a confirm() dialog: it stops everything playing.
+                    rotateArmed = true;
+                    status.textContent = marks.warning + ' This stops anything playing. Click again to rotate.';
+                    return;
+                }
+                rotateArmed = false;
+                ApiClient.ajax({ type: 'POST', url: ApiClient.getUrl('Portalito/Admin/RotateSecret') }).then(function () {
+                    status.textContent = marks.ok + ' Rotated. Old stream URLs no longer work; Siguiendo files are being rewritten.';
+                }, function () {
+                    status.textContent = marks.error + ' Could not rotate (see the server log).';
                 });
             });
 

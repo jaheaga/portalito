@@ -479,4 +479,28 @@ public class StreamSessionCacheTests
         await cache.GetAsync("fresh", _ => Task.FromResult(new Session("f" + ++calls, null)), default);
         Assert.Equal(1, calls);
     }
+
+public class StreamSessionGateTests
+{
+    private sealed record Session(string Id);
+
+    [Fact]
+    public async Task Gates_of_swept_sessions_are_dropped_too()
+    {
+        var clock = new ManualClock(DateTimeOffset.FromUnixTimeSeconds(1_786_000_000));
+        var cache = new StreamSessionCache<Session>(clock, _ => null, TimeSpan.FromMinutes(5), TimeSpan.FromHours(2));
+        for (var i = 0; i < 300; i++)
+        {
+            await cache.GetAsync("old" + i, _ => Task.FromResult(new Session("x")), default);
+        }
+
+        clock.Now += TimeSpan.FromHours(3); // all stale
+        for (var i = 0; i < 300; i++)
+        {
+            await cache.GetAsync("new" + i, _ => Task.FromResult(new Session("y")), default);
+        }
+
+        Assert.True(cache.GateCount < 400, $"{cache.GateCount} gates kept"); // the 300 old titles' gates went with them
+    }
+}
 }

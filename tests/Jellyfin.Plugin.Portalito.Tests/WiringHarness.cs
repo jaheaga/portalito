@@ -17,7 +17,8 @@ internal sealed class WiringHarness : IPortalitoServicesProvider
 
     private readonly Func<PortalitoServices> _get;
 
-    public WiringHarness(bool withTmdb = false)
+    /// <param name="featuredRows">Destacado rows (FeaturedRows syntax); needs <paramref name="withTmdb"/>.</param>
+    public WiringHarness(bool withTmdb = false, string? featuredRows = null)
     {
         Clock = new ManualClock(DateTimeOffset.FromUnixTimeSeconds(1_786_000_000));
         Transport = new FakePortalTransport();
@@ -42,7 +43,9 @@ internal sealed class WiringHarness : IPortalitoServicesProvider
         var proxy = new PortalitoProxyService(new HttpClient(), portal, Signer, TestContentAuth.Signer(), new ProxyIdentity("app", "1", "ua"), Clock);
         var catalogs = new CatalogBrowser(Clock, CatalogBrowser.ParseCatalogs("cat_movies:Películas,cat_series:Series,cat_kids:Infantil,cat_anime:Anime"));
         var tmdb = withTmdb ? new Metadata.TmdbClient(Tmdb, "test-key", Clock) : null;
-        var services = new PortalitoServices(portal, Signer, proxy, catalogs, tmdb);
+        var rows = DiscoveryBrowser.ParseRows(featuredRows);
+        var discovery = tmdb is not null && rows.Count > 0 ? new DiscoveryBrowser(tmdb, Clock, rows) : null;
+        var services = new PortalitoServices(portal, Signer, proxy, catalogs, tmdb, Discovery: discovery);
         _get = () => services;
     }
 

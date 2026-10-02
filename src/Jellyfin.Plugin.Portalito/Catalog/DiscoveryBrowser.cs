@@ -91,7 +91,14 @@ public sealed class DiscoveryBrowser
                 }
             }
 
-            rows.Add(new FeaturedRow(fields[0], fields[1].ToLowerInvariant(), parameters));
+            // A row is identified by its label (RowKey): a repeated label gets a number, or the second row could never be opened.
+            var label = fields[0];
+            for (var n = 2; rows.Any(r => string.Equals(r.Label.Trim(), label.Trim(), StringComparison.Ordinal)); n++)
+            {
+                label = $"{fields[0]} ({n})";
+            }
+
+            rows.Add(new FeaturedRow(label, fields[1].ToLowerInvariant(), parameters));
         }
 
         return rows;
@@ -116,13 +123,19 @@ public sealed class DiscoveryBrowser
 
         var entries = await _tmdb.ListAsync(Rows[rowIndex], cancellationToken).ConfigureAwait(false);
         var matches = new JsonObject?[entries.Count];
+        var failed = 0;
         using var gate = new SemaphoreSlim(SearchConcurrency);
         await Task.WhenAll(entries.Select(async (entry, i) =>
         {
             await gate.WaitAsync(cancellationToken).ConfigureAwait(false);
             try
             {
-                matches[i] = await ResolveAsync(portal, entry, cancellationToken).ConfigureAwait(false);
+                var (match, searchFailed) = await ResolveAsync(portal, entry, cancellationToken).ConfigureAwait(false);
+                matches[i] = match;
+                if (searchFailed)
+                {
+                    Interlocked.Increment(ref failed);
+                }
             }
             finally
             {
@@ -146,7 +159,9 @@ public sealed class DiscoveryBrowser
             }
         }
 
-        if (entries.Count > 0)
+        // Not while some searches failed (the portal hiccuped, or its session is down): the row would stay partial, or
+        // empty, for the whole cache period after the portal recovered.
+        if (entries.Count > 0 && failed == 0)
         {
             _rows.Set(key, row);
         }
@@ -178,9 +193,11 @@ public sealed class DiscoveryBrowser
 
         if (!entry.IsSeries)
         {
+            // Without a TMDB year (an upcoming film, say) only an unambiguous title counts: the first of several
+            // same-named films of any year was often an older one (as TmdbMatching.Pick refuses too).
             return entry.Year is { } year
                 ? matching.FirstOrDefault(m => m.Year is { } y && Math.Abs(y - year) <= 1).Item
-                : matching.FirstOrDefault().Item;
+                : matching.DistinctBy(m => PortalJson.Str(m.Item["contentId"])).Count() == 1 ? matching[0].Item : null;
         }
 
         return entry.Year is { } showYear
@@ -192,12 +209,13 @@ public sealed class DiscoveryBrowser
     public static IEnumerable<JsonObject> SearchItems(JsonObject payload)
         => PortalJson.Objects(payload["searchItemList"]).SelectMany(group => PortalJson.Objects(group["itemList"]));
 
-    private async Task<JsonObject?> ResolveAsync(PortalClient portal, TmdbEntry entry, CancellationToken cancellationToken)
+    /// <summary>The portal title for <paramref name="entry"/> (null when there's none), and whether a search failed.</summary>
+    private async Task<(JsonObject? Match, bool Failed)> ResolveAsync(PortalClient portal, TmdbEntry entry, CancellationToken cancellationToken)
     {
         var key = (entry.IsSeries ? "tv:" : "movie:") + entry.Id;
         if (_titles.TryGet(key, out var cached))
         {
-            return ReferenceEquals(cached, NoMatch) ? null : cached;
+            return (ReferenceEquals(cached, NoMatch) ? null : cached, false);
         }
 
         // Search by the Spanish title first, then the English and original ones -- whichever the portal filed it under.
@@ -216,23 +234,23 @@ public sealed class DiscoveryBrowser
             }
             catch (PortalException)
             {
-                return null; // transient: not remembered as a miss
+                return (null, true); // transient: not remembered as a miss
             }
 
             if (!response.IsSuccess)
             {
-                return null;
+                return (null, true);
             }
 
             if (PickMatch(SearchItems(response.Data!), entry) is { } match)
             {
                 _titles.Set(key, match);
-                return match;
+                return (match, false);
             }
         }
 
         _titles.Set(key, NoMatch);
-        return null;
+        return (null, false);
     }
 
     private static string ShowKey(JsonObject item)

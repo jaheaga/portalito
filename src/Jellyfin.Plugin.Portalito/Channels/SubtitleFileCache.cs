@@ -55,8 +55,9 @@ public sealed class SubtitleFileCache
             }
 
             var bytes = await response.Content.ReadAsByteArrayAsync(timeout.Token).ConfigureAwait(false);
-            if (bytes.Length == 0)
+            if (!LooksLikeSubtitles(bytes, file.Format))
             {
+                // An error page served as 200 would otherwise be kept as this title's subtitles for good.
                 return null;
             }
 
@@ -81,5 +82,26 @@ public sealed class SubtitleFileCache
         {
             return null;
         }
+    }
+
+    /// <summary>
+    /// Whether a download is plausibly a subtitle file of <paramref name="format"/>: a VTT starts with "WEBVTT", an SRT
+    /// has a "-->" timing line near the top; neither starts like HTML. Checked on the first 4 KB.
+    /// </summary>
+    internal static bool LooksLikeSubtitles(byte[] bytes, string format)
+    {
+        if (bytes.Length == 0)
+        {
+            return false;
+        }
+
+        var head = Encoding.UTF8.GetString(bytes, 0, Math.Min(bytes.Length, 4096)).TrimStart('\uFEFF', ' ', '\r', '\n', '\t');
+        if (head.StartsWith('<'))
+        {
+            return false;
+        }
+
+        return format == "vtt" ? head.StartsWith("WEBVTT", StringComparison.Ordinal) || head.Contains("-->", StringComparison.Ordinal)
+            : head.Contains("-->", StringComparison.Ordinal);
     }
 }

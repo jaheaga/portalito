@@ -59,8 +59,40 @@ public sealed class ContinueWatchingTests : IDisposable
 
         Assert.True(store.Set("M1", 123, Learned));
         Assert.False(store.Set("M1", 123, Learned.AddDays(1))); // same runtime: no change, learned date kept
+        store.Flush(); // saves are batched; a restart would come after the pending write
         Assert.True(new RuntimeStore(path).TryGet("M1", out var reloaded));
         Assert.Equal(new KnownRuntime(123, Learned), reloaded);
+    }
+
+    [Fact]
+    public void A_damaged_runtimes_file_is_kept_aside_not_overwritten()
+    {
+        var path = Path.Combine(_dir, "bad", "runtimes.json");
+        Directory.CreateDirectory(Path.GetDirectoryName(path)!);
+        File.WriteAllText(path, "{ not json");
+
+        var store = new RuntimeStore(path);
+        store.Set("M1", 123, Learned);
+        store.Flush();
+
+        Assert.Equal("{ not json", File.ReadAllText(path + ".bad"));
+        Assert.True(new RuntimeStore(path).TryGet("M1", out _));
+    }
+
+    [Fact]
+    public void Many_runtimes_in_a_burst_are_written_once_batched()
+    {
+        var path = Path.Combine(_dir, "burst", "runtimes.json");
+        var store = new RuntimeStore(path);
+
+        for (var i = 0; i < 500; i++)
+        {
+            store.Set("T" + i, 1000 + i, Learned);
+        }
+
+        Assert.False(File.Exists(path)); // not yet: one write after the burst, not one per runtime
+        store.Flush();
+        Assert.Equal(500, new RuntimeStore(path).Count);
     }
 
     [Fact]

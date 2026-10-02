@@ -327,10 +327,37 @@ public class FollowingTests : IDisposable
     }
 
     [Fact]
-    public void The_filter_targets_only_the_posted_playback_info_call()
+    public void The_filter_targets_both_playback_info_calls()
     {
         Assert.True(FollowPlaybackFilter.IsPlaybackInfo(new ControllerActionDescriptor { ControllerName = "MediaInfo", ActionName = "GetPostedPlaybackInfo" }));
-        Assert.False(FollowPlaybackFilter.IsPlaybackInfo(new ControllerActionDescriptor { ControllerName = "MediaInfo", ActionName = "GetPlaybackInfo" }));
+        Assert.True(FollowPlaybackFilter.IsPlaybackInfo(new ControllerActionDescriptor { ControllerName = "MediaInfo", ActionName = "GetPlaybackInfo" }));
+        Assert.False(FollowPlaybackFilter.IsPlaybackInfo(new ControllerActionDescriptor { ControllerName = "Items", ActionName = "GetItems" }));
         Assert.False(FollowPlaybackFilter.IsPlaybackInfo(null));
+    }
+
+    [Fact]
+    public void The_returned_sources_are_never_direct_playable()
+    {
+        var response = new MediaBrowser.Model.MediaInfo.PlaybackInfoResponse
+        {
+            MediaSources = new[] { new MediaBrowser.Model.Dto.MediaSourceInfo { SupportsDirectPlay = true, SupportsDirectStream = true, SupportsTranscoding = true } },
+        };
+
+        FollowPlaybackFilter.ForceServerStreaming(response);
+
+        Assert.All(response.MediaSources, m => Assert.False(m.SupportsDirectPlay || m.SupportsDirectStream));
+        Assert.True(response.MediaSources[0].SupportsTranscoding);
+    }
+
+    [Fact]
+    public void The_channel_resume_point_is_cleared_only_while_the_library_holds_the_same_play()
+    {
+        var channel = Data(position: 500, last: Now);
+
+        Assert.False(WatchState.ClearChannelResume(channel, Data(last: Now.AddMinutes(-5)))); // the channel moved on since
+        Assert.Equal(500, channel.PlaybackPositionTicks);
+        Assert.True(WatchState.ClearChannelResume(channel, Data(position: 500, last: Now)));
+        Assert.Equal(0, channel.PlaybackPositionTicks);
+        Assert.False(WatchState.ClearChannelResume(channel, Data(last: Now))); // nothing left to clear
     }
 }

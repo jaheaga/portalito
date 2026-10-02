@@ -15,6 +15,22 @@ public static class WatchState
            && channel.LastPlayedDate is { } played
            && (library.LastPlayedDate is null || played > library.LastPlayedDate);
 
+    /// <summary>
+    /// Clears the channel copy's resume point once the library copy holds the same play (so Continue Watching doesn't list
+    /// the episode twice); its "played" mark and dates stay. Returns whether anything changed. Nothing changes if the
+    /// channel copy moved on (a newer play) since it was copied.
+    /// </summary>
+    public static bool ClearChannelResume(UserItemData channel, UserItemData library)
+    {
+        if (channel.PlaybackPositionTicks <= 0 || channel.LastPlayedDate != library.LastPlayedDate)
+        {
+            return false;
+        }
+
+        channel.PlaybackPositionTicks = 0;
+        return true;
+    }
+
     /// <summary>Copies the channel copy's progress onto the library copy.</summary>
     public static void Copy(UserItemData channel, UserItemData library)
     {
