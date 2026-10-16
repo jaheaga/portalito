@@ -95,11 +95,18 @@ at once, then review and **Save**. **Export current values** dumps the current s
 can copy them to another server. Nothing is saved until you press Save, and the import runs entirely in
 your browser — no values are sent anywhere.
 
+## Companion plugin: Portalito TV
+
+[**Portalito TV**](docs/PORTALITO_TV.md) is a second plugin in this repository. It turns the series and movies you heart in
+Portalito into **24/7 linear TV channels** (a fixed-time schedule or a continuous shuffle) with an XMLTV guide, registered as
+a tuner in Jellyfin's Live TV. It reads what Portalito already put in Jellyfin, so install and configure Portalito first.
+
 ## Documentation
 
 - [docs/CONFIGURATION.md](docs/CONFIGURATION.md) — every setting, the connection test, troubleshooting
 - [docs/DESTACADO.md](docs/DESTACADO.md) — building Destacado rows from TMDB lists
 - [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) — how the plugin works inside
+- [docs/PORTALITO_TV.md](docs/PORTALITO_TV.md) — the Portalito TV companion plugin (24/7 channels)
 - [docs/DEVELOPMENT.md](docs/DEVELOPMENT.md) — building, testing, the no-secrets rule, conventions
 - [docs/RELEASING.md](docs/RELEASING.md) — cutting a release and installing it
 - [CHANGELOG.md](CHANGELOG.md)
@@ -108,6 +115,7 @@ your browser — no values are sent anywhere.
 
 ```sh
 dotnet build src/Jellyfin.Plugin.Portalito -c Release
+dotnet build src/Jellyfin.Plugin.PortalitoTV -c Release   # the Portalito TV companion plugin
 dotnet test  Jellyfin.Plugin.Portalito.sln -c Release
 python3 packaging/package.py        # -> artifacts/Portalito_<version>.zip (+ its md5)
 ```

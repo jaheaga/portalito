@@ -1,5 +1,13 @@
 # Changelog
 
+## Unreleased
+
+- **Portalito TV, a companion plugin, joins the repository** (`src/Jellyfin.Plugin.PortalitoTV`, documented in
+  [docs/PORTALITO_TV.md](docs/PORTALITO_TV.md)). It builds 24/7 linear TV channels from the series and movies hearted
+  in Portalito: fixed-time schedules or a continuous shuffle, an XMLTV guide with `T3 E5 - name` subtitles and a Live
+  TV tuner, with multi-part episodes airing together and TMDB numbering matched season by season. It is built, tested and
+  scrub-checked with the rest of the solution; releasing it (its own tag and manifest entry) is not set up yet.
+
 ## 0.1.2.4 — 2026-10-02
 
 - **"Siguiendo" shows get the images a library series has**, so Next Up, Continue Watching and the home carousels

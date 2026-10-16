@@ -6,6 +6,7 @@ Requires the .NET 9 SDK.
 
 ```sh
 dotnet build src/Jellyfin.Plugin.Portalito -c Release   # must be 0 warnings
+dotnet build src/Jellyfin.Plugin.PortalitoTV -c Release  # the companion plugin, also 0 warnings
 dotnet test  Jellyfin.Plugin.Portalito.sln -c Release   # the whole suite, offline
 ./scripts/scrub-check.sh                                 # must print "scrub-check: clean"
 python3 packaging/package.py                             # -> artifacts/Portalito_<version>.zip + its md5
@@ -21,7 +22,9 @@ proxy routes end to end.
 ```
 src/Jellyfin.Plugin.Portalito/     the plugin (see ARCHITECTURE.md)
 tests/Jellyfin.Plugin.Portalito.Tests/
-packaging/                         meta.json (plugin metadata), package.py, update_manifest.py
+src/Jellyfin.Plugin.PortalitoTV/   the Portalito TV companion plugin (see PORTALITO_TV.md)
+tests/Jellyfin.Plugin.PortalitoTV.Tests/
+packaging/                         meta.json (plugin metadata), package.py, update_manifest.py; meta-tv.json (Portalito TV)
 scripts/scrub-check.sh             the no-secrets gate
 assets/branding/                   the logo (icon, banner) and make_logo.py, which draws them; embedded in the DLL
 manifest.json                      the Jellyfin plugin-repository manifest (updated by the release CI)

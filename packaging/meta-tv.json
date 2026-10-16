@@ -1,0 +1,12 @@
+{
+  "guid": "5f1d6c3e-8a4b-4f0e-9c2d-7b1e3a9d4c60",
+  "name": "Portalito TV",
+  "description": "24/7 linear TV channels (schedule, guide and playout) built from the favorites of the Portalito plugin.",
+  "overview": "Turns the series and movies you heart in Portalito into 24/7 channels with a fixed-time schedule or a continuous shuffle, an XMLTV guide and a transcoded stream, registered as a Live TV tuner.",
+  "owner": "eljp01",
+  "category": "LiveTV",
+  "version": "0.7.2.0",
+  "targetAbi": "10.11.0.0",
+  "status": "Active",
+  "autoUpdate": false
+}

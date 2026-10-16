@@ -1,0 +1,1191 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="utf-8">
+    <title>Portalito TV</title>
+</head>
+<body>
+<div id="PortalitoTVConfigPage" data-role="page" class="page type-interior pluginConfigurationPage"
+     data-require="emby-input,emby-button,emby-select,emby-checkbox">
+<style>
+    #PortalitoTVConfigPage .ptv-tabs { display: flex; gap: .5em; margin: 1em 0; flex-wrap: wrap; }
+    #PortalitoTVConfigPage .ptv-tab { padding: .55em 1.1em; border-radius: 2em; border: 1px solid rgba(128,128,128,.4); background: transparent; color: inherit; cursor: pointer; font-size: 1em; }
+    #PortalitoTVConfigPage .ptv-tab.active { background: #00a4dc; border-color: #00a4dc; color: #fff; }
+    #PortalitoTVConfigPage .ptv-card { display: flex; gap: 1em; padding: 1em; margin-bottom: .8em; border-radius: .6em; background: rgba(128,128,128,.12); }
+    #PortalitoTVConfigPage .ptv-card.off { opacity: .55; }
+    #PortalitoTVConfigPage .ptv-poster { width: 70px; min-width: 70px; height: 105px; border-radius: .3em; background: rgba(128,128,128,.3) center/cover; }
+    #PortalitoTVConfigPage .ptv-body { flex: 1; min-width: 0; }
+    #PortalitoTVConfigPage .ptv-title { font-size: 1.15em; font-weight: 600; display: flex; gap: .5em; align-items: center; flex-wrap: wrap; }
+    #PortalitoTVConfigPage .ptv-badge { font-size: .7em; padding: .15em .6em; border-radius: 1em; background: #2e7d32; color: #fff; font-weight: 600; }
+    #PortalitoTVConfigPage .ptv-badge.warn { background: #ef6c00; }
+    #PortalitoTVConfigPage .ptv-muted { opacity: .7; font-size: .9em; margin: .2em 0 .6em; }
+    #PortalitoTVConfigPage .ptv-row { display: flex; gap: .8em; align-items: center; flex-wrap: wrap; margin: .4em 0; }
+    #PortalitoTVConfigPage .ptv-chips { display: flex; flex-wrap: wrap; gap: .35em; margin: .4em 0; }
+    #PortalitoTVConfigPage .ptv-chip { padding: .3em .7em; border-radius: 1em; border: 1px solid rgba(128,128,128,.5); background: transparent; color: inherit; cursor: pointer; font-size: .9em; }
+    #PortalitoTVConfigPage .ptv-chip.on { background: #00a4dc; border-color: #00a4dc; color: #fff; }
+    #PortalitoTVConfigPage .ptv-chip small { opacity: .75; }
+    #PortalitoTVConfigPage .ptv-link { background: none; border: 0; color: #00a4dc; cursor: pointer; padding: .2em .3em; font-size: .9em; }
+    #PortalitoTVConfigPage select.ptv-sel, #PortalitoTVConfigPage input.ptv-in { background: rgba(128,128,128,.15); color: inherit; border: 1px solid rgba(128,128,128,.4); border-radius: .3em; padding: .45em .5em; font-size: 1em; }
+    #PortalitoTVConfigPage .ptv-bar { position: relative; height: 62px; border-radius: .4em; overflow: hidden; margin: .6em 0 .2em; user-select: none; -webkit-user-select: none;
+        background: repeating-linear-gradient(to right, rgba(255,255,255,.10) 0, rgba(255,255,255,.10) 1px, transparent 1px, transparent calc(100% / 24)), rgba(128,128,128,.2); }
+    #PortalitoTVConfigPage .ptv-seg { position: absolute; top: 0; bottom: 0; overflow: hidden; white-space: nowrap; font-size: .75em; color: #fff; padding: .3em .35em; box-sizing: border-box; border-right: 1px solid rgba(0,0,0,.35); text-shadow: 0 1px 2px rgba(0,0,0,.6); }
+    #PortalitoTVConfigPage .ptv-seg small { display: block; opacity: .85; font-variant-numeric: tabular-nums; }
+    #PortalitoTVConfigPage .ptv-seg.edit { cursor: grab; touch-action: none; }
+    #PortalitoTVConfigPage .ptv-seg.edit:hover { filter: brightness(1.15); }
+    #PortalitoTVConfigPage .ptv-seg.drag { cursor: grabbing; filter: brightness(1.3); z-index: 3; outline: 2px solid #fff; outline-offset: -2px; }
+    #PortalitoTVConfigPage .ptv-bar.dragging, #PortalitoTVConfigPage .ptv-bar.dragging .ptv-seg { cursor: grabbing; }
+    #PortalitoTVConfigPage .ptv-pal { margin: .5em 0; padding: .5em .6em; border-radius: .5em; background: rgba(128,128,128,.08); }
+    #PortalitoTVConfigPage .ptv-ptabs { display: flex; flex-wrap: wrap; gap: .4em; align-items: center; margin-bottom: .4em; }
+    #PortalitoTVConfigPage .ptv-plist { display: flex; flex-wrap: wrap; gap: .35em; max-height: 7.6em; overflow-y: auto; padding: .1em; }
+    #PortalitoTVConfigPage .ptv-seg.sel { outline: 2px solid #fff; outline-offset: -2px; z-index: 2; }
+    #PortalitoTVConfigPage .ptv-x { position: absolute; top: 3px; right: 13px; width: 18px; height: 18px; line-height: 18px; text-align: center; border-radius: 50%; background: #d32f2f; color: #fff; font-size: 11px; font-weight: 700; cursor: pointer; z-index: 5; text-shadow: none; touch-action: manipulation; }
+    #PortalitoTVConfigPage .ptv-x:hover { background: #ff5252; }
+    #PortalitoTVConfigPage .ptv-block.sel { box-shadow: 0 0 0 2px #00a4dc inset; }
+    #PortalitoTVConfigPage .ptv-pchip { padding: .3em .7em; border-radius: 1em; border: 1px solid rgba(128,128,128,.5); border-left-width: 6px; font-size: .9em; cursor: grab; user-select: none; -webkit-user-select: none; touch-action: none; background: rgba(128,128,128,.12); }
+    #PortalitoTVConfigPage .ptv-pchip:hover { background: rgba(128,128,128,.28); }
+    #PortalitoTVConfigPage .ptv-pchip small { opacity: .7; }
+    .ptv-ghost { position: fixed; z-index: 100000; pointer-events: none; padding: .3em .8em; border-radius: 1em; font-size: .9em; color: #fff; background: rgba(0,164,220,.92); box-shadow: 0 2px 8px rgba(0,0,0,.5); white-space: nowrap; }
+    #PortalitoTVConfigPage .ptv-drop { position: absolute; top: 0; bottom: 0; width: 2px; margin-left: -1px; background: #fff; pointer-events: none; z-index: 4; }
+    #PortalitoTVConfigPage .ptv-drop span { position: absolute; top: 2px; left: 4px; padding: 0 .4em; border-radius: .3em; background: #000; color: #fff; font-size: .75em; white-space: nowrap; }
+    #PortalitoTVConfigPage .ptv-bar.over { outline: 2px dashed #00a4dc; outline-offset: -2px; }
+    #PortalitoTVConfigPage .ptv-h { position: absolute; top: 0; bottom: 0; width: 10px; max-width: 30%; cursor: ew-resize; touch-action: none; background: rgba(255,255,255,0); }
+    #PortalitoTVConfigPage .ptv-h.l { left: 0; }
+    #PortalitoTVConfigPage .ptv-h.r { right: 0; }
+    #PortalitoTVConfigPage .ptv-seg:hover .ptv-h, #PortalitoTVConfigPage .ptv-seg.drag .ptv-h { background: rgba(255,255,255,.35); }
+    #PortalitoTVConfigPage .ptv-hours { display: flex; justify-content: space-between; font-size: .7em; opacity: .6; }
+    #PortalitoTVConfigPage .ptv-block { display: grid; grid-template-columns: auto 1fr 9em auto; gap: .5em; align-items: center; padding: .7em; border-radius: .5em; background: rgba(128,128,128,.12); margin-bottom: .5em; border-left: 6px solid transparent; }
+    #PortalitoTVConfigPage .ptv-times { display: flex; align-items: center; gap: .3em; flex-wrap: wrap; }
+    #PortalitoTVConfigPage .ptv-times label { font-size: .75em; opacity: .7; display: block; }
+    #PortalitoTVConfigPage .ptv-block .ptv-chips, #PortalitoTVConfigPage .ptv-block .ptv-est { grid-column: 1 / -1; margin: 0; }
+    #PortalitoTVConfigPage .ptv-est { font-size: .85em; opacity: .85; }
+    #PortalitoTVConfigPage .ptv-est.warn { color: #ffa726; opacity: 1; }
+    #PortalitoTVConfigPage .ptv-preview { max-height: 26em; overflow: auto; border-radius: .5em; background: rgba(128,128,128,.1); padding: .5em; }
+    #PortalitoTVConfigPage .ptv-prog { display: flex; gap: .8em; padding: .3em .2em; border-bottom: 1px solid rgba(128,128,128,.15); font-size: .92em; }
+    #PortalitoTVConfigPage .ptv-prog .t { min-width: 4.2em; opacity: .75; font-variant-numeric: tabular-nums; }
+    #PortalitoTVConfigPage .ptv-prog.filler { opacity: .6; font-style: italic; }
+    #PortalitoTVConfigPage .ptv-footer { position: sticky; bottom: 0; padding: .8em 0; display: flex; gap: 1em; align-items: center; flex-wrap: wrap; background: var(--theme-body-background, #101010); z-index: 5; }
+    #PortalitoTVConfigPage .ptv-status { font-size: .9em; }
+    #PortalitoTVConfigPage .ptv-status.err { color: #ef5350; }
+    #PortalitoTVConfigPage .ptv-status.ok { color: #66bb6a; }
+    #PortalitoTVConfigPage .ptv-dirty { color: #ffa726; font-size: .9em; }
+    #PortalitoTVConfigPage .ptv-empty { padding: 1.5em; text-align: center; opacity: .7; }
+    #PortalitoTVConfigPage .ptv-sync { margin: .6em 0 1em; padding: .7em .9em; border-radius: .5em; background: rgba(128,128,128,.12); }
+    #PortalitoTVConfigPage .ptv-pbar { height: 10px; border-radius: 5px; background: rgba(128,128,128,.3); overflow: hidden; }
+    #PortalitoTVConfigPage .ptv-pfill { height: 100%; width: 0; border-radius: 5px; background: #00a4dc; transition: width .6s ease; }
+    #PortalitoTVConfigPage .ptv-sync.done .ptv-pfill { background: #43a047; }
+    #PortalitoTVConfigPage .ptv-sync.err .ptv-pfill { background: #ef5350; }
+    #PortalitoTVConfigPage .ptv-ptext { margin-top: .4em; font-size: .9em; }
+    #PortalitoTVConfigPage .ptv-sync.err .ptv-ptext { color: #ef5350; }
+    @media (max-width: 640px) {
+        #PortalitoTVConfigPage .ptv-block { grid-template-columns: 1fr 1fr; }
+        #PortalitoTVConfigPage .ptv-block .ptv-times { grid-column: 1 / -1; }
+        #PortalitoTVConfigPage .ptv-poster { width: 52px; min-width: 52px; height: 78px; }
+    }
+</style>
+<div data-role="content">
+<div class="content-primary">
+    <h2 class="sectionTitle">Portalito TV</h2>
+    <p class="ptv-muted">Canales de TV con tus series y películas de Portalito. Marca ♥ en Portalito para que aparezcan aquí.</p>
+
+    <div class="ptv-tabs">
+        <button type="button" class="ptv-tab active" data-tab="series">Series</button>
+        <button type="button" class="ptv-tab" data-tab="movies">Películas</button>
+        <button type="button" class="ptv-tab" data-tab="channels">Canales</button>
+        <button type="button" class="ptv-tab" data-tab="schedule">Horario</button>
+    </div>
+
+    <!-- Progress of "Sincronizar con Portalito" (visible on any tab while it runs) -->
+    <div class="ptv-sync" id="ptvSyncBar" hidden role="status" aria-live="polite">
+        <div class="ptv-pbar"><div class="ptv-pfill" id="ptvSyncFill"></div></div>
+        <div class="ptv-ptext" id="ptvSyncText"></div>
+    </div>
+
+    <!-- SERIES -->
+    <div class="ptv-pane" data-pane="series">
+        <div class="ptv-row">
+            <button type="button" is="emby-button" class="raised" data-act="sync"><span>Sincronizar con Portalito</span></button>
+            <span class="ptv-muted">Trae tus ♥ de Portalito (series y películas). Lo nuevo tarda unos minutos en estar listo.</span>
+        </div>
+        <div id="ptvSeries"></div>
+    </div>
+
+    <!-- MOVIES -->
+    <div class="ptv-pane" data-pane="movies" hidden>
+        <div class="ptv-row">
+            <button type="button" is="emby-button" class="raised" data-act="sync"><span>Sincronizar con Portalito</span></button>
+            <span class="ptv-muted">Trae tus ♥ de Portalito (series y películas). Lo nuevo tarda unos minutos en estar listo.</span>
+        </div>
+        <p class="ptv-muted">Si una película sale en castellano (o en el idioma equivocado), escucha sus pistas y elige la correcta.</p>
+        <div id="ptvMovies"></div>
+    </div>
+
+    <!-- CHANNELS -->
+    <div class="ptv-pane" data-pane="channels" hidden>
+        <div id="ptvChannels"></div>
+        <button type="button" is="emby-button" class="raised" id="ptvAddChannel"><span>+ Agregar canal</span></button>
+        <h3 class="sectionTitle" style="margin-top:2em">Ajustes</h3>
+        <div class="ptv-row">
+            <label>Usuario de los ♥ <input class="ptv-in" id="ptvUser" size="12" placeholder="(el primer administrador)"></label>
+            <label>Zona horaria <input class="ptv-in" id="ptvTz" size="18" placeholder="(la del servidor)"></label>
+        </div>
+        <div class="ptv-row">
+            <label>Dirección de este Jellyfin <input class="ptv-in" id="ptvServer" size="24" placeholder="http://127.0.0.1:8096"></label>
+            <label>Dispositivo VAAPI <input class="ptv-in" id="ptvVaapi" size="18" placeholder="/dev/dri/renderD128"></label>
+        </div>
+        <div class="ptv-row">
+            <label>Token de TMDB <input class="ptv-in" id="ptvTmdb" type="password" size="28" autocomplete="off"></label>
+            <span class="ptv-muted" id="ptvTmdbInfo"></span>
+        </div>
+    </div>
+
+    <!-- SCHEDULE -->
+    <div class="ptv-pane" data-pane="schedule" hidden>
+        <div class="ptv-row">
+            <label>Canal <select class="ptv-sel" id="ptvSchedChannel"></select></label>
+        </div>
+        <div id="ptvSchedBody"></div>
+    </div>
+
+    <div class="ptv-footer">
+        <button type="button" is="emby-button" class="raised button-submit" id="ptvApply"><span>Guardar y aplicar</span></button>
+        <span class="ptv-dirty" id="ptvDirty" hidden>Hay cambios sin guardar</span>
+        <span class="ptv-status" id="ptvStatus"></span>
+    </div>
+</div>
+</div>
+
+<script type="text/javascript">
+(function () {
+    'use strict';
+    var page = document.querySelector('#PortalitoTVConfigPage');
+    var DAYS = ['D', 'L', 'M', 'X', 'J', 'V', 'S']; // index = DayOfWeek (0 = Sunday)
+    var DAY_ORDER = [1, 2, 3, 4, 5, 6, 0];
+    var LANG = { Auto: 'Automático', Latino: 'Español – 1ª pista (latino)', SpanishSecond: 'Español – 2ª pista', EnglishWithSubtitles: 'Inglés + subtítulos' };
+    var state = null;      // the /state response
+    var series = {};       // key -> editable changes {Enabled, ExcludedSeasons, Language}
+    var movies = {};       // itemId -> {Language}
+    var player = null;     // the audio sample that is playing
+    var channels = [];     // editable ChannelSettings
+    var schedChannel = null;
+    var viewDay = new Date().getDay();
+    var dirty = false;
+    var selBlock = null;   // index (in channel.Blocks) of the block selected on the bar
+    var palTab = 'series'; // palette tab: 'series' | 'movies'
+    var palFilter = '';    // the palette's search text
+    var busy = false;      // dragging: keyboard shortcuts are ignored
+    var lastTap = { idx: -1 }; // last click on a block edge (for the double click)
+
+    function $(sel) { return page.querySelector(sel); }
+    function esc(s) { return String(s == null ? '' : s).replace(/[&<>"']/g, function (c) { return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]; }); }
+    function api(path) { return ApiClient.getUrl('PortalitoTV/admin/' + path); }
+    function post(path, body) {
+        return ApiClient.ajax({ type: 'POST', url: api(path), data: JSON.stringify(body || {}), contentType: 'application/json', dataType: 'json' });
+    }
+    function setStatus(msg, kind) { var el = $('#ptvStatus'); el.textContent = msg || ''; el.className = 'ptv-status' + (kind ? ' ' + kind : ''); }
+    function markDirty() { dirty = true; $('#ptvDirty').hidden = false; }
+    function color(key) {
+        if (!key) { return 'hsl(0,0%,40%)'; }
+        var h = 0; for (var i = 0; i < key.length; i++) { h = (h * 31 + key.charCodeAt(i)) % 360; }
+        return 'hsl(' + h + ',55%,42%)';
+    }
+    // A block can be a series (PortalitoId), "movies" (a random hearted movie) or "movie:<id>" (that movie).
+    function movieKey(m) { return 'movie:' + String(m.ItemId).replace(/-/g, ''); }
+    function readyMovies() {
+        return (state.Movies || []).filter(function (m) { return m.Ready && m.Minutes > 0; })
+            .sort(function (a, b) { return a.Name.localeCompare(b.Name); });
+    }
+    function seriesByKey(key) {
+        if (key === 'movies') {
+            var ms = readyMovies(); if (!ms.length) { return undefined; }
+            var tot = 0, max = 0; ms.forEach(function (m) { tot += m.Minutes; max = Math.max(max, m.Minutes); });
+            return { Name: 'Películas (al azar)', IsMovie: true, Pool: true, AverageMinutes: tot / ms.length, MaxMinutes: max };
+        }
+        if (key && key.indexOf('movie:') === 0) {
+            var mv = readyMovies().filter(function (m) { return movieKey(m) === key; })[0];
+            return mv ? { Name: mv.Name, IsMovie: true, AverageMinutes: mv.Minutes, MaxMinutes: mv.Minutes } : undefined;
+        }
+        return (state.Series || []).filter(function (s) { return s.Key === key; })[0];
+    }
+    function seriesName(key) {
+        var s = seriesByKey(key);
+        return key ? (s ? s.Name : (key.indexOf('movie') === 0 ? '(película sin ♥)' : '(serie sin ♥)')) : 'Relleno';
+    }
+    function activeSeries() { return (state.Series || []).filter(function (s) { return series[s.Key] && series[s.Key].Enabled && s.InSiguiendo; }); }
+    function toMin(hhmm) { var p = (hhmm || '0:0').split(':'); return (+p[0]) * 60 + (+p[1]); }
+    function fmtMin(m) { m = Math.round(m); return m >= 60 ? Math.floor(m / 60) + ' h ' + (m % 60 ? (m % 60) + ' min' : '') : m + ' min'; }
+
+    // ---------- tabs ----------
+    page.querySelectorAll('.ptv-tab').forEach(function (b) {
+        b.addEventListener('click', function () { showTab(b.getAttribute('data-tab')); });
+    });
+    function showTab(name) {
+        page.querySelectorAll('.ptv-tab').forEach(function (b) { b.classList.toggle('active', b.getAttribute('data-tab') === name); });
+        page.querySelectorAll('.ptv-pane').forEach(function (p) { p.hidden = p.getAttribute('data-pane') !== name; });
+        if (name === 'schedule') { renderSchedule(); }
+        if (name === 'channels') { renderChannels(); }
+        if (player) { player.pause(); player = null; }
+    }
+
+    // ---------- loading ----------
+    /** opts.keep: unsaved changes are kept (only what comes from the server is refreshed, e.g. after syncing with Portalito). */
+    function load(opts) {
+        var keep = !!(opts && opts.keep && dirty);
+        Dashboard.showLoadingMsg();
+        return ApiClient.getJSON(api('state')).then(function (s) {
+            var oldSeries = series, oldMovies = movies;
+            state = s;
+            series = {};
+            (s.Series || []).forEach(function (x) {
+                if (keep && oldSeries[x.Key]) { series[x.Key] = oldSeries[x.Key]; return; }
+                var excluded = (x.Seasons || []).filter(function (t) { return !t.Selected; }).map(function (t) { return t.Number; });
+                var seasonMap = (x.Seasons || []).filter(function (t) { return t.MappedTo != null; })
+                    .map(function (t) { return { Season: t.Number, TmdbSeason: t.MappedTo }; });
+                series[x.Key] = { Enabled: x.Enabled, ExcludedSeasons: excluded, Language: x.Language, SeasonMap: seasonMap };
+            });
+            movies = {};
+            (s.Movies || []).forEach(function (m) { movies[m.ItemId] = keep && oldMovies[m.ItemId] ? oldMovies[m.ItemId] : { Language: m.Language }; });
+            if (!keep) {
+                channels = JSON.parse(JSON.stringify(s.Channels || []));
+                selBlock = null;
+                $('#ptvUser').value = s.FavoritesUser || '';
+                $('#ptvTz').value = s.TimeZone || '';
+                $('#ptvServer').value = s.ServerUrl || '';
+                $('#ptvVaapi').value = s.VaapiDevice || '';
+                $('#ptvTmdb').value = '';
+            }
+            $('#ptvTmdbInfo').textContent = s.HasTmdbToken ? 'Configurado (déjalo vacío para no cambiarlo)' : 'Sin token: la guía no tendrá nombres ni imágenes nuevas';
+            if (!schedChannel || !channels.some(function (c) { return c.Number === schedChannel; })) {
+                var firstSched = channels.filter(function (c) { return c.Mode !== 'Shuffle'; })[0];
+                schedChannel = firstSched ? firstSched.Number : null;
+            }
+            if (!keep) { dirty = false; $('#ptvDirty').hidden = true; }
+            renderSeries(); renderMovies(); renderChannels(); renderSchedule();
+            if (s.Pending > 0) { setStatus(s.Pending + ' episodios todavía se están midiendo (entran solos a la programación).'); }
+        }).catch(function () { setStatus('No se pudo cargar la configuración.', 'err'); })
+          .finally(function () { Dashboard.hideLoadingMsg(); });
+    }
+
+    // ---------- SERIES ----------
+    function renderSeries() {
+        var list = (state.Series || []).slice().sort(function (a, b) { return (b.IsNew - a.IsNew) || a.Name.localeCompare(b.Name); });
+        if (!list.length) {
+            $('#ptvSeries').innerHTML = '<div class="ptv-empty">Todavía no hay series con ♥. Márcalas en el canal Portalito y pulsa "Traer de Portalito".</div>';
+            return;
+        }
+        $('#ptvSeries').innerHTML = list.map(function (s) {
+            var cfg = series[s.Key];
+            var seasons = s.Seasons || [];
+            var img = s.JellyfinId ? ApiClient.getUrl('Items/' + s.JellyfinId + '/Images/Primary', { maxHeight: 210 }) : '';
+            var selected = seasons.filter(function (t) { return cfg.ExcludedSeasons.indexOf(t.Number) < 0; });
+            var detected = s.DetectedLanguage && s.DetectedLanguage !== 'Auto' ? ' (detectado: ' + LANG[s.DetectedLanguage] + ')' : '';
+            var info = s.InSiguiendo
+                ? seasons.length + ' temporadas · ' + selected.length + ' elegidas · ' + s.ReadyEpisodes + ' episodios listos' +
+                  (s.AverageMinutes ? ' · ~' + Math.round(s.AverageMinutes) + ' min' : '')
+                : 'Todavía no bajó a Siguiendo: pulsa "Traer de Portalito".';
+            return '<div class="ptv-card' + (cfg.Enabled ? '' : ' off') + '" data-key="' + esc(s.Key) + '">' +
+                '<div class="ptv-poster" style="background-image:url(\'' + esc(img) + '\')"></div>' +
+                '<div class="ptv-body">' +
+                '<div class="ptv-title">' + esc(s.Name) +
+                (s.IsNew ? ' <span class="ptv-badge">Nueva</span>' : '') +
+                (s.PendingEpisodes ? ' <span class="ptv-badge warn">' + s.PendingEpisodes + ' por medir</span>' : '') + '</div>' +
+                '<div class="ptv-muted">' + esc(info) + '</div>' +
+                '<div class="ptv-row">' +
+                '<label class="checkboxContainer" style="margin:0"><input type="checkbox" is="emby-checkbox" data-act="enabled"' + (cfg.Enabled ? ' checked' : '') + '><span>Usar en canales</span></label>' +
+                '<label>Idioma ' + langSelect(cfg.Language, s.SampleAudio, detected) + '</label></div>' +
+                listenChips(s.SampleItemId, s.SampleAudio, 'Escuchar (un episodio):') +
+                (seasons.length ? '<div class="ptv-row" style="gap:.2em"><span class="ptv-muted" style="margin:0">Temporadas:</span>' +
+                    '<button type="button" class="ptv-link" data-act="all">Todas</button>' +
+                    '<button type="button" class="ptv-link" data-act="none">Ninguna</button>' +
+                    (seasons.length > 2 ? '<span class="ptv-muted" style="margin:0">· Hasta la</span><select class="ptv-sel" data-act="upto"><option value="">T…</option>' +
+                        seasons.map(function (t) { return '<option value="' + t.Number + '">T' + t.Number + '</option>'; }).join('') + '</select>' : '') +
+                    '</div><div class="ptv-chips">' + seasons.map(function (t) {
+                        var on = cfg.ExcludedSeasons.indexOf(t.Number) < 0;
+                        var mapped = mappedSeason(cfg, t.Number);
+                        var warn = s.TmdbOrdering && !t.Matches && mapped == null;
+                        var tip = !s.TmdbOrdering ? '' : t.Matches ? 'Coincide con TMDB (' + t.Episodes + ' episodios)' : mapped != null ?
+                            'Asignada a mano a la temporada ' + mapped + ' de TMDB: los episodios se emparejan por número.' :
+                            'Portalito: ' + t.Episodes + ' episodios · TMDB: ' + (t.TmdbEpisodes == null ? 'no tiene esta temporada' : t.TmdbEpisodes) +
+                            '. No coinciden: esta temporada usa los datos de Portalito (sin nombres ni sinopsis de TMDB). Puedes asignarla a una temporada de TMDB abajo.';
+                        return '<button type="button" class="ptv-chip' + (on ? ' on' : '') + '" data-season="' + t.Number + '"' + (tip ? ' title="' + esc(tip) + '"' : '') + '>T' + t.Number +
+                            ' <small>' + t.Episodes + (warn ? ' ⚠' : '') + (mapped != null ? ' ↔T' + mapped : '') + '</small></button>';
+                    }).join('') + '</div>' + tmdbSummary(s, seasons, cfg) : '') +
+                '</div></div>';
+        }).join('');
+    }
+
+    /** How Portalito's seasons line up with the TMDB numbering (the ones that don't show no TMDB names/synopses). */
+    function mappedSeason(cfg, number) {
+        var m = (cfg.SeasonMap || []).filter(function (x) { return x.Season === number; })[0];
+        return m ? m.TmdbSeason : null;
+    }
+
+    function tmdbSummary(s, seasons, cfg) {
+        if (!s.TmdbOrdering || !seasons.length) { return ''; }
+        var bad = seasons.filter(function (t) { return !t.Matches; });
+        var open = bad.filter(function (t) { return mappedSeason(cfg, t.Number) == null; });
+        var head = 'TMDB (numeración «' + esc(s.TmdbOrdering) + '»): coincide en ' + (seasons.length - bad.length) + ' de ' + seasons.length + ' temporadas' +
+            (bad.length - open.length ? ' y ' + (bad.length - open.length) + ' asignada(s) a mano' : '') + '.';
+        if (!bad.length) { return '<div class="ptv-muted">' + head + ' ✓</div>'; }
+        return '<div class="ptv-muted">' + head + '</div>' +
+            (open.length ? '<div class="ptv-est warn">⚠ Sin nombres ni sinopsis de TMDB (Portalito vs TMDB): ' + open.map(function (t) {
+                return 'T' + t.Number + ' (' + t.Episodes + ' vs ' + (t.TmdbEpisodes == null ? '—' : t.TmdbEpisodes) + ')';
+            }).join(', ') + '</div>' : '') +
+            '<div class="ptv-muted" style="margin-top:.4em">Asignar a una temporada de TMDB (los episodios se emparejan por número; los que no tengan par quedan sin datos):</div>' +
+            bad.map(function (t) {
+                var mapped = mappedSeason(cfg, t.Number);
+                var opts = (t.Options || []).slice();
+                if (mapped != null && !opts.some(function (o) { return o.Season === mapped; })) { opts.push({ Season: mapped, Episodes: null }); }
+                return '<div class="ptv-row" style="margin:.2em 0"><span style="min-width:7.5em">T' + t.Number + ' <small class="ptv-muted">(' + t.Episodes + ' ep. en Portalito)</small></span>' +
+                    '<select class="ptv-sel" data-act="tmap" data-tseason="' + t.Number + '"><option value="">Sin datos de TMDB</option>' + opts.map(function (o) {
+                        var note = o.Season === t.Number ? ' · misma temporada' : o.Episodes === t.Episodes ? ' · mismo nº de episodios' : '';
+                        return '<option value="' + o.Season + '"' + (o.Season === mapped ? ' selected' : '') + '>TMDB T' + o.Season +
+                            (o.Episodes == null ? '' : ' (' + o.Episodes + ' ep.)') + note + '</option>';
+                    }).join('') + '</select></div>';
+            }).join('');
+    }
+
+    // ---------- language and "Escuchar" (series and movies) ----------
+    function spanishCount(audio) {
+        return (audio || []).filter(function (a) { return ['spa', 'es', 'esp', 'lat', 'es-419'].indexOf((a.Language || '').toLowerCase()) >= 0; }).length;
+    }
+    function langSelect(current, audio, detected) {
+        var opts = ['Auto', 'Latino'];
+        if (spanishCount(audio) >= 2 || current === 'SpanishSecond') { opts.push('SpanishSecond'); }
+        opts.push('EnglishWithSubtitles');
+        return '<select class="ptv-sel" data-act="lang">' + opts.map(function (l) {
+            return '<option value="' + l + '"' + (current === l ? ' selected' : '') + '>' + LANG[l] + (l === 'Auto' ? (detected || '') : '') + '</option>';
+        }).join('') + '</select>';
+    }
+    function trackLabel(audio, i) {
+        var lang = (audio[i].Language || '').toLowerCase();
+        var names = { spa: 'Español', es: 'Español', esp: 'Español', lat: 'Latino', 'es-419': 'Latino', eng: 'Inglés', en: 'Inglés', por: 'Portugués', fre: 'Francés', fra: 'Francés', ita: 'Italiano', jpn: 'Japonés' };
+        var base = names[lang] || (lang || 'Pista');
+        var same = 0; for (var j = 0; j <= i; j++) { if ((audio[j].Language || '').toLowerCase() === lang) { same++; } }
+        var total = audio.filter(function (a) { return (a.Language || '').toLowerCase() === lang; }).length;
+        return base + (total > 1 ? ' ' + same : '') + (audio[i].Title ? ' (' + audio[i].Title + ')' : '');
+    }
+    function listenChips(itemId, audio, label) {
+        if (!itemId || !audio || !audio.length) { return '<div class="ptv-muted">Pistas de audio: todavía sin medir.</div>'; }
+        return '<div class="ptv-chips"><span class="ptv-muted" style="margin:0 .3em 0 0;align-self:center">' + esc(label) + '</span>' + audio.map(function (a, i) {
+            return '<button type="button" class="ptv-chip" data-listen="' + esc(itemId) + '" data-track="' + i + '">▶ ' + esc(trackLabel(audio, i)) + '</button>';
+        }).join('') + '</div>';
+    }
+    page.addEventListener('click', function (e) {
+        var btn = e.target.closest('[data-listen]'); if (!btn) { return; }
+        e.stopPropagation();
+        var wasPlaying = btn.classList.contains('on');
+        if (player) { player.pause(); player = null; }
+        page.querySelectorAll('[data-listen].on').forEach(function (b) { b.classList.remove('on'); b.textContent = b.textContent.replace('■', '▶'); });
+        if (wasPlaying) { return; }
+        btn.classList.add('on'); btn.textContent = btn.textContent.replace('▶', '…');
+        var url = ApiClient.getUrl('PortalitoTV/admin/sample', { itemId: btn.getAttribute('data-listen'), track: btn.getAttribute('data-track') });
+        fetch(url, { headers: { Authorization: 'MediaBrowser Token="' + ApiClient.accessToken() + '"' } })
+            .then(function (r) { if (!r.ok) { throw new Error(r.status); } return r.blob(); })
+            .then(function (blob) {
+                if (!btn.classList.contains('on')) { return; }
+                player = new Audio(URL.createObjectURL(blob));
+                btn.textContent = btn.textContent.replace('…', '■');
+                player.onended = function () { btn.classList.remove('on'); btn.textContent = btn.textContent.replace('■', '▶'); };
+                return player.play();
+            })
+            .catch(function () { btn.classList.remove('on'); btn.textContent = btn.textContent.replace('…', '▶'); setStatus('No se pudo traer la muestra de audio (¿el portal respondió?).', 'err'); });
+    }, true);
+
+    // ---------- MOVIES ----------
+    function renderMovies() {
+        var list = (state.Movies || []).slice().sort(function (a, b) { return a.Name.localeCompare(b.Name); });
+        if (!list.length) {
+            $('#ptvMovies').innerHTML = '<div class="ptv-empty">No hay películas con ♥. Márcalas en el canal Portalito.</div>';
+            return;
+        }
+        $('#ptvMovies').innerHTML = list.map(function (m) {
+            var img = ApiClient.getUrl('Items/' + m.ItemId + '/Images/Primary', { maxHeight: 210 });
+            return '<div class="ptv-card" data-movie="' + esc(m.ItemId) + '">' +
+                '<div class="ptv-poster" style="background-image:url(\'' + esc(img) + '\')"></div>' +
+                '<div class="ptv-body"><div class="ptv-title">' + esc(m.Name) + (m.Year ? ' <span class="ptv-muted" style="margin:0">(' + m.Year + ')</span>' : '') +
+                (m.Ready ? '' : ' <span class="ptv-badge warn">por medir</span>') + '</div>' +
+                '<div class="ptv-muted">' + (m.Minutes ? Math.round(m.Minutes) + ' min' : '') + '</div>' +
+                '<div class="ptv-row"><label>Idioma ' + langSelect(movies[m.ItemId].Language, m.Audio, '') + '</label></div>' +
+                listenChips(m.ItemId, m.Audio, 'Escuchar:') +
+                '</div></div>';
+        }).join('');
+    }
+    $('#ptvMovies').addEventListener('change', function (e) {
+        var card = e.target.closest('[data-movie]'); if (!card || e.target.getAttribute('data-act') !== 'lang') { return; }
+        movies[card.getAttribute('data-movie')].Language = e.target.value;
+        markDirty();
+    });
+
+    $('#ptvSeries').addEventListener('click', function (e) {
+        var card = e.target.closest('.ptv-card'); if (!card) { return; }
+        var key = card.getAttribute('data-key'); var cfg = series[key]; var s = seriesByKey(key);
+        var all = (s.Seasons || []).map(function (t) { return t.Number; });
+        var chip = e.target.closest('[data-season]');
+        var act = e.target.closest('[data-act]'); act = act && act.getAttribute('data-act');
+        if (chip) {
+            var n = +chip.getAttribute('data-season'); var i = cfg.ExcludedSeasons.indexOf(n);
+            if (i < 0) { cfg.ExcludedSeasons.push(n); } else { cfg.ExcludedSeasons.splice(i, 1); }
+        } else if (act === 'all') { cfg.ExcludedSeasons = []; }
+        else if (act === 'none') { cfg.ExcludedSeasons = all.slice(); }
+        else { return; }
+        markDirty(); renderSeries();
+    });
+    $('#ptvSeries').addEventListener('change', function (e) {
+        var card = e.target.closest('.ptv-card'); if (!card) { return; }
+        var key = card.getAttribute('data-key'); var cfg = series[key];
+        var act = e.target.getAttribute('data-act');
+        if (act === 'enabled') { cfg.Enabled = e.target.checked; }
+        else if (act === 'lang') { cfg.Language = e.target.value; }
+        else if (act === 'tmap') {
+            // Assign a Portalito season to a TMDB season ("" = no TMDB data).
+            var ps = +e.target.getAttribute('data-tseason');
+            cfg.SeasonMap = (cfg.SeasonMap || []).filter(function (m) { return m.Season !== ps; });
+            if (e.target.value) { cfg.SeasonMap.push({ Season: ps, TmdbSeason: +e.target.value }); }
+        }
+        else if (act === 'upto' && e.target.value) {
+            var max = +e.target.value;
+            cfg.ExcludedSeasons = (seriesByKey(key).Seasons || []).map(function (t) { return t.Number; }).filter(function (n) { return n > max; });
+        } else { return; }
+        markDirty(); renderSeries();
+    });
+
+    page.querySelectorAll('[data-act="sync"]').forEach(function (b) { b.addEventListener('click', sync); });
+    // The server keeps the count (GET sync/status); here it is only polled and the bar drawn. When it finishes the data is reloaded.
+    var syncTimer = null, syncHideTimer = null, syncActive = false;
+    function syncPollMs() { return window.PTV_SYNC_POLL_MS || 1500; }
+    function syncButtons(disabled) { page.querySelectorAll('[data-act="sync"]').forEach(function (b) { b.disabled = disabled; }); }
+    function showSync(pct, text, cls) {
+        clearTimeout(syncHideTimer);
+        var bar = $('#ptvSyncBar'); bar.hidden = false; bar.className = 'ptv-sync' + (cls ? ' ' + cls : '');
+        $('#ptvSyncFill').style.width = Math.max(0, Math.min(100, pct)) + '%';
+        $('#ptvSyncText').textContent = text;
+    }
+    function pollSync() {
+        clearTimeout(syncTimer);
+        return ApiClient.getJSON(api('sync/status')).then(function (st) {
+            if (st.Running) {
+                syncActive = true; syncButtons(true);
+                showSync(st.Percent, Math.round(st.Percent) + ' % · ' + (st.Phase || 'Sincronizando…'));
+                syncTimer = setTimeout(pollSync, syncPollMs());
+                return;
+            }
+            if (!syncActive) { return; } // none was running (e.g. when the page opens)
+            syncActive = false; syncButtons(false);
+            if (st.Error) { showSync(st.Percent, st.Error, 'err'); return; }
+            showSync(100, '100 % · Listo ✓ Actualizando la información…', 'done');
+            return load({ keep: true }).then(function () {
+                showSync(100, '100 % · Listo ✓ ' + (st.Pending > 0 ?
+                    st.Pending + ' episodio(s) se siguen midiendo en segundo plano y entrarán solos.' : 'Información actualizada.') +
+                    (dirty ? ' Se conservaron tus cambios sin guardar.' : ''), 'done');
+                syncHideTimer = setTimeout(function () { $('#ptvSyncBar').hidden = true; }, 8000);
+            });
+        }).catch(function () { syncTimer = setTimeout(pollSync, 3000); }); // Jellyfin busy: retry
+    }
+    function sync() {
+        if (syncActive) { return; }
+        syncActive = true; syncButtons(true); showSync(0, '0 % · Iniciando…');
+        post('sync').then(pollSync).catch(function () {
+            syncActive = false; syncButtons(false); showSync(0, 'No se pudo iniciar la sincronización.', 'err');
+        });
+    }
+
+    // ---------- CHANNELS ----------
+    function renderChannels() {
+        if (!state) { return; }
+        var sList = activeSeries();
+        $('#ptvChannels').innerHTML = channels.length ? channels.map(function (c, idx) {
+            var shuffle = c.Mode === 'Shuffle';
+            return '<div class="ptv-card" data-idx="' + idx + '"><div class="ptv-body">' +
+                '<div class="ptv-row">' +
+                '<input class="ptv-in" data-f="Number" value="' + esc(c.Number) + '" size="4" inputmode="numeric" title="Número">' +
+                '<input class="ptv-in" data-f="Name" value="' + esc(c.Name) + '" placeholder="Nombre del canal" style="flex:1;min-width:10em">' +
+                '<label class="checkboxContainer" style="margin:0"><input type="checkbox" is="emby-checkbox" data-f="Enabled"' + (c.Enabled !== false ? ' checked' : '') + '><span>Activo</span></label>' +
+                '</div><div class="ptv-row">' +
+                '<label>Tipo <select class="ptv-sel" data-f="Mode"><option value="Schedule"' + (!shuffle ? ' selected' : '') + '>Por horario</option>' +
+                '<option value="Shuffle"' + (shuffle ? ' selected' : '') + '>Continuo aleatorio</option></select></label>' +
+                (shuffle ? '' : '<button type="button" class="ptv-link" data-act="edit">Editar horario (' + (c.Blocks || []).length + ' bloques) →</button>') +
+                '<button type="button" class="ptv-link" data-act="del" style="margin-left:auto;color:#ef5350">Quitar canal</button>' +
+                '</div>' +
+                (shuffle ? '<div class="ptv-muted">Qué se emite:</div><div class="ptv-chips">' +
+                    '<button type="button" class="ptv-chip' + (c.IncludeFavoriteMovies ? ' on' : '') + '" data-act="movies">🎬 Películas con ♥</button>' +
+                    sList.map(function (s) {
+                        return '<button type="button" class="ptv-chip' + ((c.FillerSeries || []).indexOf(s.Key) >= 0 ? ' on' : '') + '" data-series="' + esc(s.Key) + '">' + esc(s.Name) + '</button>';
+                    }).join('') + '</div>' : '') +
+                '</div></div>';
+        }).join('') : '<div class="ptv-empty">No hay canales.</div>';
+    }
+
+    $('#ptvChannels').addEventListener('input', function (e) {
+        var card = e.target.closest('[data-idx]'); var f = e.target.getAttribute('data-f');
+        if (!card || !f || e.target.type === 'checkbox' || e.target.tagName === 'SELECT') { return; }
+        channels[+card.getAttribute('data-idx')][f] = e.target.value; markDirty();
+    });
+    $('#ptvChannels').addEventListener('change', function (e) {
+        var card = e.target.closest('[data-idx]'); var f = e.target.getAttribute('data-f'); if (!card || !f) { return; }
+        var c = channels[+card.getAttribute('data-idx')];
+        if (e.target.type === 'checkbox') { c[f] = e.target.checked; }
+        else if (f === 'Mode') { c.Mode = e.target.value; renderChannels(); }
+        markDirty();
+    });
+    $('#ptvChannels').addEventListener('click', function (e) {
+        var card = e.target.closest('[data-idx]'); if (!card) { return; }
+        var c = channels[+card.getAttribute('data-idx')];
+        var act = e.target.closest('[data-act]'); act = act && act.getAttribute('data-act');
+        var sKey = e.target.closest('[data-series]'); sKey = sKey && sKey.getAttribute('data-series');
+        if (act === 'edit') { schedChannel = c.Number; showTab('schedule'); return; }
+        if (act === 'del') {
+            if (!confirm('¿Quitar el canal ' + c.Number + ' (' + c.Name + ')? Se aplica al guardar.')) { return; }
+            channels.splice(+card.getAttribute('data-idx'), 1);
+        } else if (act === 'movies') { c.IncludeFavoriteMovies = !c.IncludeFavoriteMovies; }
+        else if (sKey) { toggle(c.FillerSeries = c.FillerSeries || [], sKey); }
+        else { return; }
+        markDirty(); renderChannels();
+    });
+    $('#ptvAddChannel').addEventListener('click', function () {
+        var used = channels.map(function (c) { return +c.Number; });
+        var n = 900; while (used.indexOf(n) >= 0) { n++; }
+        channels.push({ Number: String(n), Name: 'Nuevo canal', Enabled: true, Mode: 'Schedule', Blocks: [], FillerSeries: [], IncludeFavoriteMovies: false, LogoUrl: null });
+        markDirty(); renderChannels();
+    });
+    ['#ptvUser', '#ptvTz', '#ptvServer', '#ptvVaapi', '#ptvTmdb'].forEach(function (id) { $(id).addEventListener('input', markDirty); });
+    function toggle(arr, v) { var i = arr.indexOf(v); if (i < 0) { arr.push(v); } else { arr.splice(i, 1); } }
+
+    // ---------- SCHEDULE ----------
+    function schedCh() { return channels.filter(function (c) { return c.Number === schedChannel; })[0]; }
+
+    /** The blocks in force on a day (those for specific days win over "every day" at the same time). */
+    function blocksForDay(c, day) {
+        var byTime = {};
+        (c.Blocks || []).forEach(function (b, i) {
+            if (b.Days && b.Days.length && b.Days.indexOf(day) < 0) { return; }
+            var prev = byTime[b.Start];
+            if (!prev || (b.Days && b.Days.length && !(prev.b.Days && prev.b.Days.length))) { byTime[b.Start] = { b: b, i: i }; }
+        });
+        return Object.keys(byTime).map(function (k) { return byTime[k]; }).sort(function (a, b) { return toMin(a.b.Start) - toMin(b.b.Start); });
+    }
+
+    function hhmm(m) { m = ((Math.round(m) % 1440) + 1440) % 1440; return ('0' + Math.floor(m / 60)).slice(-2) + ':' + ('0' + (m % 60)).slice(-2); }
+
+    /** Segments of the 24 h bar of the chosen day. The ones that belong to a block can be dragged (data-i = index in c.Blocks). */
+    function barSegs(c) {
+        var today = blocksForDay(c, viewDay);
+        var segs = '';
+        if (!today.length) { return ''; }
+        var pts = today.map(function (x) { return { m: toMin(x.b.Start), b: x.b, i: x.i }; });
+        var last = pts[pts.length - 1];
+        if (pts[0].m > 0) {
+            // Early morning: the last block of the previous day goes on (up to its end, if it has one) and then filler.
+            var carry = endOf(last.b);
+            var upto = carry == null ? pts[0].m : carry > 1440 ? Math.min(carry - 1440, pts[0].m) : 0;
+            if (upto > 0) { segs += seg(0, upto, last.b, -1, true); }
+            if (upto < pts[0].m) { segs += seg(upto, pts[0].m, null, -1, true); }
+        }
+        pts.forEach(function (p, i) {
+            var next = i + 1 < pts.length ? pts[i + 1].m : 1440;
+            var e = endOf(p.b);
+            var stop = e == null ? next : Math.min(e, next);
+            segs += seg(p.m, stop, p.b, p.i, false, e != null && e > 1440 && stop === 1440);
+            if (stop < next) { segs += seg(stop, next, null, -1, true); }
+        });
+        return segs;
+
+        // fixed: read-only segment (filler or continuation of the previous day); clipped: the block goes on past midnight
+        function seg(from, to, b, idx, fixed, clipped) {
+            var name = b ? seriesName(b.SeriesId) : 'Relleno';
+            var range = b ? b.Start + (b.End ? ' – ' + b.End : ' →') : '';
+            var title = b ? range + ' ' + name : 'Relleno';
+            var editable = b && !fixed && idx >= 0;
+            var locked = editable && fixedLen(b) != null; // movie: fixed length, no handles
+            if (locked) { range += ' 🔒'; title = range + ' ' + name + ' (duración fija)'; }
+            var selected = editable && idx === selBlock;
+            return '<div class="ptv-seg' + (editable ? ' edit' : '') + (selected ? ' sel' : '') + '"' + (editable ? ' data-seg="' + idx + '"' : '') + ' title="' + esc(title) + '" style="left:' + (from / 14.4) + '%;width:' + ((to - from) / 14.4) + '%;background:' + (b ? color(b.SeriesId) : 'hsl(0,0%,32%)') + '">' +
+                esc(name) + (b ? '<small>' + esc(range) + '</small>' : '') +
+                (editable && !locked ? '<span class="ptv-h l" data-h="l" title="Arrastra para cambiar el inicio · doble clic: completar hasta el bloque anterior"></span>' + (clipped ? '' : '<span class="ptv-h r" data-h="r" title="Arrastra para cambiar el fin · doble clic: completar hasta el bloque siguiente"></span>') : '') +
+                (selected ? '<span class="ptv-x" data-del="' + idx + '" title="Quitar bloque (Supr)">✕</span>' : '') + '</div>';
+        }
+    }
+
+    function renderSchedule() {
+        if (!state) { return; }
+        var sel = $('#ptvSchedChannel');
+        var schedList = channels.filter(function (c) { return c.Mode !== 'Shuffle'; });
+        sel.innerHTML = schedList.map(function (c) {
+            return '<option value="' + esc(c.Number) + '"' + (c.Number === schedChannel ? ' selected' : '') + '>' + esc(c.Number + ' · ' + c.Name) + '</option>';
+        }).join('');
+        var c = schedCh();
+        if (!c) {
+            $('#ptvSchedBody').innerHTML = '<div class="ptv-empty">No hay canales "por horario". Créalos en la pestaña Canales.</div>';
+            return;
+        }
+        var sList = activeSeries();
+        var segs = barSegs(c);
+
+        var blocks = (c.Blocks || []).map(function (b, i) { return { b: b, i: i }; })
+            .sort(function (a, z) { return toMin(a.b.Start) - toMin(z.b.Start); });
+
+        $('#ptvSchedBody').innerHTML =
+            '<div class="ptv-chips" id="ptvViewDay">' + DAY_ORDER.map(function (d) {
+                return '<button type="button" class="ptv-chip' + (d === viewDay ? ' on' : '') + '" data-day="' + d + '">' + ['Dom', 'Lun', 'Mar', 'Mié', 'Jue', 'Vie', 'Sáb'][d] + '</button>';
+            }).join('') + '</div>' +
+            palette(sList) +
+            '<div class="ptv-bar">' + (segs || '<div class="ptv-empty" style="padding:.8em">Sin bloques este día: todo relleno</div>') + '</div>' +
+            '<div class="ptv-hours"><span>0</span><span>3</span><span>6</span><span>9</span><span>12</span><span>15</span><span>18</span><span>21</span><span>24</span></div>' +
+            '<p class="ptv-muted">Cada bloque empieza a su hora y se llena con episodios enteros hasta el bloque siguiente; el hueco final lo cubre el relleno.<br>' +
+            '<b>Arrastra</b> una serie o película de la paleta a la barra para crear un bloque a esa hora. <b>Arrastra</b> un bloque para moverlo, o tira de sus <b>bordes</b> para cambiar el inicio o el fin (pasos de 5 min; Esc cancela). ' +
+            'Llevar el borde derecho hasta el bloque siguiente quita la hora de fin. <b>Doble clic en un borde</b> de una serie completa el espacio vacío (relleno) hasta el bloque anterior o siguiente. <b>Las películas</b> concretas (🔒) tienen duración fija</b>: se mueven enteras a un hueco donde quepan y no se estiran ni se recortan. Los cambios afectan a todos los días del bloque.<br>' +
+            '<b>Haz clic</b> en un bloque para seleccionarlo: aparece una <b>✕</b> para quitarlo (o pulsa <b>Supr</b>; <b>Esc</b> deselecciona).</p>' +
+            '<div id="ptvBlocks">' + (blocks.length ? blocks.map(function (x) { return blockRow(c, x.b, x.i, sList); }).join('') : '<div class="ptv-empty">Sin bloques.</div>') + '</div>' +
+            '<button type="button" is="emby-button" class="raised" id="ptvAddBlock"><span>+ Agregar bloque</span></button>' +
+            '<h3 class="sectionTitle" style="margin-top:1.5em">Relleno</h3>' +
+            '<div class="ptv-muted">Series que cubren los huecos entre bloques (y los bloques "Relleno").</div>' +
+            '<div class="ptv-chips" id="ptvFiller">' + sList.map(function (s) {
+                return '<button type="button" class="ptv-chip' + ((c.FillerSeries || []).indexOf(s.Key) >= 0 ? ' on' : '') + '" data-series="' + esc(s.Key) + '">' + esc(s.Name) + '</button>';
+            }).join('') + '</div>' +
+            '<div class="ptv-row" style="margin-top:1.5em"><button type="button" is="emby-button" class="raised" id="ptvPreview"><span>Vista previa (próximas 24 h)</span></button>' +
+            '<span class="ptv-muted">Usa los cambios de esta pestaña aunque no estén guardados.</span></div>' +
+            '<div id="ptvPreviewOut"></div>';
+    }
+
+    function blockRow(c, b, i, sList) {
+        var days = b.Days || [];
+        var est = estimate(c, b);
+        var mList = readyMovies();
+        var known = sList.map(function (s) { return s.Key; }).concat(mList.map(movieKey), mList.length ? ['movies'] : []);
+        function opt(key, label) { return '<option value="' + esc(key) + '"' + (key === b.SeriesId ? ' selected' : '') + '>' + esc(label) + '</option>'; }
+        var options = '<option value=""' + (!b.SeriesId ? ' selected' : '') + '>Relleno</option>' +
+            '<optgroup label="Series">' + sList.map(function (s) { return opt(s.Key, s.Name); }).join('') + '</optgroup>' +
+            (mList.length ? '<optgroup label="Películas">' + opt('movies', 'Películas (al azar)') +
+                mList.map(function (m) { return opt(movieKey(m), m.Name + (m.Year ? ' (' + m.Year + ')' : '') + ' · ' + Math.round(m.Minutes) + ' min'); }).join('') + '</optgroup>' : '') +
+            (b.SeriesId && known.indexOf(b.SeriesId) < 0 ? '<option value="' + esc(b.SeriesId) + '" selected>' + esc(seriesName(b.SeriesId)) + ' (inactiva)</option>' : '');
+        return '<div class="ptv-block' + (i === selBlock ? ' sel' : '') + '" data-i="' + i + '" style="border-left-color:' + color(b.SeriesId) + '">' +
+            '<div class="ptv-times">' +
+            '<div><label>Inicio</label><input class="ptv-in" type="time" data-f="Start" value="' + esc(b.Start) + '" step="300"></div>' +
+            '<span style="align-self:flex-end;padding-bottom:.5em">→</span>' +
+            '<div><label>Fin' + (fixedLen(b) != null ? ' (fijo 🔒)' : ' (opcional)') + '</label><input class="ptv-in" type="time" data-f="End" value="' + esc(b.End || '') + '" step="300"' +
+                (fixedLen(b) != null ? ' readonly title="La duración de la película es fija: cambia el inicio y el fin se ajusta"' : ' title="Vacío: hasta el bloque siguiente"') + '></div>' +
+            (b.End && fixedLen(b) == null ? '<button type="button" class="ptv-link" data-act="noend" style="align-self:flex-end" title="Quitar hora de fin">quitar fin</button>' : '') +
+            '</div>' +
+            '<select class="ptv-sel" data-f="SeriesId">' + options + '</select>' +
+            '<select class="ptv-sel" data-f="Order"><option value="Shuffle"' + (b.Order !== 'Chronological' ? ' selected' : '') + '>Aleatorio</option>' +
+            '<option value="Chronological"' + (b.Order === 'Chronological' ? ' selected' : '') + '>En orden</option></select>' +
+            '<button type="button" class="ptv-link" data-act="del" style="color:#ef5350" title="Quitar bloque">✕</button>' +
+            '<div class="ptv-chips">' + DAY_ORDER.map(function (d) {
+                return '<button type="button" class="ptv-chip' + (!days.length || days.indexOf(d) >= 0 ? ' on' : '') + '" data-day="' + d + '">' + DAYS[d] + '</button>';
+            }).join('') + '<span class="ptv-muted" style="margin:0 0 0 .4em;align-self:center">' + (days.length ? '' : 'todos los días') + '</span></div>' +
+            '<div class="ptv-est' + (est.warn ? ' warn' : '') + '">' + esc(est.text) + '</div></div>';
+    }
+
+    /** The block's length (up to the next block that applies on any of its days) and estimated episodes. */
+    function estimate(c, b) {
+        var days = b.Days && b.Days.length ? b.Days : [0, 1, 2, 3, 4, 5, 6];
+        var len = 1440;
+        days.forEach(function (d) {
+            var list = blocksForDay(c, d).map(function (x) { return toMin(x.b.Start); });
+            var next = list.filter(function (m) { return m > toMin(b.Start); })[0];
+            if (next == null) {
+                var tomorrow = blocksForDay(c, (d + 1) % 7).map(function (x) { return toMin(x.b.Start); });
+                next = 1440 + (tomorrow.length ? tomorrow[0] : toMin(b.Start));
+            }
+            len = Math.min(len, next - toMin(b.Start));
+        });
+        var e = endOf(b);
+        var gap = 0;
+        if (e != null && e - toMin(b.Start) < len) { gap = len - (e - toMin(b.Start)); len = e - toMin(b.Start); }
+        if (!b.SeriesId) { return { text: 'Relleno durante ' + fmtMin(len) + '.', warn: false }; }
+        var s = seriesByKey(b.SeriesId);
+        if (!s || !s.AverageMinutes) { return { text: 'Dura ' + fmtMin(len) + '. ' + (b.SeriesId.indexOf('movie') === 0 ? 'Esta película no está lista (sin ♥ o sin medir)' : 'Esta serie todavía no tiene episodios listos') + ': se cubre con relleno.', warn: true }; }
+        if (s.IsMovie && !s.Pool) {
+            if (s.AverageMinutes > len) { return { text: 'Dura ' + fmtMin(len) + ': la película dura ' + Math.round(s.AverageMinutes) + ' min y no entra (sale relleno). Estira el bloque.', warn: true }; }
+            return { text: 'Dura ' + fmtMin(len) + ' · emite la película una vez (' + Math.round(s.AverageMinutes) + ' min)' + (len - s.AverageMinutes >= 2 ? '; el resto del bloque, relleno' : ''), warn: false };
+        }
+        var noun = s.IsMovie ? 'película' : 'episodio';
+        var n = Math.floor(len / s.AverageMinutes);
+        if (s.MaxMinutes > len) {
+            return { text: 'Dura ' + fmtMin(len) + ': ' + (n ? '≈ ' + n + ' ' + noun + '(s), pero ' : '') + 'hay ' + noun + 's de hasta ' + Math.round(s.MaxMinutes) + ' min que no entran (esos bloques salen con relleno).', warn: true };
+        }
+        return {
+            text: 'Dura ' + fmtMin(len) + ' · ≈ ' + n + ' ' + noun + (n === 1 ? '' : 's') + ' de ~' + Math.round(s.AverageMinutes) + ' min' +
+                (gap > 0 ? ' · después, relleno ' + fmtMin(gap) + ' hasta el bloque siguiente' : ''),
+            warn: n === 0
+        };
+    }
+
+    /** The block's end in minutes from 00:00 of its day (may exceed 1440 if it ends the next day). */
+    function endOf(b) {
+        if (!b.End) { return null; }
+        var s = toMin(b.Start), e = toMin(b.End);
+        return e <= s ? e + 1440 : e;
+    }
+
+    $('#ptvSchedChannel').addEventListener('change', function (e) { schedChannel = e.target.value; selBlock = null; renderSchedule(); });
+    $('#ptvSchedBody').addEventListener('change', function (e) {
+        var row = e.target.closest('[data-i]'); var f = e.target.getAttribute('data-f'); if (!row || !f) { return; }
+        var b = schedCh().Blocks[+row.getAttribute('data-i')];
+        if (f === 'End' && fixedLen(b) != null) { renderSchedule(); return; } // a movie's length isn't edited
+        b[f] = f === 'End' && !e.target.value ? null : e.target.value;
+        var fl = fixedLen(b);
+        if (fl != null && (f === 'Start' || f === 'SeriesId')) { b.End = hhmm(toMin(b.Start) + fl); } // movie: the end follows the start
+        if (b.End && b.End === b.Start) { b.End = null; setStatus('El fin no puede ser igual al inicio.', 'err'); }
+        markDirty(); renderSchedule();
+    });
+    $('#ptvSchedBody').addEventListener('click', function (e) {
+        var c = schedCh(); if (!c) { return; }
+        var xBtn = e.target.closest('.ptv-x[data-del]');
+        if (xBtn) { removeBlock(c, +xBtn.getAttribute('data-del')); return; }
+        var palTabBtn = e.target.closest('[data-ptab]');
+        if (palTabBtn) { palTab = palTabBtn.getAttribute('data-ptab'); palFilter = ''; renderSchedule(); return; }
+        if (e.target.closest('#ptvViewDay')) {
+            var vd = e.target.closest('[data-day]'); if (vd) { viewDay = +vd.getAttribute('data-day'); renderSchedule(); }
+            return;
+        }
+        if (e.target.closest('#ptvAddBlock')) {
+            var lastStart = (c.Blocks || []).map(function (b) { return toMin(b.Start); }).sort(function (a, z) { return a - z; }).pop();
+            var m = lastStart == null ? 1200 : (lastStart + 120) % 1440;
+            c.Blocks = c.Blocks || [];
+            c.Blocks.push({ Start: ('0' + Math.floor(m / 60)).slice(-2) + ':' + ('0' + (m % 60)).slice(-2), SeriesId: '', Order: 'Shuffle', Days: [] });
+            markDirty(); renderSchedule(); return;
+        }
+        if (e.target.closest('#ptvFiller')) {
+            var fs = e.target.closest('[data-series]'); if (!fs) { return; }
+            toggle(c.FillerSeries = c.FillerSeries || [], fs.getAttribute('data-series'));
+            markDirty(); renderSchedule(); return;
+        }
+        if (e.target.closest('#ptvPreview')) { preview(c); return; }
+        var row = e.target.closest('[data-i]'); if (!row) { return; }
+        var idx = +row.getAttribute('data-i'); var b = c.Blocks[idx];
+        if (e.target.closest('[data-act="del"]')) { removeBlock(c, idx); return; }
+        if (e.target.closest('[data-act="noend"]')) { b.End = null; markDirty(); renderSchedule(); return; }
+        var dayBtn = e.target.closest('[data-day]');
+        if (dayBtn) {
+            var d = +dayBtn.getAttribute('data-day');
+            var days = b.Days && b.Days.length ? b.Days.slice() : [0, 1, 2, 3, 4, 5, 6];
+            toggle(days, d);
+            if (!days.length) { return; } // at least one day
+            b.Days = days.length === 7 ? [] : days;
+            markDirty(); renderSchedule();
+        }
+    });
+
+    /** Length (min) of a specific-movie block: the movie's with a small margin. */
+    function movieLen(s) { return Math.ceil((s.AverageMinutes + 1) / STEP) * STEP; }
+    /** Fixed length of a specific-movie block (it is neither stretched nor cut); null for series and "Al azar". */
+    function fixedLen(b) {
+        if (!b || !b.SeriesId || b.SeriesId.indexOf('movie:') !== 0) { return null; }
+        var s = seriesByKey(b.SeriesId);
+        return s && s.IsMovie && !s.Pool ? movieLen(s) : null;
+    }
+
+    /**
+     * Gap finder for the visible day and a block (not counting the one at index skipIdx). best(want) returns the valid start closest
+     * to <want>: right there, right after a block with an end time, or right before any block. A block
+     * without an end time can be cut; one with an end can't. fixed = the block lasts <dur> and must fit whole (movies).
+     */
+    function slotFinder(c, skipIdx, dur, fixed) {
+        var others = blocksForDay(c, viewDay).filter(function (x) { return x.i !== skipIdx; });
+        var oth = others.map(function (x) { var oe = endOf(x.b); return { s: toMin(x.b.Start), e: oe == null ? null : Math.min(oe, 1440) }; });
+        var carryBound = 0; // early morning still taken by the last block of the previous day if it crosses midnight
+        if (others.length) { var lastE = endOf(others[others.length - 1].b); if (lastE != null && lastE > 1440) { carryBound = lastE - 1440; } }
+        var need = fixed ? dur : STEP;
+        function nextStartOf(c0) { var n = 1440; oth.forEach(function (o) { if (o.s > c0 && o.s < n) { n = o.s; } }); return n; }
+        function leftEdgeOf(x) { // where what is taken right before x ends
+            var l = carryBound;
+            oth.forEach(function (o) { if (o.s < x) { var edge = o.e != null ? o.e : o.s + STEP; if (edge <= x && edge > l) { l = edge; } } });
+            return l;
+        }
+        function feasible(c0) {
+            if (c0 < carryBound || c0 > 1440 - STEP) { return false; }
+            for (var i = 0; i < oth.length; i++) {
+                if (oth[i].s === c0 || (oth[i].e != null && c0 > oth[i].s && c0 < oth[i].e)) { return false; }
+            }
+            return nextStartOf(c0) - c0 >= need;
+        }
+        function best(want) {
+            var cands = [want], d = dur != null ? dur : STEP, pick = null;
+            oth.forEach(function (o) {
+                if (o.e != null) { cands.push(o.e); }
+                cands.push(fixed ? o.s - d : Math.max(o.s - d, leftEdgeOf(o.s)));
+            });
+            cands.forEach(function (c0) { if (feasible(c0) && (pick == null || Math.abs(c0 - want) < Math.abs(pick - want))) { pick = c0; } });
+            // A movie isn't forced into a small gap nor does it jump far: if there is no whole slot near the pointer, it doesn't move.
+            if (fixed && pick != null && Math.abs(pick - want) > dur) { return null; }
+            return pick;
+        }
+        return { best: best, nextStartOf: nextStartOf, hasNext: function (c0) { return oth.some(function (o) { return o.s > c0; }); } };
+    }
+
+    /**
+     * Double click on an edge: the block fills the empty space (filler) up to the neighboring block.
+     * side 'r': removes the end time (it reaches the next block; with no next block, up to 24:00).
+     * side 'l': the start moves up to where the previous block ends (or to 00:00 / the end of the previous early morning).
+     */
+    function fillGap(c, idx, side) {
+        var b = c.Blocks[idx]; if (!b || fixedLen(b) != null) { return; }
+        var others = blocksForDay(c, viewDay).filter(function (x) { return x.i !== idx; });
+        var s0 = toMin(b.Start), e0 = endOf(b), msg = null;
+        if (side === 'r') {
+            var hasNext = others.some(function (x) { return toMin(x.b.Start) > s0; });
+            if (e0 == null) { msg = hasNext ? 'Este bloque ya llega hasta el bloque siguiente.' : 'Este bloque ya ocupa el resto del día.'; }
+            else if (hasNext) { b.End = null; }
+            else if (e0 < 1440) { b.End = hhmm(1440); }
+            else { msg = 'Este bloque ya llega hasta el final del día.'; }
+        } else {
+            var prevs = others.filter(function (x) { return toMin(x.b.Start) < s0; });
+            var edge = 0;
+            if (prevs.length) {
+                var pe = endOf(prevs[prevs.length - 1].b);
+                if (pe == null) { msg = 'No hay espacio vacío antes: el bloque anterior no tiene hora de fin y ya llega hasta aquí.'; }
+                else { edge = Math.min(pe, 1440); }
+            } else if (others.length) {
+                var carry = endOf(others[others.length - 1].b);
+                if (carry != null && carry > 1440) { edge = carry - 1440; }
+            }
+            if (msg == null && edge >= s0) { msg = 'No hay espacio vacío antes de este bloque.'; }
+            if (msg == null) { b.Start = hhmm(edge); }
+        }
+        if (msg) { setStatus(msg); return; }
+        selBlock = idx;
+        setStatus('Bloque extendido: ' + seriesName(b.SeriesId) + ' ' + b.Start + (b.End ? ' – ' + b.End : ' →') + '.', 'ok');
+        markDirty(); renderSchedule();
+    }
+
+    // ---------- palette: drag series and movies onto the bar to create blocks ----------
+    var PAL_SEARCH_MIN = 8; // with more items than this the search box appears
+    /** The current tab's items (active series or ready movies), unfiltered. */
+    function palAll() {
+        if (palTab === 'movies') {
+            return [{ key: 'movies', label: 'Al azar', extra: 'cualquier película' }].concat(readyMovies().map(function (m) {
+                return { key: movieKey(m), label: m.Name, extra: Math.round(m.Minutes) + ' min' };
+            }));
+        }
+        return activeSeries().slice().sort(function (a, b) { return a.Name.localeCompare(b.Name); })
+            .map(function (s) { return { key: s.Key, label: s.Name, extra: '' }; });
+    }
+    function palListHtml() {
+        var all = palAll(), q = all.length > PAL_SEARCH_MIN ? palFilter.trim().toLowerCase() : '';
+        var items = q ? all.filter(function (i) { return i.label.toLowerCase().indexOf(q) >= 0; }) : all;
+        if (!items.length) { return '<span class="ptv-muted" style="margin:0">Sin resultados.</span>'; }
+        return items.map(function (i) {
+            return '<span class="ptv-pchip" data-add="' + esc(i.key) + '" style="border-left-color:' + color(i.key) + '" title="Arrástrala a la barra">' + esc(i.label) + (i.extra ? ' <small>' + esc(i.extra) + '</small>' : '') + '</span>';
+        }).join('');
+    }
+    function palette(sList) {
+        var nS = sList.length, nM = readyMovies().length;
+        if (!nS && !nM) { return ''; }
+        if (palTab === 'series' && !nS) { palTab = 'movies'; }
+        if (palTab === 'movies' && !nM) { palTab = 'series'; }
+        var total = palAll().length;
+        return '<div class="ptv-pal" id="ptvPalette"><div class="ptv-ptabs">' +
+            '<button type="button" class="ptv-chip' + (palTab === 'series' ? ' on' : '') + '" data-ptab="series">Series <small>(' + nS + ')</small></button>' +
+            '<button type="button" class="ptv-chip' + (palTab === 'movies' ? ' on' : '') + '" data-ptab="movies">Películas <small>(' + nM + ')</small></button>' +
+            (total > PAL_SEARCH_MIN ? '<input class="ptv-in" id="ptvPalFilter" type="search" placeholder="Buscar…" size="14" value="' + esc(palFilter) + '">' : '') +
+            '<span class="ptv-muted" style="margin:0">Arrastra a la barra para agregar al horario</span></div>' +
+            '<div class="ptv-plist" id="ptvPalList">' + palListHtml() + '</div></div>';
+    }
+    $('#ptvSchedBody').addEventListener('input', function (e) {
+        if (e.target.id !== 'ptvPalFilter') { return; }
+        palFilter = e.target.value;
+        var list = $('#ptvPalList'); if (list) { list.innerHTML = palListHtml(); }
+    });
+
+    // ---------- selecting and deleting blocks ----------
+    function removeBlock(c, idx) {
+        var b = c.Blocks[idx]; if (!b) { return; }
+        var name = seriesName(b.SeriesId), start = b.Start;
+        c.Blocks.splice(idx, 1);
+        selBlock = null;
+        setStatus('Bloque quitado: ' + name + ' (' + start + '). Pulsa "Guardar y aplicar" para confirmar.', 'ok');
+        markDirty(); renderSchedule();
+    }
+    function selectBlock(idx) {
+        selBlock = idx;
+        var c = schedCh(), bar = $('#ptvSchedBody .ptv-bar');
+        if (c && bar) { bar.innerHTML = barSegs(c) || bar.innerHTML; }
+        page.querySelectorAll('#ptvBlocks .ptv-block').forEach(function (r) { r.classList.toggle('sel', +r.getAttribute('data-i') === idx); });
+    }
+    window.addEventListener('keydown', function onDeleteKey(e) {
+        if (!page.isConnected) { window.removeEventListener('keydown', onDeleteKey); return; } // stale page
+        if (busy || selBlock == null || (e.key !== 'Delete' && e.key !== 'Backspace' && e.key !== 'Escape')) { return; }
+        var pane = $('[data-pane="schedule"]'); if (!pane || pane.hidden) { return; }
+        var t = e.target, tag = t && t.tagName ? t.tagName.toLowerCase() : '';
+        if (tag === 'input' || tag === 'select' || tag === 'textarea' || (t && t.isContentEditable)) { return; }
+        var c = schedCh(); if (!c) { return; }
+        if (e.key === 'Escape') { selBlock = null; renderSchedule(); return; }
+        e.preventDefault();
+        removeBlock(c, selBlock);
+    });
+
+    /** Creates a block of <key> starting at <minute> (free) with a reasonable length; it doesn't overlap the next block. */
+    function addBlockAt(c, key, minute) {
+        var nb = { Start: hhmm(minute), SeriesId: key, Order: 'Shuffle', Days: [] };
+        c.Blocks = c.Blocks || [];
+        c.Blocks.push(nb);
+        var idx = c.Blocks.length - 1, m = minute;
+        var fixedL = fixedLen(nb);
+        if (fixedL != null) {
+            // Specific movie: fixed length; it goes in the nearest whole gap (it is neither shrunk nor stretched).
+            var at = slotFinder(c, idx, fixedL, true).best(minute);
+            if (at == null || clash(c, idx, hhmm(at))) {
+                c.Blocks.pop(); setStatus('No hay un hueco libre de ' + fmtMin(fixedL) + ' en este día para esa película.', 'err'); return;
+            }
+            nb.Start = hhmm(at); nb.End = hhmm(at + fixedL);
+            setStatus('Bloque agregado: ' + seriesName(key) + ' a las ' + nb.Start + ' (duración fija).', 'ok');
+            selBlock = idx;
+            markDirty(); renderSchedule(); return;
+        }
+        // Don't drop onto a block with an end time (movies, e.g.): it starts where that one ends. Blocks without an end are cut.
+        var occ = blocksForDay(c, viewDay).filter(function (x) { return x.i !== idx; });
+        for (var guard = 0; guard < 50; guard++) {
+            var pushed = false;
+            occ.forEach(function (x) {
+                var s0 = toMin(x.b.Start), e0 = endOf(x.b);
+                if (e0 != null && m >= s0 && m < Math.min(e0, 1440)) { m = Math.min(e0, 1440); pushed = true; }
+            });
+            var last = occ.length ? occ[occ.length - 1].b : null, carry = last ? endOf(last) : null;
+            if (carry != null && carry > 1440 && m < carry - 1440) { m = carry - 1440; pushed = true; } // early morning of the previous day's block
+            if (!pushed) { break; }
+        }
+        if (m >= 1440) { c.Blocks.pop(); setStatus('No hay hora libre a partir de ahí.', 'err'); return; }
+        nb.Start = hhmm(m);
+        while (m < 1440 && clash(c, idx, hhmm(m))) { m += STEP; nb.Start = hhmm(m); }
+        if (m >= 1440) { c.Blocks.pop(); setStatus('No hay hora libre a partir de ahí.', 'err'); return; }
+        nb.Start = hhmm(m);
+        var s = seriesByKey(key), len = 60;
+        if (s && s.IsMovie) { len = Math.ceil((s.MaxMinutes + 1) / STEP) * STEP; }
+        else if (s && s.MaxMinutes) { len = Math.max(60, Math.ceil(s.MaxMinutes / STEP) * STEP); }
+        var nexts = blocksForDay(c, viewDay).filter(function (x) { return x.i !== idx && toMin(x.b.Start) > m; }).map(function (x) { return toMin(x.b.Start); });
+        var nextStart = nexts.length ? Math.min.apply(null, nexts) : 1440;
+        var end = m + len;
+        nb.End = end >= nextStart && nexts.length ? null : hhmm(Math.min(end, 1440));
+        setStatus('Bloque agregado: ' + seriesName(key) + ' a las ' + nb.Start + '.', 'ok');
+        selBlock = idx;
+        markDirty(); renderSchedule();
+    }
+
+    $('#ptvSchedBody').addEventListener('pointerdown', function (e) {
+        if (e.button) { return; }
+        var chipEl = e.target.closest('.ptv-pchip[data-add]'); if (!chipEl) { return; }
+        var c = schedCh(); if (!c) { return; }
+        var key = chipEl.getAttribute('data-add'), x0 = e.clientX, moved = false, ghost = null, marker = null, minute = null;
+        e.preventDefault();
+        busy = true;
+
+        function minuteAt(ev, bar) {
+            var r = bar.getBoundingClientRect();
+            if (ev.clientX < r.left || ev.clientX > r.right || ev.clientY < r.top - 16 || ev.clientY > r.bottom + 16) { return null; }
+            return clamp(Math.round((ev.clientX - r.left) / (r.width || 1) * 1440 / STEP) * STEP, 0, 1440 - STEP);
+        }
+        function onMove(ev) {
+            if (!moved) {
+                if (Math.abs(ev.clientX - x0) < 4 && Math.abs(ev.clientY - e.clientY) < 4) { return; }
+                moved = true;
+                ghost = document.createElement('div'); ghost.className = 'ptv-ghost'; ghost.textContent = chipEl.firstChild.textContent;
+                page.appendChild(ghost);
+            }
+            ghost.style.left = (ev.clientX + 14) + 'px'; ghost.style.top = (ev.clientY + 14) + 'px';
+            var bar = $('#ptvSchedBody .ptv-bar');
+            minute = bar ? minuteAt(ev, bar) : null;
+            if (bar) { bar.classList.toggle('over', minute != null); }
+            if (marker) { marker.remove(); marker = null; }
+            if (minute != null) {
+                marker = document.createElement('div'); marker.className = 'ptv-drop'; marker.style.left = (minute / 14.4) + '%';
+                marker.innerHTML = '<span>' + hhmm(minute) + '</span>';
+                bar.appendChild(marker);
+            }
+        }
+        function finish(commit) {
+            window.removeEventListener('pointermove', onMove);
+            window.removeEventListener('pointerup', onUp);
+            window.removeEventListener('pointercancel', onCancel);
+            window.removeEventListener('keydown', onKey);
+            busy = false;
+            if (ghost) { ghost.remove(); }
+            if (marker) { marker.remove(); }
+            var bar = $('#ptvSchedBody .ptv-bar'); if (bar) { bar.classList.remove('over'); }
+            if (commit && moved && minute != null) { addBlockAt(c, key, minute); }
+        }
+        function onUp() { finish(true); }
+        function onCancel() { finish(false); }
+        function onKey(ev) { if (ev.key === 'Escape') { finish(false); } }
+        window.addEventListener('pointermove', onMove);
+        window.addEventListener('pointerup', onUp);
+        window.addEventListener('pointercancel', onCancel);
+        window.addEventListener('keydown', onKey);
+    });
+
+    // ---------- drag / resize blocks on the 24 h bar ----------
+    var STEP = 5; // minutes
+    function daysOf(b) { return b.Days && b.Days.length ? b.Days : [0, 1, 2, 3, 4, 5, 6]; }
+    /** Another block with the same start time on some common day (one would hide the other). */
+    function clash(c, idx, start) {
+        var d = daysOf(c.Blocks[idx]);
+        return c.Blocks.some(function (o, j) { return j !== idx && o.Start === start && daysOf(o).some(function (x) { return d.indexOf(x) >= 0; }); });
+    }
+    function clamp(v, lo, hi) { return Math.max(lo, Math.min(hi, v)); }
+
+    $('#ptvSchedBody').addEventListener('pointerdown', function (e) {
+        if (e.button) { return; } // primary button / touch only
+        if (e.target.closest('.ptv-x')) { return; } // the delete X is a normal click
+        var segEl = e.target.closest('.ptv-seg[data-seg]');
+        if (!segEl) {
+            // Click on the bar outside an editable block: clears the selection.
+            if (selBlock != null && e.target.closest('.ptv-bar')) { selectBlock(null); }
+            return;
+        }
+        var c = schedCh(); if (!c) { return; }
+        var bar = segEl.parentNode, idx = +segEl.getAttribute('data-seg'), b = c.Blocks[idx]; if (!b) { return; }
+        var hEl = e.target.closest('[data-h]'), mode = hEl ? hEl.getAttribute('data-h') : 'm';
+        e.preventDefault();
+        // Double click on an edge: fills the empty space up to the previous/next block. It is detected here (and not with
+        // "dblclick") because selecting redraws the bar and the browser may lose the event.
+        var nowT = Date.now();
+        if (hEl && lastTap.idx === idx && lastTap.h === mode && nowT - lastTap.t < 450 && Math.abs(e.clientX - lastTap.x) < 8) {
+            lastTap = { idx: -1 };
+            fillGap(c, idx, mode);
+            return;
+        }
+        lastTap = hEl ? { idx: idx, h: mode, t: nowT, x: e.clientX } : { idx: -1 };
+        selectBlock(idx); // the click selects (shows the X); if dragged, it moves or resizes
+        busy = true;
+
+        var width = bar.getBoundingClientRect().width || 1;
+        var x0 = e.clientX, moved = false;
+        var s0 = toMin(b.Start), e0 = endOf(b), origStart = b.Start, origEnd = b.End || null;
+        var others = blocksForDay(c, viewDay).filter(function (x) { return x.i !== idx; }); // sorted by start
+        var prevs = others.filter(function (x) { return toMin(x.b.Start) < s0; }), nexts = others.filter(function (x) { return toMin(x.b.Start) > s0; }).map(function (x) { return toMin(x.b.Start); });
+        var prevB = prevs.length ? prevs[prevs.length - 1].b : null;
+        var nextStart = nexts.length ? Math.min.apply(null, nexts) : 1440;
+        var dur = e0 == null ? null : e0 - s0;
+        var stop0 = e0 == null ? nextStart : Math.min(e0, nextStart);
+        // Left limit: the taken stretch of the previous block can't be entered (up to its end if it has one; if it has none
+        // it can be cut, but never past its start). With no previous block: the early morning still taken by the last
+        // block of the previous day if it crosses midnight.
+        var leftBound = 0;
+        if (prevB) {
+            var pe = endOf(prevB);
+            leftBound = pe != null ? Math.min(pe, 1440) : toMin(prevB.Start) + STEP;
+        } else if (others.length) {
+            var carry = endOf(others[others.length - 1].b);
+            if (carry != null && carry > 1440) { leftBound = carry - 1440; }
+        }
+
+        // Move: the block jumps to the gap where you drop it and settles there (it shrinks if the gap is shorter, except for
+        // specific movies, whose length is fixed and need a whole gap); it never ends up on top of another block.
+        var fixedL = fixedLen(b);
+        if (fixedL != null) { dur = fixedL; }
+        var fnd = slotFinder(c, idx, dur, fixedL != null);
+
+        function snap(m) { return Math.round(m / STEP) * STEP; }
+        function apply(dxMin) {
+            if (mode === 'm') {
+                var c0 = fnd.best(snap(s0 + dxMin));
+                if (c0 == null) { return; }
+                var st = hhmm(c0);
+                if (clash(c, idx, st)) { return; }
+                b.Start = st;
+                if (fixedL != null) {
+                    b.End = hhmm(c0 + fixedL); // movie: fixed length, always whole
+                } else if (dur != null) {
+                    var nx = fnd.nextStartOf(c0), full = c0 + dur, end = Math.min(full, nx);
+                    // If the gap isn't enough it shrinks up to the next block ("hasta el siguiente"); if it fits, it keeps its length.
+                    b.End = end < full && fnd.hasNext(c0) ? null : hhmm(end);
+                }
+            } else if (fixedL != null) {
+                return; // a movie's length can't be changed
+            } else if (mode === 'l') {
+                var lo = Math.min(leftBound, s0);
+                var hi = (e0 != null ? Math.min(e0, 1440, nextStart) : nextStart) - STEP;
+                if (e0 != null && e0 > 1440) { lo = Math.max(lo, e0 - 1440 + STEP); hi = 1440 - STEP; } // the end crosses midnight: it keeps crossing it
+                if (hi < lo) { return; }
+                var ls = clamp(snap(s0 + dxMin), lo, hi), lst = hhmm(ls);
+                if (clash(c, idx, lst)) { return; }
+                b.Start = lst;
+            } else {
+                var ne = clamp(snap(stop0 + dxMin), s0 + STEP, nextStart);
+                // Reaching the next block = "up to the next block" (no fixed end time).
+                b.End = ne >= nextStart && nexts.length ? null : hhmm(ne);
+            }
+        }
+        function paint() {
+            bar.innerHTML = barSegs(c) || '<div class="ptv-empty" style="padding:.8em">Sin bloques este día: todo relleno</div>';
+            var el = bar.querySelector('[data-seg="' + idx + '"]'); if (el) { el.classList.add('drag'); }
+        }
+        function onMove(ev) {
+            var dx = ev.clientX - x0;
+            if (!moved) { if (Math.abs(dx) < 4) { return; } moved = true; bar.classList.add('dragging'); }
+            apply(dx / width * 1440);
+            paint();
+        }
+        function finish(commit) {
+            window.removeEventListener('pointermove', onMove);
+            window.removeEventListener('pointerup', onUp);
+            window.removeEventListener('pointercancel', onCancel);
+            window.removeEventListener('keydown', onKey);
+            bar.classList.remove('dragging');
+            busy = false;
+            if (!moved) { return; }
+            if (!commit) { b.Start = origStart; b.End = origEnd; }
+            else if (b.Start !== origStart || (b.End || null) !== origEnd) { markDirty(); }
+            renderSchedule();
+        }
+        function onUp() { finish(true); }
+        function onCancel() { finish(false); }
+        function onKey(ev) { if (ev.key === 'Escape') { finish(false); } }
+        window.addEventListener('pointermove', onMove);
+        window.addEventListener('pointerup', onUp);
+        window.addEventListener('pointercancel', onCancel);
+        window.addEventListener('keydown', onKey);
+    });
+
+    function preview(c) {
+        var out = $('#ptvPreviewOut');
+        out.innerHTML = '<div class="ptv-muted">Calculando…</div>';
+        var tz = $('#ptvTz').value || state.TimeZone || undefined;
+        var fmt;
+        try { fmt = new Intl.DateTimeFormat('es', { timeZone: tz, weekday: 'short', hour: '2-digit', minute: '2-digit', hour12: false }); }
+        catch (e) { fmt = new Intl.DateTimeFormat('es', { weekday: 'short', hour: '2-digit', minute: '2-digit', hour12: false }); }
+        post('preview', c).then(function (items) {
+            out.innerHTML = '<div class="ptv-preview">' + (items || []).map(function (p) {
+                var ep = p.Season != null && p.Episode != null && !p.IsMovie ? ' · T' + p.Season + ' E' + p.Episode : '';
+                var mins = Math.round((new Date(p.EndUtc) - new Date(p.StartUtc)) / 60000);
+                return '<div class="ptv-prog' + (p.IsFiller ? ' filler' : '') + '"><span class="t">' + esc(fmt.format(new Date(p.StartUtc))) + '</span><span>' +
+                    esc(p.IsSlate ? 'Sin programación (pantalla negra)' : p.Title) + esc(ep) +
+                    (p.EpisodeTitle ? ' — ' + esc(p.EpisodeTitle) : '') +
+                    ' <small style="opacity:.6">(' + mins + ' min' + (p.IsFiller ? ', relleno' : '') + ')</small></span></div>';
+            }).join('') + '</div>' +
+            '<div class="ptv-muted">La vista previa usa las series tal como están guardadas; si cambiaste series o temporadas, guarda primero.</div>';
+        }).catch(function () { out.innerHTML = '<div class="ptv-status err">No se pudo calcular la vista previa.</div>'; });
+    }
+
+    // ---------- SAVE ----------
+    $('#ptvApply').addEventListener('click', function () {
+        var body = {
+            Series: Object.keys(series).map(function (k) { return { Key: k, Enabled: series[k].Enabled, ExcludedSeasons: series[k].ExcludedSeasons, Language: series[k].Language, SeasonMap: series[k].SeasonMap || [] }; }),
+            Movies: Object.keys(movies).map(function (k) { return { ItemId: k, Language: movies[k].Language }; }),
+            Channels: channels,
+            TimeZone: $('#ptvTz').value,
+            FavoritesUser: $('#ptvUser').value,
+            ServerUrl: $('#ptvServer').value,
+            VaapiDevice: $('#ptvVaapi').value,
+            TmdbToken: $('#ptvTmdb').value ? $('#ptvTmdb').value : null
+        };
+        Dashboard.showLoadingMsg();
+        setStatus('Aplicando… (puede tardar un minuto)');
+        post('apply', body).then(function (r) {
+            setStatus('Listo. La guía de Jellyfin se actualiza en unos segundos.' + (r && r.Pending ? ' ' + r.Pending + ' episodios todavía se están midiendo.' : ''), 'ok');
+            return load();
+        }).catch(function (xhr) {
+            var msg = 'No se pudo guardar.';
+            try { msg = JSON.parse(xhr.responseText || '{}').Error || msg; } catch (e) { }
+            if (xhr && xhr.json) { xhr.json().then(function (j) { setStatus(j.Error || msg, 'err'); }).catch(function () { setStatus(msg, 'err'); }); return; }
+            setStatus(msg, 'err');
+        }).finally(function () { Dashboard.hideLoadingMsg(); });
+    });
+
+    window.addEventListener('beforeunload', function (e) { if (dirty) { e.preventDefault(); e.returnValue = ''; } });
+    // When the page opens: load and, if a sync is running (started before leaving), pick its bar up again.
+    page.addEventListener('pageshow', function () { load().then(pollSync); });
+})();
+</script>
+</div>
+</body>
+</html>
