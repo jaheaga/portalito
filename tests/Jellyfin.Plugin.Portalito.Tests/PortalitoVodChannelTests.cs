@@ -447,6 +447,22 @@ public sealed class PortalitoVodChannelTests : IDisposable
         Assert.Equal("SER1", play["seriesContentId"]!.GetValue<string>());
     }
 
+    [Theory]
+    [InlineData("mov:MOVIE1", typeof(MediaBrowser.Controller.Entities.Movies.Movie))]
+    [InlineData("epi:SER1:EP2", typeof(MediaBrowser.Controller.Entities.TV.Episode))]
+    public async Task With_a_library_a_title_s_source_takes_the_library_item_s_own_id(string id, Type itemType)
+    {
+        _h.Route = VodRoute(_h);
+        var channel = new PortalitoVodChannel(_h, _probe, new SubtitleFileCache(_subtitleDir, new HttpClient(_subtitleHost)), _collages, NullLogger<PortalitoVodChannel>.Instance, library: FakeLibraryManager.Create());
+
+        var source = Assert.Single(await channel.GetChannelItemMediaInfo(id, default));
+
+        // Jellyfin's Android TV app sends the item's id as PlaybackInfo's MediaSourceId; with any other source id
+        // Jellyfin answers NoCompatibleStream and the player never starts (2026-10-16).
+        Assert.Equal(FakeLibraryManager.IdFor(id + channel.Name + "16", itemType).ToString("N"), source.Id);
+        Assert.NotEqual(MediaSources.SourceIdFor(id), source.Id);
+    }
+
     [Fact]
     public async Task Vod_url_stays_valid_across_a_long_film()
     {

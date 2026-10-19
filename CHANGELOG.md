@@ -1,5 +1,12 @@
 # Changelog
 
+## Unreleased
+
+- **Fix: VOD movies and episodes wouldn't start in Jellyfin for Android TV** -- the player opened and never began.
+  The app asks Jellyfin for the item's own id as the media source to play, but the channel gave its source a different
+  id, so Jellyfin found no match and answered that there was no compatible stream. The source now carries the item's
+  id. The web app wasn't affected.
+
 ## 0.1.2.4 — 2026-10-02
 
 - **"Siguiendo" shows get the images a library series has**, so Next Up, Continue Watching and the home carousels

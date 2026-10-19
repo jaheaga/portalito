@@ -304,6 +304,14 @@ public sealed class PortalitoVodChannel : IChannel, IRequiresMediaInfoCallback, 
         var container = stream.VideoFormat == "ts" ? "ts" : "mp4";
 
         var source = MediaSources.Vod(id, url, container);
+
+        // Clients that take the media source id from the item (Jellyfin's Android TV app) send the library item's own
+        // id as PlaybackInfo's MediaSourceId; Jellyfin keeps only the sources with that id, so any other id leaves none
+        // and the answer is NoCompatibleStream -- the player opens and never starts (measured live 2026-10-16).
+        if (LibraryItemId(id, item.Kind) is { } libraryId)
+        {
+            source.Id = libraryId.ToString("N");
+        }
         var probing = ProbeCachedAsync(contentId, source, cancellationToken);
         var subtitles = await _subtitles.LocalCopiesAsync(stream.Subtitles ?? Array.Empty<SubtitleFile>(), cancellationToken).ConfigureAwait(false);
         var tracks = await probing.ConfigureAwait(false);
@@ -352,8 +360,7 @@ public sealed class PortalitoVodChannel : IChannel, IRequiresMediaInfoCallback, 
 
         try
         {
-            var type = kind == VodItemKind.Episode ? typeof(MediaBrowser.Controller.Entities.TV.Episode) : typeof(MediaBrowser.Controller.Entities.Movies.Movie);
-            var libraryId = _library.GetNewItemId(channelItemId + Name + "16", type);
+            var libraryId = LibraryItemId(channelItemId, kind)!.Value;
             if (_library.GetItemById(libraryId) is { } entity && entity.RunTimeTicks != ticks)
             {
                 entity.RunTimeTicks = ticks;
@@ -364,6 +371,22 @@ public sealed class PortalitoVodChannel : IChannel, IRequiresMediaInfoCallback, 
         {
             _logger.LogWarning(ex, "Couldn't give {Item} its runtime; this playback won't be resumable", channelItemId);
         }
+    }
+
+    /// <summary>
+    /// The id Jellyfin gives a playable channel item in its library, <c>GetNewItemId(externalId + channelName + "16",
+    /// type)</c> (v10.11 <c>ChannelManager.GetIdToHash</c>); a GUID, as a media source id must be (see
+    /// <see cref="MediaSources.SourceIdFor"/>). Null without a library (tests).
+    /// </summary>
+    private Guid? LibraryItemId(string channelItemId, VodItemKind kind)
+    {
+        if (_library is null)
+        {
+            return null;
+        }
+
+        var type = kind == VodItemKind.Episode ? typeof(MediaBrowser.Controller.Entities.TV.Episode) : typeof(MediaBrowser.Controller.Entities.Movies.Movie);
+        return _library.GetNewItemId(channelItemId + Name + "16", type);
     }
 
     /// <summary>
