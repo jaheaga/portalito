@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## 0.1.2.5 — 2026-10-19
 
 - **Fix: VOD movies and episodes wouldn't start in Jellyfin for Android TV** -- the player opened and never began.
   The app asks Jellyfin for the item's own id as the media source to play, but the channel gave its source a different
