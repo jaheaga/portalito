@@ -9,6 +9,14 @@
     "imageUrl": "https://raw.githubusercontent.com/jaheaga/portalito/main/assets/branding/portalito-banner.png",
     "versions": [
       {
+        "version": "0.1.2.7",
+        "targetAbi": "10.11.0.0",
+        "sourceUrl": "https://github.com/jaheaga/portalito/releases/download/v0.1.2.7/Portalito_0.1.2.7.zip",
+        "checksum": "79bccd2698a52e681cec4eec86a2eab6",
+        "changelog": "Fix: a \"Siguiendo\" episode started from Next Up or Continue Watching played with the default audio and no subtitles the first time, and only offered every language after stopping and starting it again. An episode's tracks were only learned at its first playback, after the app had already picked\u2026",
+        "timestamp": "2026-10-20T14:02:21Z"
+      },
+      {
         "version": "0.1.2.6",
         "targetAbi": "10.11.0.0",
         "sourceUrl": "https://github.com/jaheaga/portalito/releases/download/v0.1.2.6/Portalito_0.1.2.6.zip",
