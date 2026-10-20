@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## 0.1.2.7 — 2026-10-20
 
 - **Fix: a "Siguiendo" episode started from Next Up or Continue Watching played with the default audio and no
   subtitles the first time**, and only offered every language after stopping and starting it again. An episode's
