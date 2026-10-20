@@ -450,6 +450,7 @@ public sealed class PortalitoVodChannelTests : IDisposable
     [Theory]
     [InlineData("mov:MOVIE1", typeof(MediaBrowser.Controller.Entities.Movies.Movie))]
     [InlineData("epi:SER1:EP2", typeof(MediaBrowser.Controller.Entities.TV.Episode))]
+    [InlineData("lch:CARACOL", typeof(MediaBrowser.Controller.Entities.Video))]
     public async Task With_a_library_a_title_s_source_takes_the_library_item_s_own_id(string id, Type itemType)
     {
         _h.Route = VodRoute(_h);
