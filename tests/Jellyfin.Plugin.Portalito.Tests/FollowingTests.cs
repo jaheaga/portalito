@@ -111,6 +111,34 @@ public class FollowingTests : IDisposable
         Assert.True(FollowTrigger.ShouldQueue(ref last, t0 + FollowTrigger.Debounce.Ticks));
     }
 
+    [Fact]
+    public void A_sync_follows_stopping_a_channel_episode_or_a_siguiendo_one_but_nothing_else()
+    {
+        var root = Path.Combine(_root, "siguiendo");
+
+        Assert.True(FollowTrigger.IsPortalitoEpisode(fromChannel: true, "epi:SEASON1:EP2", null, root));
+        Assert.True(FollowTrigger.IsPortalitoEpisode(fromChannel: false, null, Path.Combine(root, "Show [portalito-1]", "Season 01", "S01E02.strm"), root));
+
+        Assert.False(FollowTrigger.IsPortalitoEpisode(fromChannel: true, "mov:MOVIE1", null, root));
+        Assert.False(FollowTrigger.IsPortalitoEpisode(fromChannel: false, null, Path.Combine(_root, "Anime", "Show", "S01E02.mkv"), root));
+        Assert.False(FollowTrigger.IsPortalitoEpisode(fromChannel: false, null, root + "-other" + Path.DirectorySeparatorChar + "S01E02.strm", root));
+    }
+
+    [Fact]
+    public void Only_an_unprobed_strm_episode_needs_getting_ready()
+    {
+        var subtitles = new[] { new MediaStream { Type = MediaStreamType.Subtitle, Language = "spa", IsExternal = true } };
+        var probed = new[] { new MediaStream { Type = MediaStreamType.Video }, new MediaStream { Type = MediaStreamType.Audio, Language = "jpn" } };
+
+        // Never played: no tracks at all, or only the subtitle files beside it.
+        Assert.True(FollowSyncTask.NeedsPreparing("/data/siguiendo/Show/Season 01/S01E198.strm", Array.Empty<MediaStream>()));
+        Assert.True(FollowSyncTask.NeedsPreparing("/data/siguiendo/Show/Season 01/S01E198.STRM", subtitles));
+
+        Assert.False(FollowSyncTask.NeedsPreparing("/data/siguiendo/Show/Season 01/S01E197.strm", probed));
+        Assert.False(FollowSyncTask.NeedsPreparing("/media/Show/S01E01.mkv", Array.Empty<MediaStream>()));
+        Assert.False(FollowSyncTask.NeedsPreparing(null, Array.Empty<MediaStream>()));
+    }
+
     [Theory]
     [InlineData("Alquimia de Almas T1_05", "Alquimia de Almas", 5, "Episodio 5")]
     [InlineData("El reencuentro", "Alquimia de Almas", 5, "El reencuentro")]

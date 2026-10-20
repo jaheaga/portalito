@@ -1,5 +1,13 @@
 # Changelog
 
+## Unreleased
+
+- **Fix: a "Siguiendo" episode started from Next Up or Continue Watching played with the default audio and no
+  subtitles the first time**, and only offered every language after stopping and starting it again. An episode's
+  tracks were only learned at its first playback, after the app had already picked them from the (empty) episode it
+  had. Each sync now gets every Next Up episode ready ahead of time -- subtitles fetched and the stream inspected --
+  and a sync also runs right after stopping a "Siguiendo" episode, not only a channel one.
+
 ## 0.1.2.6 — 2026-10-20
 
 - **Fix: live channels in the channel's "TV en vivo" folder stayed black in Jellyfin for Android TV.** Same cause as
