@@ -8,12 +8,15 @@ using Jellyfin.Plugin.Portalito.Metadata;
 using Jellyfin.Plugin.Portalito.Portal;
 using MediaBrowser.Common.Configuration;
 using MediaBrowser.Controller.Channels;
+using MediaBrowser.Controller.Dto;
 using MediaBrowser.Controller.Entities;
 using MediaBrowser.Controller.Library;
 using MediaBrowser.Controller.Providers;
+using MediaBrowser.Controller.TV;
 using MediaBrowser.Model.Channels;
 using MediaBrowser.Model.Entities;
 using MediaBrowser.Model.IO;
+using MediaBrowser.Model.Querying;
 using MediaBrowser.Model.Tasks;
 using Microsoft.Extensions.Logging;
 
@@ -29,9 +32,10 @@ namespace Jellyfin.Plugin.Portalito.Following;
 /// the ones nobody follows any more;</item>
 /// <item>scans just this library when files changed;</item>
 /// <item>copies each user's progress from channel episodes to their library copies (<see cref="WatchState"/>);</item>
+/// <item>gets each user's Next Up episodes ready to play (<see cref="PrepareNextUpAsync"/>);</item>
 /// <item>keeps the library hidden from menus and readable by whoever sees the channel (<see cref="FollowLibrary"/>).</item>
 /// </list>
-/// Runs at startup, every 30 minutes, and shortly after someone stops a channel episode (<see cref="FollowTrigger"/>).
+/// Runs at startup, every 30 minutes, and shortly after someone stops a Portalito episode (<see cref="FollowTrigger"/>).
 /// </summary>
 public sealed class FollowSyncTask : IScheduledTask
 {
@@ -48,6 +52,8 @@ public sealed class FollowSyncTask : IScheduledTask
     private readonly RuntimeStore _runtimes;
     private readonly ShowIndex _shows;
     private readonly FollowStore _store;
+    private readonly FollowSubtitles _subtitles;
+    private readonly ITVSeriesManager _tvSeries;
     private readonly ILogger<FollowSyncTask> _logger;
 
     private bool _seriesKeysChecked;
@@ -66,6 +72,8 @@ public sealed class FollowSyncTask : IScheduledTask
         RuntimeStore runtimes,
         ShowIndex shows,
         FollowStore store,
+        FollowSubtitles subtitles,
+        ITVSeriesManager tvSeries,
         ILogger<FollowSyncTask> logger)
     {
         _channels = channels;
@@ -78,6 +86,8 @@ public sealed class FollowSyncTask : IScheduledTask
         _runtimes = runtimes;
         _shows = shows;
         _store = store;
+        _subtitles = subtitles;
+        _tvSeries = tvSeries;
         _logger = logger;
     }
 
@@ -214,11 +224,13 @@ public sealed class FollowSyncTask : IScheduledTask
 
         progress.Report(90);
         var copied = CopyWatchState(library, channelPlays, cancellationToken);
+        var prepared = await PrepareNextUpAsync(library, users, cancellationToken).ConfigureAwait(false);
         _logger.LogInformation(
-            "Siguiendo: {Shows} shows followed{Changed}, {Copied} episode states copied from the channel, {Users} users updated",
+            "Siguiendo: {Shows} shows followed{Changed}, {Copied} episode states copied from the channel, {Prepared} Next Up episodes made ready, {Users} users updated",
             follow.Count,
             changed ? " (files updated)" : string.Empty,
             copied,
+            prepared,
             usersChanged);
         progress.Report(100);
     }
@@ -562,6 +574,63 @@ public sealed class FollowSyncTask : IScheduledTask
         using var response = await services.Proxy.OpenImageAsync(new Uri(url), cancellationToken).ConfigureAwait(false);
         return response.IsSuccessStatusCode ? await response.Content.ReadAsByteArrayAsync(cancellationToken).ConfigureAwait(false) : null;
     }
+
+    /// <summary>How many Next Up episodes one run gets ready, each a portal play call and a probe; the rest wait for the next run.</summary>
+    private const int NextUpPerRun = 10;
+
+    /// <summary>
+    /// Gets every user's Next Up episodes in the library ready before anyone clicks them: their subtitle files saved and
+    /// the .strm probed, as the playback-info call would (<see cref="FollowPlaybackFilter"/>, then Jellyfin's re-probe).
+    /// Clients pick the audio and subtitle tracks from the episode they already hold, before that call: an episode never
+    /// played has none, so from Next Up it started with the default audio and no subtitles, and only a second start got
+    /// the user's languages (production, 2026-10-20). Returns how many episodes were made ready.
+    /// </summary>
+    private async Task<int> PrepareNextUpAsync(Folder library, IReadOnlyList<User> users, CancellationToken cancellationToken)
+    {
+        List<BaseItem> pending;
+        try
+        {
+            pending = users
+                .SelectMany(user => _tvSeries.GetNextUp(new NextUpQuery { User = user, EnableTotalRecordCount = false }, new BaseItem[] { library }, new DtoOptions(false)).Items)
+                .Where(episode => NeedsPreparing(episode.Path, episode.GetMediaStreams()))
+                .DistinctBy(episode => episode.Id)
+                .Take(NextUpPerRun)
+                .ToList();
+        }
+        catch (Exception ex) when (ex is not OperationCanceledException)
+        {
+            _logger.LogWarning(ex, "Siguiendo: couldn't read Next Up to get its episodes ready");
+            return 0;
+        }
+
+        var prepared = 0;
+        foreach (var episode in pending)
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            await _subtitles.EnsureAsync(episode.Path, cancellationToken).ConfigureAwait(false);
+            try
+            {
+                // What Jellyfin does to a .strm at playback (MediaSourceManager.GetPlaybackMediaSources); a fresh directory
+                // service, so it sees the subtitle files just written.
+                await episode.RefreshMetadata(
+                    new MetadataRefreshOptions(new DirectoryService(_fileSystem)) { EnableRemoteContentProbe = true, MetadataRefreshMode = MetadataRefreshMode.FullRefresh },
+                    cancellationToken).ConfigureAwait(false);
+                prepared += NeedsPreparing(episode.Path, episode.GetMediaStreams()) ? 0 : 1;
+            }
+            catch (Exception ex) when (ex is not OperationCanceledException || !cancellationToken.IsCancellationRequested)
+            {
+                // It still plays as before, getting its tracks at the first start; the next run tries again.
+                _logger.LogWarning("Siguiendo: couldn't get {Episode} ready ahead of playback ({Reason})", episode.Path, ex.Message);
+            }
+        }
+
+        return prepared;
+    }
+
+    /// <summary>Whether a library episode is one of our .strm files that hasn't been probed yet (no audio track known).</summary>
+    internal static bool NeedsPreparing(string? path, IEnumerable<MediaStream> streams)
+        => path is not null && path.EndsWith(".strm", StringComparison.OrdinalIgnoreCase)
+            && !streams.Any(s => s.Type == MediaStreamType.Audio);
 
     /// <summary>
     /// Copies each user's newer channel progress onto the episode's library copy, and then clears the channel copy's
