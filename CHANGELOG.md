@@ -1,5 +1,11 @@
 # Changelog
 
+## Unreleased
+
+- **Fix: live channels in the channel's "TV en vivo" folder stayed black in Jellyfin for Android TV.** Same cause as
+  0.1.2.5's VOD fix: their source didn't carry the item's own id, so Jellyfin found no match and the player never
+  started. Live channels in Jellyfin's own Live TV section weren't affected.
+
 ## 0.1.2.5 — 2026-10-19
 
 - **Fix: VOD movies and episodes wouldn't start in Jellyfin for Android TV** -- the player opened and never began.

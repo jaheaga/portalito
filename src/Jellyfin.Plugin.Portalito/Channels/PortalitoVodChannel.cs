@@ -285,8 +285,9 @@ public sealed class PortalitoVodChannel : IChannel, IRequiresMediaInfoCallback, 
         if (item.Kind == VodItemKind.LiveChannel)
         {
             // Same signed HLS proxy source Jellyfin's Live TV section plays; no portal call until ffmpeg fetches it.
+            // Its source takes the library item's id, as a title's does below: otherwise Android TV opens it and stays black.
             var live = MediaSources.Live(item.Primary, services.Signer.LivePlaylistUrl(item.Primary, MediaSources.LiveUrlValidity));
-            live.Id = MediaSources.SourceIdFor(id);
+            live.Id = (LibraryItemId(id, item.Kind) ?? Guid.Parse(MediaSources.SourceIdFor(id))).ToString("N");
             return new[] { live };
         }
 
@@ -385,7 +386,13 @@ public sealed class PortalitoVodChannel : IChannel, IRequiresMediaInfoCallback, 
             return null;
         }
 
-        var type = kind == VodItemKind.Episode ? typeof(MediaBrowser.Controller.Entities.TV.Episode) : typeof(MediaBrowser.Controller.Entities.Movies.Movie);
+        // The type Jellyfin files the item under: a live channel has no content type, so it's a plain Video.
+        var type = kind switch
+        {
+            VodItemKind.Episode => typeof(MediaBrowser.Controller.Entities.TV.Episode),
+            VodItemKind.LiveChannel => typeof(MediaBrowser.Controller.Entities.Video),
+            _ => typeof(MediaBrowser.Controller.Entities.Movies.Movie),
+        };
         return _library.GetNewItemId(channelItemId + Name + "16", type);
     }
 
