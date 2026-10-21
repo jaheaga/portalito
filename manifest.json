@@ -9,6 +9,14 @@
     "imageUrl": "https://raw.githubusercontent.com/jaheaga/portalito/main/assets/branding/portalito-banner.png",
     "versions": [
       {
+        "version": "0.1.2.9",
+        "targetAbi": "10.11.0.0",
+        "sourceUrl": "https://github.com/jaheaga/portalito/releases/download/v0.1.2.9/Portalito_0.1.2.9.zip",
+        "checksum": "7854957755f0cb9fc0748c4e7d6b4352",
+        "changelog": "A \"Siguiendo\" episode picked out of order -- skipping filler, jumping ahead -- starts with your audio and subtitles the first time. Opening an episode that isn't ready yet now gets it ready (subtitles fetched, stream inspected) before its page loads. That first open can take a few seconds longer,\u2026",
+        "timestamp": "2026-10-21T14:43:42Z"
+      },
+      {
         "version": "0.1.2.8",
         "targetAbi": "10.11.0.0",
         "sourceUrl": "https://github.com/jaheaga/portalito/releases/download/v0.1.2.8/Portalito_0.1.2.8.zip",
