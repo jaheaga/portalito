@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.1.2.8 — 2026-10-21
+
+- **Fix: the player's "next episode" button started a "Siguiendo" episode with the default audio and no subtitles.**
+  0.1.2.7 got the Next Up episode ready ahead of time, but not the one after it, which is what that button opens
+  while the Next Up one plays. Each sync now gets both ready.
+
 ## 0.1.2.7 — 2026-10-20
 
 - **Fix: a "Siguiendo" episode started from Next Up or Continue Watching played with the default audio and no
