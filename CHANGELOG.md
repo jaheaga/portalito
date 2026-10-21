@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.1.2.9 — 2026-10-21
+
+- **A "Siguiendo" episode picked out of order -- skipping filler, jumping ahead -- starts with your audio and
+  subtitles the first time.** Opening an episode that isn't ready yet now gets it ready (subtitles fetched, stream
+  inspected) before its page loads. That first open can take a few seconds longer, at most 10; after that it's
+  instant. The upcoming episodes the sync prepares in the background open as fast as before.
+
 ## 0.1.2.8 — 2026-10-21
 
 - **Fix: the player's "next episode" button started a "Siguiendo" episode with the default audio and no subtitles.**
