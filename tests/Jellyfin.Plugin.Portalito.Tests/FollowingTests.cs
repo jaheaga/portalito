@@ -124,6 +124,19 @@ public class FollowingTests : IDisposable
         Assert.False(FollowTrigger.IsPortalitoEpisode(fromChannel: false, null, root + "-other" + Path.DirectorySeparatorChar + "S01E02.strm", root));
     }
 
+    private sealed record Numbered(int Season, int Number);
+
+    [Fact]
+    public void The_episode_after_is_the_next_by_season_then_number_in_any_order()
+    {
+        var episodes = new[] { new Numbered(1, 199), new Numbered(2, 1), new Numbered(1, 201), new Numbered(1, 200), new Numbered(0, 3) };
+        (int, int) Key(Numbered e) => (e.Season, e.Number);
+
+        Assert.Equal(new Numbered(1, 201), FollowSyncTask.EpisodeAfter(episodes, new Numbered(1, 200), Key));
+        Assert.Equal(new Numbered(2, 1), FollowSyncTask.EpisodeAfter(episodes, new Numbered(1, 201), Key));
+        Assert.Null(FollowSyncTask.EpisodeAfter(episodes, new Numbered(2, 1), Key));
+    }
+
     [Fact]
     public void Only_an_unprobed_strm_episode_needs_getting_ready()
     {
