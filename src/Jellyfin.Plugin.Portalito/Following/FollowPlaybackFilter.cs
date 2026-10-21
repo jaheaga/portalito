@@ -28,6 +28,9 @@ namespace Jellyfin.Plugin.Portalito.Following;
 /// <item>after it, subtitle links that are a path on this server's disk are pointed at Jellyfin's subtitle endpoint
 /// (<see cref="ServeSubtitlesFromServer"/>).</item>
 /// </list>
+/// And on the call that loads one item (an episode's page), an episode not yet ready to play is made ready first
+/// (<see cref="EpisodePreparer"/>), waiting up to <see cref="PageWait"/>: the sync only prepares the episodes coming up
+/// next, and one picked out of order (skipping filler) would otherwise start with the default audio and no subtitles.
 /// </summary>
 public sealed class FollowPlaybackFilter : IAsyncActionFilter
 {
@@ -41,24 +44,44 @@ public sealed class FollowPlaybackFilter : IAsyncActionFilter
     private readonly IUserManager _users;
     private readonly IApplicationPaths _paths;
     private readonly FollowSubtitles _subtitles;
+    private readonly EpisodePreparer _preparer;
 
-    public FollowPlaybackFilter(ILibraryManager library, IUserManager users, IApplicationPaths paths, FollowSubtitles subtitles)
+    /// <summary>How long an episode's page waits for it to be made ready; past that it loads as is and the work carries on.</summary>
+    internal static readonly TimeSpan PageWait = TimeSpan.FromSeconds(10);
+
+    public FollowPlaybackFilter(ILibraryManager library, IUserManager users, IApplicationPaths paths, FollowSubtitles subtitles, EpisodePreparer preparer)
     {
         _library = library;
         _users = users;
         _paths = paths;
         _subtitles = subtitles;
+        _preparer = preparer;
     }
 
     public async Task OnActionExecutionAsync(ActionExecutingContext context, ActionExecutionDelegate next)
     {
-        var item = IsPlaybackInfo(context.ActionDescriptor as ControllerActionDescriptor)
+        var action = context.ActionDescriptor as ControllerActionDescriptor;
+        var isPage = IsItemPage(action);
+        var item = (isPage || IsPlaybackInfo(action))
                    && context.ActionArguments.TryGetValue("itemId", out var raw) && raw is Guid itemId
+                   && !itemId.Equals(Guid.Empty) // the user's root folder, on the page call; GetItemById throws for it
                    && Plugin.Instance?.Configuration is { } config
                    && _library.GetItemById(itemId) is { } found
                    && FollowLibrary.Contains(FollowLibrary.Root(config, _paths.DataPath), found.Path)
             ? found
             : null;
+
+        if (isPage)
+        {
+            if (item is not null && EpisodePreparer.NeedsPreparing(item.Path, item.GetMediaStreams())
+                && Caller(context) is { } viewer && item.IsVisible(viewer, false))
+            {
+                await PrepareForPageAsync(item, context.HttpContext.RequestAborted).ConfigureAwait(false);
+            }
+
+            await next().ConfigureAwait(false);
+            return;
+        }
 
         if (item is not null)
         {
@@ -119,6 +142,25 @@ public sealed class FollowPlaybackFilter : IAsyncActionFilter
             source.SupportsDirectStream = false;
         }
     }
+
+    /// <summary>Makes the episode ready, giving up waiting (not the work) after <see cref="PageWait"/> or when the client leaves.</summary>
+    private async Task PrepareForPageAsync(BaseItem item, CancellationToken requestAborted)
+    {
+        using var wait = CancellationTokenSource.CreateLinkedTokenSource(requestAborted);
+        wait.CancelAfter(PageWait);
+        try
+        {
+            await _preparer.PrepareAsync(item, wait.Token).ConfigureAwait(false);
+        }
+        catch (OperationCanceledException) when (!requestAborted.IsCancellationRequested)
+        {
+            // Still preparing: the page shows the episode as it is now, and it's ready by the time it's opened again.
+        }
+    }
+
+    /// <summary>The call that loads one item for its page: <c>/Items/{itemId}</c> and the older <c>/Users/{userId}/Items/{itemId}</c>.</summary>
+    internal static bool IsItemPage(ControllerActionDescriptor? action)
+        => action is { ControllerName: "UserLibrary", ActionName: "GetItem" or "GetItemLegacy" };
 
     /// <summary>The <c>/Items/{itemId}/PlaybackInfo</c> calls (POST, which current clients make, and the older GET).</summary>
     internal static bool IsPlaybackInfo(ControllerActionDescriptor? action)

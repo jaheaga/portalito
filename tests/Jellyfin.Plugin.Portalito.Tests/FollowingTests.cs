@@ -144,12 +144,12 @@ public class FollowingTests : IDisposable
         var probed = new[] { new MediaStream { Type = MediaStreamType.Video }, new MediaStream { Type = MediaStreamType.Audio, Language = "jpn" } };
 
         // Never played: no tracks at all, or only the subtitle files beside it.
-        Assert.True(FollowSyncTask.NeedsPreparing("/data/siguiendo/Show/Season 01/S01E198.strm", Array.Empty<MediaStream>()));
-        Assert.True(FollowSyncTask.NeedsPreparing("/data/siguiendo/Show/Season 01/S01E198.STRM", subtitles));
+        Assert.True(EpisodePreparer.NeedsPreparing("/data/siguiendo/Show/Season 01/S01E198.strm", Array.Empty<MediaStream>()));
+        Assert.True(EpisodePreparer.NeedsPreparing("/data/siguiendo/Show/Season 01/S01E198.STRM", subtitles));
 
-        Assert.False(FollowSyncTask.NeedsPreparing("/data/siguiendo/Show/Season 01/S01E197.strm", probed));
-        Assert.False(FollowSyncTask.NeedsPreparing("/media/Show/S01E01.mkv", Array.Empty<MediaStream>()));
-        Assert.False(FollowSyncTask.NeedsPreparing(null, Array.Empty<MediaStream>()));
+        Assert.False(EpisodePreparer.NeedsPreparing("/data/siguiendo/Show/Season 01/S01E197.strm", probed));
+        Assert.False(EpisodePreparer.NeedsPreparing("/media/Show/S01E01.mkv", Array.Empty<MediaStream>()));
+        Assert.False(EpisodePreparer.NeedsPreparing(null, Array.Empty<MediaStream>()));
     }
 
     [Theory]
@@ -421,6 +421,16 @@ public class FollowingTests : IDisposable
         Assert.True(FollowPlaybackFilter.IsPlaybackInfo(new ControllerActionDescriptor { ControllerName = "MediaInfo", ActionName = "GetPlaybackInfo" }));
         Assert.False(FollowPlaybackFilter.IsPlaybackInfo(new ControllerActionDescriptor { ControllerName = "Items", ActionName = "GetItems" }));
         Assert.False(FollowPlaybackFilter.IsPlaybackInfo(null));
+    }
+
+    [Fact]
+    public void An_episode_page_is_the_single_item_call_in_either_route()
+    {
+        Assert.True(FollowPlaybackFilter.IsItemPage(new ControllerActionDescriptor { ControllerName = "UserLibrary", ActionName = "GetItem" }));
+        Assert.True(FollowPlaybackFilter.IsItemPage(new ControllerActionDescriptor { ControllerName = "UserLibrary", ActionName = "GetItemLegacy" }));
+        Assert.False(FollowPlaybackFilter.IsItemPage(new ControllerActionDescriptor { ControllerName = "Items", ActionName = "GetItems" }));
+        Assert.False(FollowPlaybackFilter.IsItemPage(new ControllerActionDescriptor { ControllerName = "MediaInfo", ActionName = "GetPostedPlaybackInfo" }));
+        Assert.False(FollowPlaybackFilter.IsItemPage(null));
     }
 
     [Fact]
