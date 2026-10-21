@@ -10,6 +10,7 @@ using MediaBrowser.Common.Configuration;
 using MediaBrowser.Controller.Channels;
 using MediaBrowser.Controller.Dto;
 using MediaBrowser.Controller.Entities;
+using MediaBrowser.Controller.Entities.TV;
 using MediaBrowser.Controller.Library;
 using MediaBrowser.Controller.Providers;
 using MediaBrowser.Controller.TV;
@@ -32,7 +33,7 @@ namespace Jellyfin.Plugin.Portalito.Following;
 /// the ones nobody follows any more;</item>
 /// <item>scans just this library when files changed;</item>
 /// <item>copies each user's progress from channel episodes to their library copies (<see cref="WatchState"/>);</item>
-/// <item>gets each user's Next Up episodes ready to play (<see cref="PrepareNextUpAsync"/>);</item>
+/// <item>gets each user's Next Up episodes, and the ones after them, ready to play (<see cref="PrepareNextUpAsync"/>);</item>
 /// <item>keeps the library hidden from menus and readable by whoever sees the channel (<see cref="FollowLibrary"/>).</item>
 /// </list>
 /// Runs at startup, every 30 minutes, and shortly after someone stops a Portalito episode (<see cref="FollowTrigger"/>).
@@ -226,7 +227,7 @@ public sealed class FollowSyncTask : IScheduledTask
         var copied = CopyWatchState(library, channelPlays, cancellationToken);
         var prepared = await PrepareNextUpAsync(library, users, cancellationToken).ConfigureAwait(false);
         _logger.LogInformation(
-            "Siguiendo: {Shows} shows followed{Changed}, {Copied} episode states copied from the channel, {Prepared} Next Up episodes made ready, {Users} users updated",
+            "Siguiendo: {Shows} shows followed{Changed}, {Copied} episode states copied from the channel, {Prepared} upcoming episodes made ready, {Users} users updated",
             follow.Count,
             changed ? " (files updated)" : string.Empty,
             copied,
@@ -575,7 +576,7 @@ public sealed class FollowSyncTask : IScheduledTask
         return response.IsSuccessStatusCode ? await response.Content.ReadAsByteArrayAsync(cancellationToken).ConfigureAwait(false) : null;
     }
 
-    /// <summary>How many Next Up episodes one run gets ready, each a portal play call and a probe; the rest wait for the next run.</summary>
+    /// <summary>How many episodes one run gets ready, each a portal play call and a probe; the rest wait for the next run.</summary>
     private const int NextUpPerRun = 10;
 
     /// <summary>
@@ -583,17 +584,28 @@ public sealed class FollowSyncTask : IScheduledTask
     /// the .strm probed, as the playback-info call would (<see cref="FollowPlaybackFilter"/>, then Jellyfin's re-probe).
     /// Clients pick the audio and subtitle tracks from the episode they already hold, before that call: an episode never
     /// played has none, so from Next Up it started with the default audio and no subtitles, and only a second start got
-    /// the user's languages (production, 2026-10-20). Returns how many episodes were made ready.
+    /// the user's languages (production, 2026-10-20). The episode after each one too: it's what the player's "next
+    /// episode" button opens while the Next Up one plays, and it started in the default audio the same way (Wholphin,
+    /// 2026-10-20). Each sync -- one follows every stop -- moves both along, so the next one is always ready. Returns how
+    /// many episodes were made ready.
     /// </summary>
     private async Task<int> PrepareNextUpAsync(Folder library, IReadOnlyList<User> users, CancellationToken cancellationToken)
     {
         List<BaseItem> pending;
         try
         {
-            pending = users
+            var nextUp = users
                 .SelectMany(user => _tvSeries.GetNextUp(new NextUpQuery { User = user, EnableTotalRecordCount = false }, new BaseItem[] { library }, new DtoOptions(false)).Items)
+                .OfType<Episode>()
+                .DistinctBy(episode => episode.Id)
+                .ToList();
+
+            // Next Up first: if a run can't do them all, the episode about to be clicked goes before the one after it.
+            pending = nextUp
+                .Concat(nextUp.Select(EpisodeAfter).OfType<Episode>())
                 .Where(episode => NeedsPreparing(episode.Path, episode.GetMediaStreams()))
                 .DistinctBy(episode => episode.Id)
+                .Cast<BaseItem>()
                 .Take(NextUpPerRun)
                 .ToList();
         }
@@ -625,6 +637,21 @@ public sealed class FollowSyncTask : IScheduledTask
         }
 
         return prepared;
+    }
+
+    /// <summary>The series' episode that comes after <paramref name="episode"/>, by season and number; null for its last one.</summary>
+    private Episode? EpisodeAfter(Episode episode)
+        => EpisodeAfter(
+            _library.GetItemList(new InternalItemsQuery { IncludeItemTypes = new[] { BaseItemKind.Episode }, AncestorIds = new[] { episode.SeriesId } }).OfType<Episode>(),
+            episode,
+            e => (e.ParentIndexNumber ?? 0, e.IndexNumber ?? 0));
+
+    /// <summary>The first of <paramref name="episodes"/> numbered after <paramref name="current"/> (season, then episode); null if none is.</summary>
+    internal static T? EpisodeAfter<T>(IEnumerable<T> episodes, T current, Func<T, (int Season, int Number)> number)
+        where T : class
+    {
+        var at = number(current);
+        return episodes.Where(e => number(e).CompareTo(at) > 0).MinBy(number);
     }
 
     /// <summary>Whether a library episode is one of our .strm files that hasn't been probed yet (no audio track known).</summary>
