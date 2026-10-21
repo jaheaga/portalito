@@ -9,6 +9,14 @@
     "imageUrl": "https://raw.githubusercontent.com/jaheaga/portalito/main/assets/branding/portalito-banner.png",
     "versions": [
       {
+        "version": "0.1.2.8",
+        "targetAbi": "10.11.0.0",
+        "sourceUrl": "https://github.com/jaheaga/portalito/releases/download/v0.1.2.8/Portalito_0.1.2.8.zip",
+        "checksum": "0147e0973bd6f3e94715993540dcb1cb",
+        "changelog": "Fix: the player's \"next episode\" button started a \"Siguiendo\" episode with the default audio and no subtitles. 0.1.2.7 got the Next Up episode ready ahead of time, but not the one after it, which is what that button opens while the Next Up one plays. Each sync now gets both ready.",
+        "timestamp": "2026-10-21T14:35:32Z"
+      },
+      {
         "version": "0.1.2.7",
         "targetAbi": "10.11.0.0",
         "sourceUrl": "https://github.com/jaheaga/portalito/releases/download/v0.1.2.7/Portalito_0.1.2.7.zip",
