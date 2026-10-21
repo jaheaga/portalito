@@ -53,7 +53,7 @@ public sealed class FollowSyncTask : IScheduledTask
     private readonly RuntimeStore _runtimes;
     private readonly ShowIndex _shows;
     private readonly FollowStore _store;
-    private readonly FollowSubtitles _subtitles;
+    private readonly EpisodePreparer _preparer;
     private readonly ITVSeriesManager _tvSeries;
     private readonly ILogger<FollowSyncTask> _logger;
 
@@ -73,7 +73,7 @@ public sealed class FollowSyncTask : IScheduledTask
         RuntimeStore runtimes,
         ShowIndex shows,
         FollowStore store,
-        FollowSubtitles subtitles,
+        EpisodePreparer preparer,
         ITVSeriesManager tvSeries,
         ILogger<FollowSyncTask> logger)
     {
@@ -87,7 +87,7 @@ public sealed class FollowSyncTask : IScheduledTask
         _runtimes = runtimes;
         _shows = shows;
         _store = store;
-        _subtitles = subtitles;
+        _preparer = preparer;
         _tvSeries = tvSeries;
         _logger = logger;
     }
@@ -580,14 +580,11 @@ public sealed class FollowSyncTask : IScheduledTask
     private const int NextUpPerRun = 10;
 
     /// <summary>
-    /// Gets every user's Next Up episodes in the library ready before anyone clicks them: their subtitle files saved and
-    /// the .strm probed, as the playback-info call would (<see cref="FollowPlaybackFilter"/>, then Jellyfin's re-probe).
-    /// Clients pick the audio and subtitle tracks from the episode they already hold, before that call: an episode never
-    /// played has none, so from Next Up it started with the default audio and no subtitles, and only a second start got
-    /// the user's languages (production, 2026-10-20). The episode after each one too: it's what the player's "next
-    /// episode" button opens while the Next Up one plays, and it started in the default audio the same way (Wholphin,
-    /// 2026-10-20). Each sync -- one follows every stop -- moves both along, so the next one is always ready. Returns how
-    /// many episodes were made ready.
+    /// Gets every user's Next Up episodes in the library ready before anyone clicks them (<see cref="EpisodePreparer"/>):
+    /// from Next Up, an episode never played started with the default audio and no subtitles. The episode after each one
+    /// too: it's what the player's "next episode" button opens while the Next Up one plays, and it started in the default
+    /// audio the same way (Wholphin, 2026-10-20). Each sync -- one follows every stop -- moves both along, so the next one
+    /// is always ready. Returns how many episodes were made ready.
     /// </summary>
     private async Task<int> PrepareNextUpAsync(Folder library, IReadOnlyList<User> users, CancellationToken cancellationToken)
     {
@@ -603,7 +600,7 @@ public sealed class FollowSyncTask : IScheduledTask
             // Next Up first: if a run can't do them all, the episode about to be clicked goes before the one after it.
             pending = nextUp
                 .Concat(nextUp.Select(EpisodeAfter).OfType<Episode>())
-                .Where(episode => NeedsPreparing(episode.Path, episode.GetMediaStreams()))
+                .Where(episode => EpisodePreparer.NeedsPreparing(episode.Path, episode.GetMediaStreams()))
                 .DistinctBy(episode => episode.Id)
                 .Cast<BaseItem>()
                 .Take(NextUpPerRun)
@@ -619,21 +616,7 @@ public sealed class FollowSyncTask : IScheduledTask
         foreach (var episode in pending)
         {
             cancellationToken.ThrowIfCancellationRequested();
-            await _subtitles.EnsureAsync(episode.Path, cancellationToken).ConfigureAwait(false);
-            try
-            {
-                // What Jellyfin does to a .strm at playback (MediaSourceManager.GetPlaybackMediaSources); a fresh directory
-                // service, so it sees the subtitle files just written.
-                await episode.RefreshMetadata(
-                    new MetadataRefreshOptions(new DirectoryService(_fileSystem)) { EnableRemoteContentProbe = true, MetadataRefreshMode = MetadataRefreshMode.FullRefresh },
-                    cancellationToken).ConfigureAwait(false);
-                prepared += NeedsPreparing(episode.Path, episode.GetMediaStreams()) ? 0 : 1;
-            }
-            catch (Exception ex) when (ex is not OperationCanceledException || !cancellationToken.IsCancellationRequested)
-            {
-                // It still plays as before, getting its tracks at the first start; the next run tries again.
-                _logger.LogWarning("Siguiendo: couldn't get {Episode} ready ahead of playback ({Reason})", episode.Path, ex.Message);
-            }
+            prepared += await _preparer.PrepareAsync(episode, cancellationToken).ConfigureAwait(false) ? 1 : 0;
         }
 
         return prepared;
@@ -653,11 +636,6 @@ public sealed class FollowSyncTask : IScheduledTask
         var at = number(current);
         return episodes.Where(e => number(e).CompareTo(at) > 0).MinBy(number);
     }
-
-    /// <summary>Whether a library episode is one of our .strm files that hasn't been probed yet (no audio track known).</summary>
-    internal static bool NeedsPreparing(string? path, IEnumerable<MediaStream> streams)
-        => path is not null && path.EndsWith(".strm", StringComparison.OrdinalIgnoreCase)
-            && !streams.Any(s => s.Type == MediaStreamType.Audio);
 
     /// <summary>
     /// Copies each user's newer channel progress onto the episode's library copy, and then clears the channel copy's

@@ -46,6 +46,7 @@ public class PluginServiceRegistrator : IPluginServiceRegistrator
         serviceCollection.AddSingleton(sp => new Following.FollowStore(
             Path.Combine(sp.GetRequiredService<IApplicationPaths>().DataPath, "portalito", "following.json")));
         serviceCollection.AddSingleton<Following.FollowSubtitles>();
+        serviceCollection.AddSingleton<Following.EpisodePreparer>();
         serviceCollection.AddHostedService<Following.FollowTrigger>();
         serviceCollection.Configure<MvcOptions>(options => options.Filters.Add<Following.FollowPlaybackFilter>());
         // Destacado rows listed best-rated first: Jellyfin sorts channel folders with the client's (A-Z) sort.
