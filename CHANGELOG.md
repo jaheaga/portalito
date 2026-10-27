@@ -1,5 +1,13 @@
 # Changelog
 
+## 0.1.2.11 — 2026-10-27
+
+- **The anime sub-genre rows are now part of the default home.** 0.1.2.10 added them as an option; now a fresh
+  install (and any install still on the default rows) gets Shōnen, Seinen, Shōjo y Josei, Isekai, Vida escolar,
+  Recuentos de la vida, Ciencia ficción y espacio, Sobrenatural y mitología, Deportes, Mecha and "Anime mejor
+  valorado" out of the box, alongside the existing rows. Existing installs still on a previous default are
+  upgraded automatically on this release; customized rows are left untouched.
+
 ## 0.1.2.10 — 2026-10-27
 
 - **More anime "Destacado" rows, by sub-genre.** The home can now browse anime the way fans think of it —

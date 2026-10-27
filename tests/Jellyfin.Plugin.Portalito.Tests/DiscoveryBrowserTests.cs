@@ -43,7 +43,9 @@ public class DiscoveryBrowserTests
             {
                 "Tendencias", "Estrenos en cine", "Próximamente", "Películas populares", "Series populares",
                 "Originales Netflix", "Apple TV+", "Disney+", "HBO", "Prime Video", "Paramount+", "BBC", "En emisión hoy",
-                "Anime del momento", "Películas de anime", "Series coreanas", "Películas mejor valoradas", "Series mejor valoradas",
+                "Anime del momento", "Anime mejor valorado", "Películas de anime", "Shonen", "Seinen", "Shojo y Josei",
+                "Isekai", "Vida escolar", "Recuentos de la vida", "Ciencia ficción y espacio", "Sobrenatural y mitología",
+                "Deportes", "Mecha", "Series coreanas", "Películas mejor valoradas", "Series mejor valoradas",
             },
             rows.Select(r => r.Label));
         Assert.All(rows, r => Assert.NotNull(TmdbLists.Endpoint(r)));
@@ -52,7 +54,8 @@ public class DiscoveryBrowserTests
         Assert.Equal("4|332|3|100", TmdbLists.Endpoint(rows[11])!.Value.Query["with_networks"]);
         Assert.Equal("GB", TmdbLists.Endpoint(rows[11])!.Value.Query["with_origin_country"]);
         Assert.Equal("JP|KR", TmdbLists.Endpoint(rows[13])!.Value.Query["with_origin_country"]);
-        Assert.Equal("16,10764,10767", TmdbLists.Endpoint(rows[15])!.Value.Query["without_genres"]);
+        Assert.Equal("207826", TmdbLists.Endpoint(rows[16])!.Value.Query["with_keywords"]); // Shonen
+        Assert.Equal("16,10764,10767", TmdbLists.Endpoint(rows[26])!.Value.Query["without_genres"]); // Series coreanas
         Assert.Equal(Configuration.PluginConfiguration.DefaultFeaturedRows, new Configuration.PluginConfiguration().FeaturedRows);
     }
 

@@ -180,7 +180,7 @@ public class PortalitoRuntimeTests
         Assert.Null(runtime.Get().Discovery); // no TMDB key yet
 
         config.TmdbApiKey = "abc123";
-        Assert.Equal(18, runtime.Get().Discovery!.Rows.Count);
+        Assert.Equal(29, runtime.Get().Discovery!.Rows.Count);
 
         config.FeaturedRows = string.Empty;
         Assert.Null(runtime.Get().Discovery); // back to the portal's own rows
@@ -232,6 +232,17 @@ public class PortalitoRuntimeTests
         Assert.True(config.ApplyMigrations());
         Assert.Equal(PluginConfiguration.DefaultFeaturedRows, config.FeaturedRows);
         Assert.Contains("network=bbc", config.FeaturedRows, StringComparison.Ordinal);
+        Assert.False(config.ApplyMigrations());
+    }
+
+    [Fact]
+    public void Rows_still_at_the_pre_anime_default_get_the_anime_sub_genre_rows_once()
+    {
+        var config = new PluginConfiguration { FeaturedRows = PluginConfiguration.PreAnimeDefaultFeaturedRows + " ", FeaturedRowsSeeded = true };
+
+        Assert.True(config.ApplyMigrations());
+        Assert.Equal(PluginConfiguration.DefaultFeaturedRows, config.FeaturedRows);
+        Assert.Contains("keyword=237451", config.FeaturedRows, StringComparison.Ordinal); // Isekai
         Assert.False(config.ApplyMigrations());
     }
 

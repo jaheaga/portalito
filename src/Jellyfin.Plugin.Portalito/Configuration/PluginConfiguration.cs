@@ -126,7 +126,15 @@ public class PluginConfiguration : BasePluginConfiguration
     private const string GeneralHeadRows =
         "Tendencias | trending | window=week; Estrenos en cine | now-playing; Próximamente | upcoming; Películas populares | popular-movies; Series populares | popular-tv; ";
 
+    // The anime block carries sub-genre/demographic rows TMDB has no genre for: each is a discover-tv row filtered
+    // by a TMDB keyword (community tag) -- shounen 207826, seinen 195668, shoujo 206437, josei 229074, isekai 237451,
+    // school 10873, slice-of-life 9914, sci-fi 281358, space 9882, supernatural 6152, mythology 2035, sports 6075,
+    // mecha 10046 -- so they stay current as new titles are tagged. Only titles the portal has are listed.
     private const string GeneralTailRows =
+        "En emisión hoy | airing-today; Anime del momento | discover-tv | country=JP,KR genre=16 pages=3; Anime mejor valorado | discover-tv | country=JP genre=16 sort=vote_average.desc minvotes=500 pages=3; Películas de anime | discover-movies | country=JP,KR genre=16; Shonen | discover-tv | country=JP genre=16 keyword=207826 pages=3; Seinen | discover-tv | country=JP genre=16 keyword=195668 pages=3; Shojo y Josei | discover-tv | country=JP genre=16 keyword=206437,229074 pages=2; Isekai | discover-tv | country=JP genre=16 keyword=237451 pages=2; Vida escolar | discover-tv | country=JP genre=16 keyword=10873 pages=3; Recuentos de la vida | discover-tv | country=JP genre=16 keyword=9914 pages=3; Ciencia ficción y espacio | discover-tv | country=JP genre=16 keyword=281358,9882 pages=2; Sobrenatural y mitología | discover-tv | country=JP genre=16 keyword=6152,2035 pages=3; Deportes | discover-tv | country=JP genre=16 keyword=6075 pages=2; Mecha | discover-tv | country=JP genre=16 keyword=10046 pages=2; Series coreanas | discover-tv | country=KR nogenre=16,10764,10767 minvotes=20 pages=3; Películas mejor valoradas | top-movies; Series mejor valoradas | top-tv";
+
+    // The tail before the anime sub-genre rows (a single "Anime del momento"); kept only to recognize older saved defaults.
+    private const string PreAnimeGeneralTailRows =
         "En emisión hoy | airing-today; Anime del momento | discover-tv | country=JP,KR genre=16 pages=3; Películas de anime | discover-movies | country=JP,KR genre=16; Series coreanas | discover-tv | country=KR nogenre=16,10764,10767 minvotes=20 pages=3; Películas mejor valoradas | top-movies; Series mejor valoradas | top-tv";
 
     private const string PlatformFilter = "nogenre=10762,10763,10764,10767 minvotes=100 pages=3; ";
@@ -154,11 +162,14 @@ public class PluginConfiguration : BasePluginConfiguration
     internal const string PreviousDefaultFeaturedRows =
         "Tendencias | trending | window=week; Estrenos en cine | now-playing; Próximamente | upcoming; Películas populares | popular-movies; Series populares | popular-tv; En emisión hoy | airing-today; Anime del momento | discover-tv | country=JP,KR genre=16 pages=3; Películas de anime | discover-movies | country=JP,KR genre=16; Series coreanas | discover-tv | country=KR nogenre=16,10764,10767 minvotes=20 pages=3; Películas mejor valoradas | top-movies; Series mejor valoradas | top-tv";
 
-    /// <summary>The default rows before BBC joined the platform rows (0.1.1.3 to the release before this one); upgraded to the current default.</summary>
-    internal const string PreBbcDefaultFeaturedRows = GeneralHeadRows + PreBbcPlatformRows + GeneralTailRows;
+    /// <summary>The default rows before BBC joined the platform rows (0.1.1.3 to 0.1.2.9); upgraded to the current default.</summary>
+    internal const string PreBbcDefaultFeaturedRows = GeneralHeadRows + PreBbcPlatformRows + PreAnimeGeneralTailRows;
+
+    /// <summary>The default rows before the anime sub-genre rows (0.1.2.10: platforms incl. BBC, a single anime row); upgraded to the current default.</summary>
+    internal const string PreAnimeDefaultFeaturedRows = GeneralHeadRows + PlatformRows + PreAnimeGeneralTailRows;
 
     /// <summary>Older defaults a saved config may still hold verbatim; each is upgraded one-time to the current default.</summary>
-    internal static readonly string[] SupersededDefaultFeaturedRows = { PreviousDefaultFeaturedRows, PreBbcDefaultFeaturedRows };
+    internal static readonly string[] SupersededDefaultFeaturedRows = { PreviousDefaultFeaturedRows, PreBbcDefaultFeaturedRows, PreAnimeDefaultFeaturedRows };
 
     /// <summary>
     /// Gets or sets the "Destacado" rows, built from TMDB lists (needs <see cref="TmdbApiKey"/>): rows separated by
