@@ -9,6 +9,14 @@
     "imageUrl": "https://raw.githubusercontent.com/jaheaga/portalito/main/assets/branding/portalito-banner.png",
     "versions": [
       {
+        "version": "0.1.2.10",
+        "targetAbi": "10.11.0.0",
+        "sourceUrl": "https://github.com/jaheaga/portalito/releases/download/v0.1.2.10/Portalito_0.1.2.10.zip",
+        "checksum": "35002d92e8c769866f0a71f236f69a0a",
+        "changelog": "More anime \"Destacado\" rows, by sub-genre. The home can now browse anime the way fans think of it \u2014 Sh\u014dnen, Seinen, Sh\u014djo, Isekai, Vida escolar, Recuentos de la vida, Ciencia ficci\u00f3n, Sobrenatural, Deportes, Mecha \u2014 not just one \"Anime del momento\" row. These use TMDB keywords, so they stay\u2026",
+        "timestamp": "2026-10-27T20:09:26Z"
+      },
+      {
         "version": "0.1.2.9",
         "targetAbi": "10.11.0.0",
         "sourceUrl": "https://github.com/jaheaga/portalito/releases/download/v0.1.2.9/Portalito_0.1.2.9.zip",
