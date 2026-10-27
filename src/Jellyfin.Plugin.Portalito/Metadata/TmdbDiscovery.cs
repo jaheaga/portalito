@@ -7,7 +7,8 @@ namespace Jellyfin.Plugin.Portalito.Metadata;
 /// <summary>
 /// One configured "Destacado" row: a label, a TMDB list <see cref="Source"/> (see <see cref="TmdbLists.Sources"/>) and
 /// its optional parameters (<c>window</c>, <c>type</c>, <c>country</c>, <c>lang</c>, <c>genre</c>, <c>nogenre</c>,
-/// <c>network</c>, <c>provider</c>, <c>region</c>, <c>sort</c>, <c>year</c>, <c>minvotes</c>, <c>pages</c>).
+/// <c>keyword</c>, <c>nokeyword</c>, <c>network</c>, <c>provider</c>, <c>region</c>, <c>sort</c>, <c>year</c>,
+/// <c>minvotes</c>, <c>pages</c>).
 /// </summary>
 public sealed record FeaturedRow(string Label, string Source, IReadOnlyDictionary<string, string> Params);
 
@@ -46,6 +47,8 @@ public static class TmdbLists
     /// <summary>
     /// Streaming platforms by name, as TMDB <b>networks</b> (who made a series: <c>network=netflix</c> lists Netflix
     /// originals; series only). Ids checked against TMDB's <c>/network/{id}</c> on 2026-10-01; "hbo" covers HBO and HBO Max.
+    /// "bbc" is the four BBC channels (One 4, Two 332, Three 3, Four 100) -- NOT 16, which is CBS; pair it with
+    /// <c>country=GB</c> to drop foreign shows the BBC merely aired (verified 2026-10-27: Doctor Who, Red Dwarf, Sherlock).
     /// </summary>
     public static readonly IReadOnlyDictionary<string, string> Networks = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase)
     {
@@ -59,6 +62,7 @@ public static class TmdbLists
         ["hulu"] = "453",
         ["peacock"] = "3353",
         ["crunchyroll"] = "1112",
+        ["bbc"] = "4|332|3|100",
     };
 
     /// <summary>
@@ -116,6 +120,10 @@ public static class TmdbLists
             Add(query, "with_original_language", Or(Get(p, "lang")));
             Add(query, "with_genres", Or(Get(p, "genre")));
             Add(query, "without_genres", Get(p, "nogenre"));
+            // TMDB keywords (community tags): the only way to filter anime sub-genres/demographics TMDB has no genre
+            // for -- e.g. keyword=237451 (isekai), 207826 (shounen), 9914 (slice of life). Comma lists OR.
+            Add(query, "with_keywords", Or(Get(p, "keyword")));
+            Add(query, "without_keywords", Or(Get(p, "nokeyword")));
             Add(query, "with_networks", Ids(Get(p, "network"), Networks));
             if (Ids(Get(p, "provider"), Providers) is { } providers)
             {

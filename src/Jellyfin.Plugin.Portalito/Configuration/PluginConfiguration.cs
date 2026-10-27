@@ -121,14 +121,28 @@ public class PluginConfiguration : BasePluginConfiguration
     /// platform's own series -- TMDB "network" -- most popular first, without kids/news/reality/talk shows and with at least
     /// 100 votes, which keeps out the daily shows and regional fillers popularity alone ranks high).
     /// </summary>
-    public const string DefaultFeaturedRows =
-        "Tendencias | trending | window=week; Estrenos en cine | now-playing; Próximamente | upcoming; Películas populares | popular-movies; Series populares | popular-tv; "
-        + PlatformRows
-        + "En emisión hoy | airing-today; Anime del momento | discover-tv | country=JP,KR genre=16 pages=3; Películas de anime | discover-movies | country=JP,KR genre=16; Series coreanas | discover-tv | country=KR nogenre=16,10764,10767 minvotes=20 pages=3; Películas mejor valoradas | top-movies; Series mejor valoradas | top-tv";
+    public const string DefaultFeaturedRows = GeneralHeadRows + PlatformRows + GeneralTailRows;
+
+    private const string GeneralHeadRows =
+        "Tendencias | trending | window=week; Estrenos en cine | now-playing; Próximamente | upcoming; Películas populares | popular-movies; Series populares | popular-tv; ";
+
+    private const string GeneralTailRows =
+        "En emisión hoy | airing-today; Anime del momento | discover-tv | country=JP,KR genre=16 pages=3; Películas de anime | discover-movies | country=JP,KR genre=16; Series coreanas | discover-tv | country=KR nogenre=16,10764,10767 minvotes=20 pages=3; Películas mejor valoradas | top-movies; Series mejor valoradas | top-tv";
 
     private const string PlatformFilter = "nogenre=10762,10763,10764,10767 minvotes=100 pages=3; ";
 
+    // Each platform's own series (TMDB "network"), most popular first. BBC adds country=GB so it lists British
+    // series (Doctor Who, Red Dwarf, Sherlock), not the foreign shows the BBC merely aired.
     private const string PlatformRows =
+        "Originales Netflix | discover-tv | network=netflix " + PlatformFilter
+        + "Apple TV+ | discover-tv | network=apple " + PlatformFilter
+        + "Disney+ | discover-tv | network=disney " + PlatformFilter
+        + "HBO | discover-tv | network=hbo " + PlatformFilter
+        + "Prime Video | discover-tv | network=prime " + PlatformFilter
+        + "Paramount+ | discover-tv | network=paramount " + PlatformFilter
+        + "BBC | discover-tv | network=bbc country=GB " + PlatformFilter;
+
+    private const string PreBbcPlatformRows =
         "Originales Netflix | discover-tv | network=netflix " + PlatformFilter
         + "Apple TV+ | discover-tv | network=apple " + PlatformFilter
         + "Disney+ | discover-tv | network=disney " + PlatformFilter
@@ -139,6 +153,12 @@ public class PluginConfiguration : BasePluginConfiguration
     /// <summary>The default rows before the platform rows (0.1.0.5 to 0.1.1.2); a config still holding exactly these is upgraded.</summary>
     internal const string PreviousDefaultFeaturedRows =
         "Tendencias | trending | window=week; Estrenos en cine | now-playing; Próximamente | upcoming; Películas populares | popular-movies; Series populares | popular-tv; En emisión hoy | airing-today; Anime del momento | discover-tv | country=JP,KR genre=16 pages=3; Películas de anime | discover-movies | country=JP,KR genre=16; Series coreanas | discover-tv | country=KR nogenre=16,10764,10767 minvotes=20 pages=3; Películas mejor valoradas | top-movies; Series mejor valoradas | top-tv";
+
+    /// <summary>The default rows before BBC joined the platform rows (0.1.1.3 to the release before this one); upgraded to the current default.</summary>
+    internal const string PreBbcDefaultFeaturedRows = GeneralHeadRows + PreBbcPlatformRows + GeneralTailRows;
+
+    /// <summary>Older defaults a saved config may still hold verbatim; each is upgraded one-time to the current default.</summary>
+    internal static readonly string[] SupersededDefaultFeaturedRows = { PreviousDefaultFeaturedRows, PreBbcDefaultFeaturedRows };
 
     /// <summary>
     /// Gets or sets the "Destacado" rows, built from TMDB lists (needs <see cref="TmdbApiKey"/>): rows separated by
@@ -157,8 +177,8 @@ public class PluginConfiguration : BasePluginConfiguration
 
     /// <summary>
     /// One-time upgrades of a saved configuration; returns whether anything changed (so the caller saves it): an empty
-    /// <see cref="FeaturedRows"/> that was never seeded gets <see cref="DefaultFeaturedRows"/>, and rows still exactly the
-    /// previous default (<see cref="PreviousDefaultFeaturedRows"/>) become the current one. Rows anyone edited stay as they are.
+    /// <see cref="FeaturedRows"/> that was never seeded gets <see cref="DefaultFeaturedRows"/>, and rows still exactly a
+    /// superseded default (<see cref="SupersededDefaultFeaturedRows"/>) become the current one. Rows anyone edited stay as they are.
     /// </summary>
     public bool ApplyMigrations()
     {
@@ -174,10 +194,14 @@ public class PluginConfiguration : BasePluginConfiguration
             changed = true;
         }
 
-        if (string.Equals(FeaturedRows.Trim(), PreviousDefaultFeaturedRows, StringComparison.Ordinal))
+        foreach (var superseded in SupersededDefaultFeaturedRows)
         {
-            FeaturedRows = DefaultFeaturedRows;
-            changed = true;
+            if (string.Equals(FeaturedRows.Trim(), superseded, StringComparison.Ordinal))
+            {
+                FeaturedRows = DefaultFeaturedRows;
+                changed = true;
+                break;
+            }
         }
 
         return changed;

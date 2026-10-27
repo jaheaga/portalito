@@ -180,7 +180,7 @@ public class PortalitoRuntimeTests
         Assert.Null(runtime.Get().Discovery); // no TMDB key yet
 
         config.TmdbApiKey = "abc123";
-        Assert.Equal(17, runtime.Get().Discovery!.Rows.Count);
+        Assert.Equal(18, runtime.Get().Discovery!.Rows.Count);
 
         config.FeaturedRows = string.Empty;
         Assert.Null(runtime.Get().Discovery); // back to the portal's own rows
@@ -222,6 +222,17 @@ public class PortalitoRuntimeTests
 
         var edited = new PluginConfiguration { FeaturedRows = PluginConfiguration.PreviousDefaultFeaturedRows + "; Mía | trending", FeaturedRowsSeeded = true };
         Assert.False(edited.ApplyMigrations());
+    }
+
+    [Fact]
+    public void Rows_still_at_the_pre_bbc_default_get_the_bbc_row_once()
+    {
+        var config = new PluginConfiguration { FeaturedRows = PluginConfiguration.PreBbcDefaultFeaturedRows + " ", FeaturedRowsSeeded = true };
+
+        Assert.True(config.ApplyMigrations());
+        Assert.Equal(PluginConfiguration.DefaultFeaturedRows, config.FeaturedRows);
+        Assert.Contains("network=bbc", config.FeaturedRows, StringComparison.Ordinal);
+        Assert.False(config.ApplyMigrations());
     }
 
     [Fact]

@@ -1,5 +1,18 @@
 # Changelog
 
+## 0.1.2.10 — 2026-10-27
+
+- **More anime "Destacado" rows, by sub-genre.** The home can now browse anime the way fans think of it —
+  Shōnen, Seinen, Shōjo, Isekai, Vida escolar, Recuentos de la vida, Ciencia ficción, Sobrenatural, Deportes,
+  Mecha — not just one "Anime del momento" row. These use TMDB keywords, so they stay current on their own as
+  new titles are tagged; only titles your portal actually has are listed.
+- **New "BBC" row in the default home**, alongside Netflix, Disney+, HBO and the rest — British series like
+  Doctor Who, Red Dwarf, Sherlock and Peaky Blinders. Existing installs still on the default rows get it
+  automatically on upgrade; if you customized your rows, they're left untouched (add
+  `BBC | discover-tv | network=bbc country=GB` yourself).
+- For custom rows, two new `discover` parameters: `keyword=` / `nokeyword=` (TMDB keyword ids, comma = OR) and
+  a new `network=bbc`.
+
 ## 0.1.2.9 — 2026-10-21
 
 - **A "Siguiendo" episode picked out of order -- skipping filler, jumping ahead -- starts with your audio and

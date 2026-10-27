@@ -42,15 +42,17 @@ public class DiscoveryBrowserTests
             new[]
             {
                 "Tendencias", "Estrenos en cine", "Próximamente", "Películas populares", "Series populares",
-                "Originales Netflix", "Apple TV+", "Disney+", "HBO", "Prime Video", "Paramount+", "En emisión hoy",
+                "Originales Netflix", "Apple TV+", "Disney+", "HBO", "Prime Video", "Paramount+", "BBC", "En emisión hoy",
                 "Anime del momento", "Películas de anime", "Series coreanas", "Películas mejor valoradas", "Series mejor valoradas",
             },
             rows.Select(r => r.Label));
         Assert.All(rows, r => Assert.NotNull(TmdbLists.Endpoint(r)));
         Assert.Equal("213", TmdbLists.Endpoint(rows[5])!.Value.Query["with_networks"]);
         Assert.Equal("100", TmdbLists.Endpoint(rows[5])!.Value.Query["vote_count.gte"]);
-        Assert.Equal("JP|KR", TmdbLists.Endpoint(rows[12])!.Value.Query["with_origin_country"]);
-        Assert.Equal("16,10764,10767", TmdbLists.Endpoint(rows[14])!.Value.Query["without_genres"]);
+        Assert.Equal("4|332|3|100", TmdbLists.Endpoint(rows[11])!.Value.Query["with_networks"]);
+        Assert.Equal("GB", TmdbLists.Endpoint(rows[11])!.Value.Query["with_origin_country"]);
+        Assert.Equal("JP|KR", TmdbLists.Endpoint(rows[13])!.Value.Query["with_origin_country"]);
+        Assert.Equal("16,10764,10767", TmdbLists.Endpoint(rows[15])!.Value.Query["without_genres"]);
         Assert.Equal(Configuration.PluginConfiguration.DefaultFeaturedRows, new Configuration.PluginConfiguration().FeaturedRows);
     }
 
@@ -61,6 +63,21 @@ public class DiscoveryBrowserTests
 
         Assert.Equal("49|3186|1024", endpoint.Query["with_networks"]);
         Assert.False(endpoint.Query.ContainsKey("with_watch_providers"));
+
+        var bbc = TmdbLists.Endpoint(DiscoveryBrowser.ParseRows("BBC | discover-tv | network=bbc country=GB").Single())!.Value;
+        Assert.Equal("4|332|3|100", bbc.Query["with_networks"]);
+        Assert.Equal("GB", bbc.Query["with_origin_country"]);
+    }
+
+    [Fact]
+    public void A_keyword_row_filters_by_tmdb_keywords_with_comma_as_or()
+    {
+        var row = DiscoveryBrowser.ParseRows("Isekai | discover-tv | country=JP genre=16 keyword=237451 nokeyword=9194,195669").Single();
+        var endpoint = TmdbLists.Endpoint(row)!.Value;
+
+        Assert.Equal("237451", endpoint.Query["with_keywords"]);
+        Assert.Equal("9194|195669", endpoint.Query["without_keywords"]);
+        Assert.Equal("16", endpoint.Query["with_genres"]);
     }
 
     [Fact]
