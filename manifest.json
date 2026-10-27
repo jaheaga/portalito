@@ -9,6 +9,14 @@
     "imageUrl": "https://raw.githubusercontent.com/jaheaga/portalito/main/assets/branding/portalito-banner.png",
     "versions": [
       {
+        "version": "0.1.2.11",
+        "targetAbi": "10.11.0.0",
+        "sourceUrl": "https://github.com/jaheaga/portalito/releases/download/v0.1.2.11/Portalito_0.1.2.11.zip",
+        "checksum": "06a988762cfc9e495cbff6804bd5c417",
+        "changelog": "The anime sub-genre rows are now part of the default home. 0.1.2.10 added them as an option; now a fresh install (and any install still on the default rows) gets Sh\u014dnen, Seinen, Sh\u014djo y Josei, Isekai, Vida escolar, Recuentos de la vida, Ciencia ficci\u00f3n y espacio, Sobrenatural y mitolog\u00eda,\u2026",
+        "timestamp": "2026-10-27T20:21:06Z"
+      },
+      {
         "version": "0.1.2.10",
         "targetAbi": "10.11.0.0",
         "sourceUrl": "https://github.com/jaheaga/portalito/releases/download/v0.1.2.10/Portalito_0.1.2.10.zip",
