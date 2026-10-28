@@ -153,8 +153,10 @@ public sealed class PortalitoVodChannel : IChannel, IRequiresMediaInfoCallback, 
     /// "v26" -> "v27" (2026-10-02): TMDB Destacado rows rate their titles with TMDB's vote average, and every Destacado
     /// row writes its ratings onto the titles Jellyfin already saved -- the rows are ordered by rating (see
     /// <see cref="FeaturedSortFilter"/>).
+    /// "v27" -> "v28" (2026-10-28): series folders carry their year ("One Piece (1999)" vs "One Piece (2023)") so a show
+    /// and its remake/live-action adaptation are told apart in browse and global search (see <see cref="WithYear"/>).
     /// </summary>
-    public string DataVersion => $"v27:{DateTime.UtcNow:yyyyMMdd}";
+    public string DataVersion => $"v28:{DateTime.UtcNow:yyyyMMdd}";
 
     public string HomePageUrl => string.Empty;
 
@@ -781,7 +783,28 @@ public sealed class PortalitoVodChannel : IChannel, IRequiresMediaInfoCallback, 
             await FillBlanksFromTmdbAsync(tmdb, grouped, cancellationToken).ConfigureAwait(false);
         }
 
+        // Done after the TMDB fill so a year it supplied counts too. Only series: the portal carries a show and its
+        // remake or live-action adaptation under the same title (the 1999 "One Piece" anime and the 2023 Netflix
+        // live-action both list as "One Piece"), and the year on the folder is what tells them apart in browse and in
+        // Jellyfin's global search. The name used for TMDB matching was already captured in each row's TitleQuery, so
+        // the suffix is display-only. Movies keep their bare title.
+        foreach (var (item, query) in grouped)
+        {
+            if (query.IsSeries && item.ProductionYear is { } year)
+            {
+                item.Name = WithYear(item.Name, year);
+            }
+        }
+
         return grouped.Select(g => g.Item).ToList();
+    }
+
+    /// <summary>A series display name with its year appended ("One Piece" -> "One Piece (1999)"), added once -- never
+    /// doubled if the portal's own name already ends with that year.</summary>
+    private static string WithYear(string name, int year)
+    {
+        var suffix = "(" + year.ToString(CultureInfo.InvariantCulture) + ")";
+        return name.EndsWith(suffix, StringComparison.Ordinal) ? name : name + " " + suffix;
     }
 
     /// <summary>

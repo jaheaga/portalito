@@ -1021,6 +1021,41 @@ public sealed class PortalitoVodChannelTests : IDisposable
     }
 
     [Fact]
+    public async Task Series_folders_carry_their_year_so_a_show_and_its_adaptation_are_told_apart()
+    {
+        var anime = Content("ANIME", "One Piece: Wan pîsu", "series");
+        anime["releaseTime"] = "1999-10-20";
+        var liveAction = Content("LIVE", "One Piece", "series");
+        liveAction["releaseTime"] = "2023-08-31";
+        var film = Content("FILM", "One Piece Film: Red");
+        film["releaseTime"] = "2022-08-06";
+        _h.Route = r => r.Path == "v3/filterByContent"
+            ? _h.Ok(new JsonObject { ["assetList"] = WiringHarness.Array(anime, liveAction, film) })
+            : CatalogRoutes(_h)(r);
+
+        var result = await _channel.GetChannelItems(Query("flt:0:all"), default);
+
+        // The 1999 anime and the 2023 live-action list under the same bare title; the year tells them apart.
+        var byId = result.Items.ToDictionary(i => i.Id);
+        Assert.Equal("One Piece: Wan pîsu (1999)", byId["shw:" + ShowIndex.KeyFor("One Piece: Wan pîsu")].Name);
+        Assert.Equal("One Piece (2023)", byId["shw:" + ShowIndex.KeyFor("One Piece")].Name);
+        // Movies keep their bare title.
+        Assert.Equal("One Piece Film: Red", byId["mov:FILM"].Name);
+    }
+
+    [Fact]
+    public async Task A_series_without_a_known_year_keeps_its_bare_title()
+    {
+        _h.Route = r => r.Path == "v3/filterByContent"
+            ? _h.Ok(new JsonObject { ["assetList"] = WiringHarness.Array(Content("S1", "Sin año", "series")) })
+            : CatalogRoutes(_h)(r);
+
+        var result = await _channel.GetChannelItems(Query("flt:0:all"), default);
+
+        Assert.Equal("Sin año", Assert.Single(result.Items).Name);
+    }
+
+    [Fact]
     public async Task Show_folder_lists_seasons_from_sameSeasonSeriesList_in_order()
     {
         _h.Route = r => r.Path == "v4/getItemData"

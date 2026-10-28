@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.1.2.12 — 2026-10-28
+
+- **Series now show their year, so a show and its remake tell themselves apart.** The portal carries some shows
+  twice — the 1999 *One Piece* anime and the 2023 Netflix live-action both list simply as "One Piece", and the
+  plain one was the live-action. Series folders now carry their year ("One Piece (1999)" vs "One Piece (2023)"),
+  in browse and in Jellyfin's global search. Movies keep their bare title.
+
 ## 0.1.2.11 — 2026-10-27
 
 - **The anime sub-genre rows are now part of the default home.** 0.1.2.10 added them as an option; now a fresh
