@@ -9,6 +9,14 @@
     "imageUrl": "https://raw.githubusercontent.com/jaheaga/portalito/main/assets/branding/portalito-banner.png",
     "versions": [
       {
+        "version": "0.1.2.13",
+        "targetAbi": "10.11.0.0",
+        "sourceUrl": "https://github.com/jaheaga/portalito/releases/download/v0.1.2.13/Portalito_0.1.2.13.zip",
+        "checksum": "868aa45604d444090ac2b43885faca6b",
+        "changelog": "The year now reaches series you already had. 0.1.2.12 added the year to series names (\"One Piece (1999)\" vs \"One Piece (2023)\"), but Jellyfin only applies a channel item's name when it first creates it, so shows already in your library kept their bare title. The startup \"Reparar series Portalito\"\u2026",
+        "timestamp": "2026-10-29T12:46:30Z"
+      },
+      {
         "version": "0.1.2.12",
         "targetAbi": "10.11.0.0",
         "sourceUrl": "https://github.com/jaheaga/portalito/releases/download/v0.1.2.12/Portalito_0.1.2.12.zip",
