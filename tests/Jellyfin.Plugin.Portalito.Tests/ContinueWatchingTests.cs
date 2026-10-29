@@ -179,4 +179,15 @@ public sealed class ContinueWatchingTests : IDisposable
         Assert.True(SeriesRepair.Plan("shw:X", null, null, "x", null, store).IsEmpty);              // a folder
         Assert.True(SeriesRepair.Plan("something-else", null, null, "x", null, store).IsEmpty);     // not ours
     }
+
+    [Theory]
+    [InlineData("shw:ab12", "One Piece", 2023, "One Piece (2023)")]          // a show folder with a year: renamed
+    [InlineData("shw:cd34", "One Piece: Wan pîsu", 1999, "One Piece: Wan pîsu (1999)")]
+    [InlineData("shw:ab12", "One Piece (2023)", 2023, null)]                 // already carries that year: untouched
+    [InlineData("shw:ab12", "One Piece", null, null)]                        // no year to add
+    [InlineData("mov:M1", "A Movie", 2008, null)]                            // movies keep their bare title
+    [InlineData("epi:S1:E1", "Ep 1", 2008, null)]                           // episodes aren't renamed
+    [InlineData("something-else", "x", 2008, null)]                         // not ours
+    public void The_repair_gives_a_saved_show_folder_its_year(string externalId, string name, int? year, string? expected)
+        => Assert.Equal(expected, SeriesRepair.RenameSeries(externalId, name, year));
 }

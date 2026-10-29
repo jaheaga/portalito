@@ -48,6 +48,23 @@ public static class SeriesRepair
 
         return new SeriesRepairChange(runtime, season);
     }
+
+    /// <summary>
+    /// The display name a saved Portalito series folder should carry -- its title with the year appended
+    /// ("One Piece" -> "One Piece (1999)") -- or null when nothing changes: it isn't a show folder, has no year, or
+    /// its name already ends with that year. Jellyfin copies a channel item's name only when it first creates the
+    /// item, so a show saved before the year-naming shipped keeps its bare title until this rewrites it.
+    /// </summary>
+    public static string? RenameSeries(string? externalId, string? name, int? productionYear)
+    {
+        if (!VodItemId.TryParse(externalId, out var id) || id.Kind != VodItemKind.Show || productionYear is not { } year || string.IsNullOrEmpty(name))
+        {
+            return null;
+        }
+
+        var renamed = SeasonGrouping.WithYear(name, year);
+        return string.Equals(renamed, name, StringComparison.Ordinal) ? null : renamed;
+    }
 }
 
 /// <summary>
@@ -98,10 +115,10 @@ public sealed class SeriesRepairTask : IScheduledTask
         var items = _libraryManager.GetItemList(new InternalItemsQuery
         {
             ChannelIds = new[] { channel.Id },
-            IncludeItemTypes = new[] { BaseItemKind.Movie, BaseItemKind.Episode },
+            IncludeItemTypes = new[] { BaseItemKind.Movie, BaseItemKind.Episode, BaseItemKind.Series },
         });
 
-        int runtimes = 0, seasons = 0;
+        int runtimes = 0, seasons = 0, renames = 0;
         for (var i = 0; i < items.Count; i++)
         {
             cancellationToken.ThrowIfCancellationRequested();
@@ -109,6 +126,16 @@ public sealed class SeriesRepairTask : IScheduledTask
             if (i % 500 == 0)
             {
                 progress.Report(100.0 * i / items.Count);
+            }
+
+            // A show folder saved before year-naming shipped keeps its bare title (Jellyfin won't rewrite a channel
+            // item's name on a re-walk); give it its year so it's told apart from a remake under the same title.
+            if (SeriesRepair.RenameSeries(item.ExternalId, item.Name, item.ProductionYear) is { } renamed)
+            {
+                item.Name = renamed;
+                renames++;
+                await item.UpdateToRepositoryAsync(ItemUpdateType.MetadataEdit, cancellationToken).ConfigureAwait(false);
+                continue;
             }
 
             // The parent season is a library lookup per item: only for an episode that actually lacks its season (on
@@ -136,9 +163,10 @@ public sealed class SeriesRepairTask : IScheduledTask
         }
 
         _logger.LogInformation(
-            "Series repair: {Runtimes} runtimes and {Seasons} episode seasons filled in, of {Total} saved Portalito titles ({Known} runtimes known)",
+            "Series repair: {Runtimes} runtimes, {Seasons} episode seasons and {Renames} series years filled in, of {Total} saved Portalito titles ({Known} runtimes known)",
             runtimes,
             seasons,
+            renames,
             items.Count,
             _runtimes.Count);
         progress.Report(100);

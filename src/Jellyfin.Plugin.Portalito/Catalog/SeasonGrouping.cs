@@ -49,4 +49,14 @@ public static class SeasonGrouping
     /// not for using as a grouping key.</summary>
     public static string StripSeasonForDisplay(string? name)
         => SeasonPattern.Replace(name ?? string.Empty, string.Empty).Trim();
+
+    /// <summary>A display title with its year appended ("One Piece" -> "One Piece (1999)"), added once -- never
+    /// doubled if the title already ends with that exact "(year)". Tells a show apart from its remake or live-action
+    /// adaptation, which the portal often files under the identical title.</summary>
+    public static string WithYear(string? name, int year)
+    {
+        var title = name ?? string.Empty;
+        var suffix = "(" + year.ToString(CultureInfo.InvariantCulture) + ")";
+        return title.EndsWith(suffix, StringComparison.Ordinal) ? title : title + " " + suffix;
+    }
 }

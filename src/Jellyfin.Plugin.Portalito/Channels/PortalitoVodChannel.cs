@@ -154,7 +154,7 @@ public sealed class PortalitoVodChannel : IChannel, IRequiresMediaInfoCallback, 
     /// row writes its ratings onto the titles Jellyfin already saved -- the rows are ordered by rating (see
     /// <see cref="FeaturedSortFilter"/>).
     /// "v27" -> "v28" (2026-10-28): series folders carry their year ("One Piece (1999)" vs "One Piece (2023)") so a show
-    /// and its remake/live-action adaptation are told apart in browse and global search (see <see cref="WithYear"/>).
+    /// and its remake/live-action adaptation are told apart in browse and global search (see <see cref="SeasonGrouping.WithYear"/>).
     /// </summary>
     public string DataVersion => $"v28:{DateTime.UtcNow:yyyyMMdd}";
 
@@ -792,19 +792,11 @@ public sealed class PortalitoVodChannel : IChannel, IRequiresMediaInfoCallback, 
         {
             if (query.IsSeries && item.ProductionYear is { } year)
             {
-                item.Name = WithYear(item.Name, year);
+                item.Name = SeasonGrouping.WithYear(item.Name, year);
             }
         }
 
         return grouped.Select(g => g.Item).ToList();
-    }
-
-    /// <summary>A series display name with its year appended ("One Piece" -> "One Piece (1999)"), added once -- never
-    /// doubled if the portal's own name already ends with that year.</summary>
-    private static string WithYear(string name, int year)
-    {
-        var suffix = "(" + year.ToString(CultureInfo.InvariantCulture) + ")";
-        return name.EndsWith(suffix, StringComparison.Ordinal) ? name : name + " " + suffix;
     }
 
     /// <summary>

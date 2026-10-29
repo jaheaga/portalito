@@ -1,5 +1,13 @@
 # Changelog
 
+## 0.1.2.13 — 2026-10-29
+
+- **The year now reaches series you already had.** 0.1.2.12 added the year to series names ("One Piece (1999)"
+  vs "One Piece (2023)"), but Jellyfin only applies a channel item's name when it first creates it, so shows
+  already in your library kept their bare title. The startup "Reparar series Portalito" task now gives those
+  existing series their year too — so after installing this and restarting, your whole catalog is labelled, not
+  just newly-seen shows. Runs again weekly; nothing to do by hand.
+
 ## 0.1.2.12 — 2026-10-28
 
 - **Series now show their year, so a show and its remake tell themselves apart.** The portal carries some shows
