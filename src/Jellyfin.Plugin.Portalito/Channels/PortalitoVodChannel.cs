@@ -499,6 +499,25 @@ public sealed class PortalitoVodChannel : IChannel, IRequiresMediaInfoCallback, 
             source.Id = libraryId.ToString("N");
         }
 
+        // Probe the stream for its runtime and its embedded audio/subtitle tracks. The IPTV source has no external
+        // subtitle files (unlike the portal), so the tracks offered are exactly what's muxed into the file -- every
+        // audio language and every subtitle track ffprobe finds. The runtime is what lets Jellyfin keep playback
+        // positions and show the title in Continue Watching (without it a title is marked Played and the position lost).
+        var probeKey = "x:" + kind + ":" + streamId;
+        var tracks = await ProbeCachedAsync(probeKey, source, cancellationToken).ConfigureAwait(false);
+        source.MediaStreams = VodTracks.Assemble(tracks?.Streams ?? Array.Empty<MediaStream>(), Array.Empty<SubtitleFile>());
+        if (tracks is not null)
+        {
+            source.RunTimeTicks = tracks.RunTimeTicks;
+            source.Bitrate = tracks.Bitrate;
+        }
+
+        if (source.RunTimeTicks is > 0 and var runtime)
+        {
+            _runtimes.Set(probeKey, runtime, DateTime.UtcNow);
+            await GiveItemRuntimeAsync(id, item.Kind, runtime, cancellationToken).ConfigureAwait(false);
+        }
+
         return new[] { source };
     }
 
