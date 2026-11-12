@@ -1,4 +1,6 @@
+using System.Globalization;
 using Jellyfin.Plugin.Portalito.Portal;
+using Jellyfin.Plugin.Portalito.Xtream;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
@@ -125,6 +127,57 @@ public class PortalitoProxyController : ControllerBase
             Request.Headers.IfRange.ToString(),
             cancellationToken).ConfigureAwait(false);
         return await RelayAsync(upstream, "video/mp4", forwardRangeHeaders: true, cancellationToken).ConfigureAwait(false);
+    }
+
+    // The container extension is in the PATH (xvod/{id}.{ext}) so ffmpeg can detect the format; the kind, expiry and
+    // signature are query params. The id/ext in the path are what's signed, together with the kind.
+    [HttpGet("xvod/{id}.{ext}")]
+    [HttpHead("xvod/{id}.{ext}")]
+    public Task<IActionResult> Xtream(string id, string ext, [FromQuery] string? k, [FromQuery] long e, [FromQuery] string? s, CancellationToken cancellationToken)
+        => Guard(
+            async () =>
+            {
+                var services = _provider.Get();
+                var kind = k ?? string.Empty;
+                if (services.Xtream is not { } xtream || !services.Signer.VerifyXtream(kind, id, ext, e, s))
+                {
+                    return StatusCode(StatusCodes.Status403Forbidden);
+                }
+
+                if (!TryXtreamUpstream(xtream.Client, kind, id, ext, out var upstreamUri))
+                {
+                    return BadRequest();
+                }
+
+                var method = HttpMethods.IsHead(Request.Method) ? HttpMethod.Head : HttpMethod.Get;
+                var upstream = await services.Proxy.OpenDirectAsync(
+                    upstreamUri,
+                    method,
+                    Request.Headers.Range.ToString(),
+                    Request.Headers.IfRange.ToString(),
+                    cancellationToken).ConfigureAwait(false);
+                return await RelayAsync(upstream, "video/mp4", forwardRangeHeaders: true, cancellationToken).ConfigureAwait(false);
+            },
+            cancellationToken);
+
+    private static bool TryXtreamUpstream(XtreamClient client, string kind, string id, string ext, out Uri upstream)
+    {
+        upstream = null!;
+        try
+        {
+            upstream = kind switch
+            {
+                "movie" when int.TryParse(id, NumberStyles.None, CultureInfo.InvariantCulture, out var streamId) => client.MovieUrl(streamId, ext),
+                "series" => client.SeriesEpisodeUrl(id, ext),
+                "live" when int.TryParse(id, NumberStyles.None, CultureInfo.InvariantCulture, out var liveId) => client.LiveUrl(liveId, ext),
+                _ => throw new ArgumentException($"Unknown Xtream kind '{kind}'."),
+            };
+            return true;
+        }
+        catch (Exception ex) when (ex is ArgumentException or XtreamException)
+        {
+            return false;
+        }
     }
 
     [HttpGet("img")]

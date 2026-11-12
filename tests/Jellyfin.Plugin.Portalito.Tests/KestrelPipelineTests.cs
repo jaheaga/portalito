@@ -3,6 +3,7 @@ using System.Text.Encodings.Web;
 using Jellyfin.Plugin.Portalito.Api;
 using Jellyfin.Plugin.Portalito.Portal;
 using Jellyfin.Plugin.Portalito.Proxy;
+using Jellyfin.Plugin.Portalito.Xtream;
 using Microsoft.AspNetCore.Authentication;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Builder;
@@ -313,6 +314,40 @@ public class KestrelPipelineTests : IAsyncLifetime
         // 405 from routing, or 401 from this harness's deny-by-default fallback policy (the 405 endpoint carries no
         // [AllowAnonymous]); either way it is refused and the upstream is never contacted.
         Assert.Contains(response.StatusCode, new[] { HttpStatusCode.MethodNotAllowed, HttpStatusCode.Unauthorized });
+        Assert.Empty(_upstream.Requests);
+    }
+
+    // ---- IPTV (Xtream) ----
+
+    private PortalitoServices XtreamServices()
+    {
+        var proxy = new PortalitoProxyService(new HttpClient(_upstream), _resolver, _signer, TestContentAuth.Signer(), new ProxyIdentity("app", "1", "ua"), _clock);
+        var xtream = new XtreamCatalog(new XtreamClient(new HttpClient(), new XtreamOptions("http://xtream.test", "user", "pass")), _clock);
+        return new PortalitoServices(null!, _signer, proxy, null!, Xtream: xtream);
+    }
+
+    [Fact]
+    public async Task Xtream_route_binds_id_and_ext_and_builds_the_credentialed_upstream_url()
+    {
+        _servicesOverride = XtreamServices;
+        _upstream.Respond = _ => Bytes(HttpStatusCode.OK, new byte[10]);
+
+        var response = await _client.GetAsync(_signer.XtreamUrl("movie", "821207", "mkv", TimeSpan.FromHours(1)));
+
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+        // The id and ext came from the path; the username/password were added server-side, never in the signed URL.
+        Assert.Equal("http://xtream.test/movie/user/pass/821207.mkv", _upstream.Requests.Single().Uri.ToString());
+    }
+
+    [Fact]
+    public async Task Xtream_route_rejects_a_tampered_signature_with_403()
+    {
+        _servicesOverride = XtreamServices;
+
+        var url = _signer.XtreamUrl("movie", "821207", "mkv", TimeSpan.FromHours(1));
+        var response = await _client.GetAsync(url.Replace("k=movie", "k=series", StringComparison.Ordinal));
+
+        Assert.Equal(HttpStatusCode.Forbidden, response.StatusCode);
         Assert.Empty(_upstream.Requests);
     }
 

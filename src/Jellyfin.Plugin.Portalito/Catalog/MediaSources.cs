@@ -78,4 +78,24 @@ internal static class MediaSources
         SupportsTranscoding = true,
         MediaStreams = new List<MediaStream>(),
     };
+
+    /// <summary>
+    /// A VOD source for the IPTV (Xtream) secondary source: like <see cref="Vod"/> but the container is only set when
+    /// it's one we know ffmpeg takes by that name (<paramref name="container"/> null otherwise, so ffmpeg probes the
+    /// stream instead of being forced to a container name it might not recognise, e.g. "mkv" vs "matroska"). The URL's
+    /// own extension still guides detection.
+    /// </summary>
+    public static MediaSourceInfo Direct(string id, string url, string? container) => new()
+    {
+        Id = SourceIdFor(id),
+        Path = url,
+        Protocol = MediaProtocol.Http,
+        Container = container,
+        IsRemote = true,
+        SupportsProbing = true,
+        SupportsDirectPlay = false,
+        SupportsDirectStream = false,
+        SupportsTranscoding = true,
+        MediaStreams = new List<MediaStream>(),
+    };
 }

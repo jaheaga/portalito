@@ -48,15 +48,15 @@ public class XtreamTests
         => Assert.Equal(expected, XtreamClient.Str(JsonNode.Parse(json)));
 
     [Fact]
-    public void BuildSeriesIndex_maps_tmdb_to_series_id_and_skips_missing()
+    public void BuildSeriesIndexes_maps_tmdb_to_series_id_and_skips_missing()
     {
-        var index = XtreamCatalog.BuildSeriesIndex(new[]
+        var index = XtreamCatalog.BuildSeriesIndexes(new[]
         {
             new XtreamSeriesItem(10418, "Secret Service (2026)", 240411, "28", 2026),
             new XtreamSeriesItem(99, "No TMDB", null, "28", null),
             new XtreamSeriesItem(100, "Zero TMDB", 0, "28", null),
             new XtreamSeriesItem(777, "Duplicate upload", 240411, "28", 2026),
-        });
+        }).ByTmdb;
 
         Assert.Equal(1, index.Count);
         Assert.Equal(10418, index[240411]); // first id wins; the duplicate (777) is ignored
@@ -64,7 +64,23 @@ public class XtreamTests
     }
 
     [Fact]
-    public void MatchMovie_matches_on_title_and_year()
+    public void BuildSeriesIndexes_also_matches_by_name_for_episode_playback()
+    {
+        var byName = XtreamCatalog.BuildSeriesIndexes(new[]
+        {
+            new XtreamSeriesItem(10418, "Secret Service (2026)", 240411, "28", 2026),
+            new XtreamSeriesItem(11, "Dune: Prophecy (2024)", null, "28", 2024),
+            new XtreamSeriesItem(12, "Dune: Prophecy (2026)", null, "28", 2026),
+        }).ByName;
+
+        Assert.Equal(10418, XtreamCatalog.MatchTitle(byName, "Secret Service", null));          // unique title, no year
+        Assert.Equal(12, XtreamCatalog.MatchTitle(byName, "Dune: Prophecy", 2026));             // year disambiguates
+        Assert.Null(XtreamCatalog.MatchTitle(byName, "Dune: Prophecy", null));                  // two candidates -> no guess
+        Assert.Null(XtreamCatalog.MatchTitle(byName, "Unknown Show", 2020));
+    }
+
+    [Fact]
+    public void MatchTitle_matches_on_title_and_year()
     {
         var index = XtreamCatalog.BuildMovieIndex(new[]
         {
@@ -72,23 +88,23 @@ public class XtreamTests
             new XtreamVodItem(500, "The Matrix (1999)", "mkv", "1"),
         });
 
-        var match = XtreamCatalog.MatchMovie(index, "Street Fighter", 2026);
+        var match = XtreamCatalog.MatchTitle(index, "Street Fighter", 2026);
         Assert.NotNull(match);
         Assert.Equal(821207, match!.StreamId);
         Assert.Equal("mp4", match.ContainerExtension);
     }
 
     [Fact]
-    public void MatchMovie_falls_back_to_a_unique_title_when_year_is_unknown()
+    public void MatchTitle_falls_back_to_a_unique_title_when_year_is_unknown()
     {
         var index = XtreamCatalog.BuildMovieIndex(new[] { new XtreamVodItem(500, "The Matrix (1999)", "mkv", "1") });
 
-        var match = XtreamCatalog.MatchMovie(index, "the matrix", year: null);
+        var match = XtreamCatalog.MatchTitle(index, "the matrix", year: null);
         Assert.Equal(500, match!.StreamId);
     }
 
     [Fact]
-    public void MatchMovie_is_ambiguous_without_a_year_when_a_title_repeats()
+    public void MatchTitle_is_ambiguous_without_a_year_when_a_title_repeats()
     {
         var index = XtreamCatalog.BuildMovieIndex(new[]
         {
@@ -96,15 +112,15 @@ public class XtreamTests
             new XtreamVodItem(2, "Dune (2021)", "mp4", "1"),
         });
 
-        Assert.Null(XtreamCatalog.MatchMovie(index, "Dune", year: null));        // two candidates -> no guess
-        Assert.Equal(2, XtreamCatalog.MatchMovie(index, "Dune", 2021)!.StreamId); // the year disambiguates
+        Assert.Null(XtreamCatalog.MatchTitle(index, "Dune", year: null));        // two candidates -> no guess
+        Assert.Equal(2, XtreamCatalog.MatchTitle(index, "Dune", 2021)!.StreamId); // the year disambiguates
     }
 
     [Fact]
-    public void MatchMovie_returns_null_when_nothing_matches()
+    public void MatchTitle_returns_null_when_nothing_matches()
     {
         var index = XtreamCatalog.BuildMovieIndex(new[] { new XtreamVodItem(1, "Dune (2021)", "mp4", "1") });
-        Assert.Null(XtreamCatalog.MatchMovie(index, "Nonexistent Film", 2020));
+        Assert.Null(XtreamCatalog.MatchTitle(index, "Nonexistent Film", 2020));
     }
 
     [Fact]

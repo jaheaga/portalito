@@ -51,6 +51,20 @@ public sealed class ProxyUrlSigner
     }
 
     /// <summary>
+    /// A signed URL for a stream on the IPTV (Xtream) source. The URL carries only the stream kind, id and container
+    /// extension -- never the IPTV username/password, which the proxy adds server-side when it builds the real upstream
+    /// URL. <paramref name="kind"/> is <c>movie</c>, <c>series</c> or <c>live</c>.
+    /// </summary>
+    public string XtreamUrl(string kind, string id, string ext, TimeSpan validFor)
+    {
+        var e = ExpiryFor(validFor);
+        return $"{_baseUrl}/Portalito/xvod/{Uri.EscapeDataString(id)}.{Uri.EscapeDataString(ext)}?k={Uri.EscapeDataString(kind)}&e={e}&s={Sign("xvod", e, kind, id, ext)}";
+    }
+
+    public bool VerifyXtream(string kind, string id, string ext, long expiry, string? signature)
+        => Verify(signature, expiry, "xvod", kind, id, ext);
+
+    /// <summary>
     /// A VOD URL that never expires, for the "Siguiendo" library's <c>.strm</c> files: Jellyfin reads a .strm's URL when it
     /// plays the episode, maybe months after the file was written, so it can't carry an expiry. It still carries an HMAC
     /// over its ids (a different kind than <see cref="VodUrl"/>, so neither can stand in for the other), and rotating

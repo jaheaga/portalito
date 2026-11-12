@@ -213,6 +213,33 @@ public sealed partial class PortalitoProxyService
     /// Opens one live segment with a fresh Content-Auth, retrying a normal edge-not-yet-published 404/5xx a few times. The
     /// caller streams the body and disposes the response.
     /// </summary>
+    /// <summary>
+    /// Relays a plain upstream file (the IPTV/Xtream secondary source): a GET/HEAD with range forwarding and this
+    /// plugin's CDN User-Agent, no portal auth. The URL is built server-side from signed params so the IPTV credentials
+    /// never reach a client.
+    /// </summary>
+    public async Task<HttpResponseMessage> OpenDirectAsync(Uri upstream, HttpMethod method, string? range, string? ifRange, CancellationToken cancellationToken)
+    {
+        if (upstream.Scheme is not ("http" or "https"))
+        {
+            throw new ArgumentException("Stream URL must be http(s).", nameof(upstream));
+        }
+
+        using var request = new HttpRequestMessage(method, upstream);
+        request.Headers.TryAddWithoutValidation("User-Agent", _identity.UserAgent);
+        if (!string.IsNullOrEmpty(range))
+        {
+            request.Headers.TryAddWithoutValidation("Range", range);
+        }
+
+        if (!string.IsNullOrEmpty(ifRange))
+        {
+            request.Headers.TryAddWithoutValidation("If-Range", ifRange);
+        }
+
+        return await SendForHeadersAsync(request, cancellationToken).ConfigureAwait(false);
+    }
+
     public async Task<HttpResponseMessage> OpenSegmentAsync(string channel, Uri upstream, CancellationToken cancellationToken)
     {
         RequireSafeId(channel);

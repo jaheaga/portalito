@@ -18,7 +18,8 @@ public sealed record PortalitoServices(
     string? EpgTimeZoneProblem = null,
     DiscoveryBrowser? Discovery = null,
     string? ChannelImageUrl = null,
-    XtreamCatalog? Xtream = null);
+    XtreamCatalog? Xtream = null,
+    Configuration.PlaybackSourceMode PlaybackSource = Configuration.PlaybackSourceMode.PortalOnly);
 
 public interface IPortalitoServicesProvider
 {
@@ -184,7 +185,7 @@ public sealed class PortalitoRuntime : IPortalitoServicesProvider
         var channelImage = Uri.TryCreate(config.ChannelImageUrl.Trim(), UriKind.Absolute, out var image) && image.Scheme is "http" or "https"
             ? image.ToString()
             : null;
-        return new PortalitoServices(portal, signer, proxy, catalogs.Browser, tmdb, epgZone, epgZoneProblem, discovery, channelImage, xtream);
+        return new PortalitoServices(portal, signer, proxy, catalogs.Browser, tmdb, epgZone, epgZoneProblem, discovery, channelImage, xtream, config.PlaybackSourceMode());
     }
 
     private (PortalClient Portal, ProxyUrlSigner Signer, PortalitoProxyService Proxy) BuildCore(PluginConfiguration config)

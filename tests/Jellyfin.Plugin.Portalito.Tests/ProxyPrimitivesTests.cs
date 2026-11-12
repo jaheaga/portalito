@@ -188,6 +188,36 @@ public class ProxyUrlSignerTests
     }
 
     [Fact]
+    public void Xtream_url_has_the_ext_in_the_path_and_round_trips()
+    {
+        var (signer, _) = Create();
+
+        var url = signer.XtreamUrl("movie", "821207", "mkv", TimeSpan.FromHours(12));
+
+        Assert.StartsWith("http://127.0.0.1:8096/Portalito/xvod/821207.mkv?", url);
+        var q = Query(url);
+        Assert.Equal("movie", q["k"]);
+        Assert.Equal(T0.AddHours(12).ToUnixTimeSeconds(), long.Parse(q["e"]));
+        Assert.True(signer.VerifyXtream("movie", "821207", "mkv", long.Parse(q["e"]), q["s"]));
+
+        // A different kind, id or ext with the same signature is rejected (the signature covers all three).
+        Assert.False(signer.VerifyXtream("series", "821207", "mkv", long.Parse(q["e"]), q["s"]));
+        Assert.False(signer.VerifyXtream("movie", "999999", "mkv", long.Parse(q["e"]), q["s"]));
+        Assert.False(signer.VerifyXtream("movie", "821207", "mp4", long.Parse(q["e"]), q["s"]));
+    }
+
+    [Fact]
+    public void Xtream_url_rejects_an_expired_signature()
+    {
+        var (signer, clock) = Create();
+        var q = Query(signer.XtreamUrl("series", "551010", "mp4", TimeSpan.FromHours(1)));
+
+        clock.Now = clock.Now.AddHours(2);
+
+        Assert.False(signer.VerifyXtream("series", "551010", "mp4", long.Parse(q["e"]), q["s"]));
+    }
+
+    [Fact]
     public void Image_url_round_trips_a_complex_upstream_url_and_rejects_tampering()
     {
         var (signer, _) = Create();

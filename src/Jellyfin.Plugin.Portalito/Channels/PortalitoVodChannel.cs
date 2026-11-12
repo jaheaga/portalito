@@ -300,7 +300,39 @@ public sealed class PortalitoVodChannel : IChannel, IRequiresMediaInfoCallback, 
             _ => throw new ArgumentException($"'{id}' is not playable.", nameof(id)),
         };
 
-        var stream = await services.Portal.ResolveVodAsync(contentId, seriesId, cancellationToken).ConfigureAwait(false);
+        // Which source plays is decided by the config here, never at playback (Jellyfin is handed exactly one source).
+        var mode = services.PlaybackSource;
+        if (mode is Configuration.PlaybackSourceMode.IptvOnly or Configuration.PlaybackSourceMode.IptvThenPortal)
+        {
+            if (await BuildIptvSourceAsync(services, id, item, cancellationToken).ConfigureAwait(false) is { } iptvSource)
+            {
+                return new[] { iptvSource };
+            }
+
+            if (mode == Configuration.PlaybackSourceMode.IptvOnly)
+            {
+                // Only the IPTV source is allowed and it doesn't carry this title: nothing to play.
+                return Array.Empty<MediaSourceInfo>();
+            }
+
+            // IptvThenPortal: fall through to the portal below.
+        }
+
+        Portal.VodStream stream;
+        try
+        {
+            stream = await services.Portal.ResolveVodAsync(contentId, seriesId, cancellationToken).ConfigureAwait(false);
+        }
+        catch (Portal.PortalException) when (mode is Configuration.PlaybackSourceMode.PortalThenIptv or Configuration.PlaybackSourceMode.Auto)
+        {
+            // The portal couldn't resolve the stream (down, or the version gate): silently fall back to IPTV.
+            if (await BuildIptvSourceAsync(services, id, item, cancellationToken).ConfigureAwait(false) is { } fallback)
+            {
+                return new[] { fallback };
+            }
+
+            throw;
+        }
         var url = item.Kind == VodItemKind.Movie
             ? services.Signer.VodUrl(item.Primary, string.Empty, MediaSources.UrlValidity)
             : services.Signer.VodUrl(item.Secondary!, item.Primary, MediaSources.UrlValidity);
@@ -346,6 +378,72 @@ public sealed class PortalitoVodChannel : IChannel, IRequiresMediaInfoCallback, 
         }
 
         return new[] { source };
+    }
+
+    private static readonly HashSet<string> KnownContainers = new(StringComparer.Ordinal) { "mp4", "ts" };
+
+    /// <summary>
+    /// The IPTV (Xtream) source for this item, or null when it isn't configured, the title can't be matched, or the
+    /// saved metadata needed to match it isn't there. Match keys come from Jellyfin's own saved item (no portal call):
+    /// a movie by title + year, an episode by its series name + season/episode numbers.
+    /// </summary>
+    private async Task<MediaSourceInfo?> BuildIptvSourceAsync(PortalitoServices services, string id, VodItemId item, CancellationToken cancellationToken)
+    {
+        if (services.Xtream is not { } xtream
+            || LibraryItemId(id, item.Kind) is not { } libraryId
+            || _library?.GetItemById(libraryId) is not { } entity)
+        {
+            return null;
+        }
+
+        string kind;
+        string streamId;
+        string? ext;
+        if (item.Kind == VodItemKind.Movie)
+        {
+            if (await xtream.FindMovieAsync(entity.Name, entity.ProductionYear, cancellationToken).ConfigureAwait(false) is not { } movie)
+            {
+                return null;
+            }
+
+            kind = "movie";
+            streamId = movie.StreamId.ToString(System.Globalization.CultureInfo.InvariantCulture);
+            ext = movie.ContainerExtension;
+        }
+        else if (item.Kind == VodItemKind.Episode
+                 && entity is MediaBrowser.Controller.Entities.TV.Episode episode
+                 && !string.IsNullOrWhiteSpace(episode.SeriesName)
+                 && episode.ParentIndexNumber is { } season
+                 && episode.IndexNumber is { } number)
+        {
+            // The series year isn't reliably on the episode item (an episode's own year drifts from the show's), so the
+            // series is matched by name alone: a name unique on the source resolves, an ambiguous one is skipped.
+            if (await xtream.FindEpisodeByNameAsync(episode.SeriesName, null, season, number, cancellationToken).ConfigureAwait(false) is not { } matched)
+            {
+                return null;
+            }
+
+            kind = "series";
+            streamId = matched.EpisodeId;
+            ext = matched.ContainerExtension;
+        }
+        else
+        {
+            return null;
+        }
+
+        var normalizedExt = NormalizeExt(ext);
+        var url = services.Signer.XtreamUrl(kind, streamId, normalizedExt, MediaSources.UrlValidity);
+        var source = MediaSources.Direct(id, url, KnownContainers.Contains(normalizedExt) ? normalizedExt : null);
+        source.Id = libraryId.ToString("N");
+        return source;
+    }
+
+    /// <summary>The container extension for the stream URL path: lower-cased, dot-stripped, defaulting to mp4.</summary>
+    private static string NormalizeExt(string? ext)
+    {
+        var e = (ext ?? string.Empty).Trim().TrimStart('.').ToLowerInvariant();
+        return e.Length == 0 ? "mp4" : e;
     }
 
     /// <summary>
