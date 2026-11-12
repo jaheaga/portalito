@@ -51,6 +51,18 @@ public enum VodItemKind
 
     /// <summary>A live channel, played through the same signed HLS proxy as Jellyfin's Live TV. Primary = channelCode.</summary>
     LiveChannel,
+
+    /// <summary>A movie on the IPTV (Xtream) source. Primary = stream id; Secondary = container extension.</summary>
+    XtreamMovie,
+
+    /// <summary>A series on the IPTV source (a folder of seasons). Primary = series id.</summary>
+    XtreamShow,
+
+    /// <summary>A season of an IPTV series (a folder of episodes). Primary = series id; Secondary = season number.</summary>
+    XtreamSeason,
+
+    /// <summary>An episode on the IPTV source. Primary = series id; Secondary = episode id.</summary>
+    XtreamEpisode,
 }
 
 /// <summary>
@@ -95,6 +107,14 @@ public readonly partial record struct VodItemId(VodItemKind Kind, string Primary
     public static VodItemId LiveCategory(long columnId) => new(VodItemKind.LiveCategory, columnId.ToString(System.Globalization.CultureInfo.InvariantCulture));
 
     public static VodItemId LiveChannel(string channelCode) => new(VodItemKind.LiveChannel, channelCode);
+
+    public static VodItemId XtreamMovie(string streamId, string ext) => new(VodItemKind.XtreamMovie, streamId, ext);
+
+    public static VodItemId XtreamShow(string seriesId) => new(VodItemKind.XtreamShow, seriesId);
+
+    public static VodItemId XtreamSeason(string seriesId, int season) => new(VodItemKind.XtreamSeason, seriesId, season.ToString(System.Globalization.CultureInfo.InvariantCulture));
+
+    public static VodItemId XtreamEpisode(string seriesId, string episodeId) => new(VodItemKind.XtreamEpisode, seriesId, episodeId);
 
     /// <summary>Gets a value indicating whether a portal id may be embedded in an item id (and later in a URL).</summary>
     public static bool IsSafePart(string? part) => part is not null && SafePart().IsMatch(part);
@@ -166,6 +186,23 @@ public readonly partial record struct VodItemId(VodItemKind Kind, string Primary
             case ("lch", 2):
                 id = LiveChannel(parts[1]);
                 return true;
+            case ("xmov", 3):
+                id = XtreamMovie(parts[1], parts[2]);
+                return true;
+            case ("xshw", 2):
+                id = XtreamShow(parts[1]);
+                return true;
+            case ("xssn", 3):
+                if (!int.TryParse(parts[2], System.Globalization.NumberStyles.None, System.Globalization.CultureInfo.InvariantCulture, out _))
+                {
+                    return false;
+                }
+
+                id = new VodItemId(VodItemKind.XtreamSeason, parts[1], parts[2]);
+                return true;
+            case ("xepi", 3):
+                id = XtreamEpisode(parts[1], parts[2]);
+                return true;
             default:
                 return false;
         }
@@ -185,6 +222,10 @@ public readonly partial record struct VodItemId(VodItemKind Kind, string Primary
         VodItemKind.LiveRoot => "liv:root",
         VodItemKind.LiveCategory => $"lcat:{Primary}",
         VodItemKind.LiveChannel => $"lch:{Primary}",
+        VodItemKind.XtreamMovie => $"xmov:{Primary}:{Secondary}",
+        VodItemKind.XtreamShow => $"xshw:{Primary}",
+        VodItemKind.XtreamSeason => $"xssn:{Primary}:{Secondary}",
+        VodItemKind.XtreamEpisode => $"xepi:{Primary}:{Secondary}",
         _ => throw new InvalidOperationException($"Unknown item kind {Kind}."),
     };
 

@@ -15,6 +15,10 @@ public class VodItemIdTests
     [InlineData("fea:root")]
     [InlineData("row:0:estrenos")]
     [InlineData("row:3:top")]
+    [InlineData("xmov:821207:mkv")]
+    [InlineData("xshw:10418")]
+    [InlineData("xssn:10418:1")]
+    [InlineData("xepi:10418:821201")]
     public void Round_trips_through_its_string_form(string text)
     {
         Assert.True(VodItemId.TryParse(text, out var id));

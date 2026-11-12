@@ -7,6 +7,7 @@ using Jellyfin.Plugin.Portalito.Live;
 using Jellyfin.Plugin.Portalito.Metadata;
 using Jellyfin.Plugin.Portalito.Portal;
 using Jellyfin.Plugin.Portalito.Proxy;
+using Jellyfin.Plugin.Portalito.Xtream;
 using MediaBrowser.Controller.Channels;
 using MediaBrowser.Controller.Entities;
 using MediaBrowser.Controller.Library;
@@ -153,10 +154,12 @@ public sealed class PortalitoVodChannel : IChannel, IRequiresMediaInfoCallback, 
     /// "v26" -> "v27" (2026-10-02): TMDB Destacado rows rate their titles with TMDB's vote average, and every Destacado
     /// row writes its ratings onto the titles Jellyfin already saved -- the rows are ordered by rating (see
     /// <see cref="FeaturedSortFilter"/>).
+    /// "v28" -> "v29" (2026-11-12): Destacado rows can resolve to the IPTV (Xtream) source (new xmov/xshw/xssn/xepi
+    /// item ids) when the playback source is IPTV or the portal is down, so a row's items change with the source.
     /// "v27" -> "v28" (2026-10-28): series folders carry their year ("One Piece (1999)" vs "One Piece (2023)") so a show
     /// and its remake/live-action adaptation are told apart in browse and global search (see <see cref="SeasonGrouping.WithYear"/>).
     /// </summary>
-    public string DataVersion => $"v28:{DateTime.UtcNow:yyyyMMdd}";
+    public string DataVersion => $"v29:{DateTime.UtcNow:yyyyMMdd}";
 
     public string HomePageUrl => string.Empty;
 
@@ -264,6 +267,10 @@ public sealed class PortalitoVodChannel : IChannel, IRequiresMediaInfoCallback, 
                 return await FilterItemsAsync(services, ParseCatalogIndex(folder.Primary), folder.Secondary!, window, cancellationToken).ConfigureAwait(false);
             case VodItemKind.Show:
                 return await ShowSeasonsAsync(services, folder.Primary, window, cancellationToken).ConfigureAwait(false);
+            case VodItemKind.XtreamShow:
+                return Slice(await XtreamShowSeasonsAsync(services, folder.Primary, cancellationToken).ConfigureAwait(false), window);
+            case VodItemKind.XtreamSeason:
+                return Slice(await XtreamSeasonEpisodesAsync(services, folder.Primary, folder.Secondary!, cancellationToken).ConfigureAwait(false), window);
             default:
                 throw new ArgumentException($"'{query.FolderId}' is not a folder.", nameof(query));
         }
@@ -291,6 +298,13 @@ public sealed class PortalitoVodChannel : IChannel, IRequiresMediaInfoCallback, 
             var live = MediaSources.Live(item.Primary, services.Signer.LivePlaylistUrl(item.Primary, MediaSources.LiveUrlValidity));
             live.Id = (LibraryItemId(id, item.Kind) ?? Guid.Parse(MediaSources.SourceIdFor(id))).ToString("N");
             return new[] { live };
+        }
+
+        // IPTV-native items (from Destacado built on the IPTV source): the id already carries the stream ids, so there's
+        // no portal call and no matching -- build the proxied IPTV source straight away.
+        if (item.Kind is VodItemKind.XtreamMovie or VodItemKind.XtreamEpisode)
+        {
+            return await XtreamItemSourceAsync(services, id, item, cancellationToken).ConfigureAwait(false);
         }
 
         var (contentId, seriesId) = item.Kind switch
@@ -446,6 +460,48 @@ public sealed class PortalitoVodChannel : IChannel, IRequiresMediaInfoCallback, 
         return e.Length == 0 ? "mp4" : e;
     }
 
+    /// <summary>Builds the proxied source for an IPTV-native item (xmov/xepi): the id already holds the stream ids.</summary>
+    private async Task<IEnumerable<MediaSourceInfo>> XtreamItemSourceAsync(PortalitoServices services, string id, VodItemId item, CancellationToken cancellationToken)
+    {
+        if (services.Xtream is not { } xtream)
+        {
+            return Array.Empty<MediaSourceInfo>();
+        }
+
+        string kind;
+        string streamId;
+        string? ext;
+        if (item.Kind == VodItemKind.XtreamMovie)
+        {
+            kind = "movie";
+            streamId = item.Primary;
+            ext = item.Secondary;
+        }
+        else
+        {
+            // XtreamEpisode: Primary = series id, Secondary = episode id; the extension comes from the series info.
+            if (!int.TryParse(item.Primary, System.Globalization.NumberStyles.None, System.Globalization.CultureInfo.InvariantCulture, out var seriesId)
+                || await xtream.EpisodeByIdAsync(seriesId, item.Secondary!, cancellationToken).ConfigureAwait(false) is not { } episode)
+            {
+                return Array.Empty<MediaSourceInfo>();
+            }
+
+            kind = "series";
+            streamId = item.Secondary!;
+            ext = episode.ContainerExtension;
+        }
+
+        var normalizedExt = NormalizeExt(ext);
+        var url = services.Signer.XtreamUrl(kind, streamId, normalizedExt, MediaSources.UrlValidity);
+        var source = MediaSources.Direct(id, url, KnownContainers.Contains(normalizedExt) ? normalizedExt : null);
+        if (LibraryItemId(id, item.Kind) is { } libraryId)
+        {
+            source.Id = libraryId.ToString("N");
+        }
+
+        return new[] { source };
+    }
+
     /// <summary>
     /// Sets the playing item's runtime in Jellyfin's library now -- this callback runs before playback starts, so the
     /// first progress report already finds it and the position is kept. Jellyfin names a channel item
@@ -489,7 +545,7 @@ public sealed class PortalitoVodChannel : IChannel, IRequiresMediaInfoCallback, 
         // The type Jellyfin files the item under: a live channel has no content type, so it's a plain Video.
         var type = kind switch
         {
-            VodItemKind.Episode => typeof(MediaBrowser.Controller.Entities.TV.Episode),
+            VodItemKind.Episode or VodItemKind.XtreamEpisode => typeof(MediaBrowser.Controller.Entities.TV.Episode),
             VodItemKind.LiveChannel => typeof(MediaBrowser.Controller.Entities.Video),
             _ => typeof(MediaBrowser.Controller.Entities.Movies.Movie),
         };
@@ -1018,21 +1074,204 @@ public sealed class PortalitoVodChannel : IChannel, IRequiresMediaInfoCallback, 
     /// <summary>A TMDB row's portal titles; empty (not an error) when the row no longer exists or TMDB is unreachable.</summary>
     private async Task<ChannelItemResult> TmdbRowItemsAsync(PortalitoServices services, int rowKey, PageWindow window, CancellationToken cancellationToken)
     {
-        IReadOnlyList<RowTitle> titles = Array.Empty<RowTitle>();
-        if (services.Discovery is { } discovery && discovery.IndexOfRow(rowKey) is >= 0 and var rowIndex)
+        if (services.Discovery is not { } discovery || discovery.IndexOfRow(rowKey) is not (>= 0 and var rowIndex))
         {
-            try
+            return Slice(Array.Empty<ChannelItemInfo>(), window);
+        }
+
+        var mode = services.PlaybackSource;
+
+        // IPTV-first (IptvOnly / IptvThenPortal): build the row from the IPTV source. IptvOnly keeps the IPTV result
+        // even when empty; IptvThenPortal falls through to the portal when nothing matched.
+        if (mode is Configuration.PlaybackSourceMode.IptvOnly or Configuration.PlaybackSourceMode.IptvThenPortal && services.Xtream is not null)
+        {
+            var iptv = await XtreamRowItemsAsync(services, discovery, rowIndex, cancellationToken).ConfigureAwait(false);
+            if (iptv.Count > 0 || mode == Configuration.PlaybackSourceMode.IptvOnly)
             {
-                titles = await discovery.RowAsync(services.Portal, rowIndex, cancellationToken).ConfigureAwait(false);
+                return Slice(iptv, window);
             }
-            catch (Exception ex) when (ex is HttpRequestException or System.Text.Json.JsonException || (ex is OperationCanceledException && !cancellationToken.IsCancellationRequested))
+        }
+
+        IReadOnlyList<RowTitle> titles = Array.Empty<RowTitle>();
+        var portalFailed = false;
+        try
+        {
+            titles = await discovery.RowAsync(services.Portal, rowIndex, cancellationToken).ConfigureAwait(false);
+        }
+        catch (Exception ex) when (ex is Portal.PortalException or HttpRequestException or System.Text.Json.JsonException
+                                   || (ex is OperationCanceledException && !cancellationToken.IsCancellationRequested))
+        {
+            // Includes the portal being down / version-gated (PortalException): don't error the row, fall back to IPTV below.
+            portalFailed = true;
+            _logger.LogWarning("TMDB row {Row} couldn't be built from the portal ({Reason})", discovery.Rows[rowIndex].Label, ex.Message);
+        }
+
+        // The portal returned nothing (or failed) and IPTV is allowed as a backup: fill the row from IPTV instead.
+        if ((titles.Count == 0 || portalFailed)
+            && mode is Configuration.PlaybackSourceMode.PortalThenIptv or Configuration.PlaybackSourceMode.Auto or Configuration.PlaybackSourceMode.IptvThenPortal
+            && services.Xtream is not null)
+        {
+            var iptv = await XtreamRowItemsAsync(services, discovery, rowIndex, cancellationToken).ConfigureAwait(false);
+            if (iptv.Count > 0)
             {
-                _logger.LogWarning("TMDB row {Row} couldn't be built ({Reason})", discovery.Rows[rowIndex].Label, ex.Message);
+                return Slice(iptv, window);
             }
         }
 
         // TMDB's rating wins over the portal's score, so most of a row sorts on the one scale.
         return await FeaturedListingAsync(services, titles.Select(t => t.Item).ToList(), titles.Select(t => t.Rating).ToList(), window, cancellationToken).ConfigureAwait(false);
+    }
+
+    /// <summary>Builds a Destacado row from the IPTV source: each TMDB title matched to an IPTV movie or series.</summary>
+    private async Task<IReadOnlyList<ChannelItemInfo>> XtreamRowItemsAsync(PortalitoServices services, DiscoveryBrowser discovery, int rowIndex, CancellationToken cancellationToken)
+    {
+        if (services.Xtream is not { } xtream)
+        {
+            return Array.Empty<ChannelItemInfo>();
+        }
+
+        IReadOnlyList<Metadata.TmdbEntry> entries;
+        try
+        {
+            entries = await discovery.EntriesAsync(rowIndex, cancellationToken).ConfigureAwait(false);
+        }
+        catch (Exception ex) when (ex is HttpRequestException or System.Text.Json.JsonException
+                                   || (ex is OperationCanceledException && !cancellationToken.IsCancellationRequested))
+        {
+            _logger.LogWarning("IPTV row {Row}: TMDB list couldn't be read ({Reason})", discovery.Rows[rowIndex].Label, ex.Message);
+            return Array.Empty<ChannelItemInfo>();
+        }
+
+        // Matching is dictionary lookups against the (cached) IPTV indexes -- no per-title network call -- so a simple
+        // sequential pass is fine. The first access builds the indexes once (shared via SingleFlight).
+        var items = new List<ChannelItemInfo>(entries.Count);
+        foreach (var entry in entries)
+        {
+            if (await XtreamItemForEntryAsync(xtream, entry, cancellationToken).ConfigureAwait(false) is { } item)
+            {
+                items.Add(item);
+            }
+
+            if (items.Count >= DiscoveryBrowser.RowCap)
+            {
+                break;
+            }
+        }
+
+        return items;
+    }
+
+    /// <summary>A playable IPTV item (movie) or a show folder for a TMDB row entry, or null when the IPTV source lacks it.</summary>
+    private static async Task<ChannelItemInfo?> XtreamItemForEntryAsync(XtreamCatalog xtream, Metadata.TmdbEntry entry, CancellationToken cancellationToken)
+    {
+        if (entry.IsSeries)
+        {
+            if (!int.TryParse(entry.Id, NumberStyles.None, CultureInfo.InvariantCulture, out var tmdbId)
+                || await xtream.FindSeriesIdByTmdbAsync(tmdbId, cancellationToken).ConfigureAwait(false) is not { } seriesId)
+            {
+                return null;
+            }
+
+            var name = entry.Title ?? entry.EnglishTitle ?? entry.OriginalTitle ?? entry.Id;
+            var item = new ChannelItemInfo
+            {
+                Id = VodItemId.XtreamShow(seriesId.ToString(CultureInfo.InvariantCulture)).ToString(),
+                Name = entry.Year is { } y ? SeasonGrouping.WithYear(name, y) : name,
+                Type = ChannelItemType.Folder,
+                FolderType = ChannelFolderType.Container,
+            };
+            ApplyTmdbEntry(item, entry);
+            return item;
+        }
+
+        var title = entry.Title ?? entry.EnglishTitle ?? entry.OriginalTitle;
+        if (string.IsNullOrWhiteSpace(title))
+        {
+            return null;
+        }
+
+        var match = await xtream.FindMovieAsync(title, entry.Year, cancellationToken).ConfigureAwait(false)
+                    ?? (entry.EnglishTitle is { } en ? await xtream.FindMovieAsync(en, entry.Year, cancellationToken).ConfigureAwait(false) : null)
+                    ?? (entry.OriginalTitle is { } og ? await xtream.FindMovieAsync(og, entry.Year, cancellationToken).ConfigureAwait(false) : null);
+        if (match is null)
+        {
+            return null;
+        }
+
+        var movie = new ChannelItemInfo
+        {
+            Id = VodItemId.XtreamMovie(match.StreamId.ToString(CultureInfo.InvariantCulture), NormalizeExt(match.ContainerExtension)).ToString(),
+            Name = title,
+            Type = ChannelItemType.Media,
+            MediaType = ChannelMediaType.Video,
+            ContentType = ChannelMediaContentType.Movie,
+            ProductionYear = entry.Year,
+        };
+        ApplyTmdbEntry(movie, entry);
+        return movie;
+    }
+
+    /// <summary>Puts the TMDB entry's poster and rating on an item (TMDB posters hotlink fine, unlike the portal CDN's).</summary>
+    private static void ApplyTmdbEntry(ChannelItemInfo item, Metadata.TmdbEntry entry)
+    {
+        if (!string.IsNullOrEmpty(entry.PosterUrl))
+        {
+            item.ImageUrl = entry.PosterUrl;
+        }
+
+        if (entry.Rating is { } rating and > 0)
+        {
+            item.CommunityRating = (float)rating;
+        }
+    }
+
+    private async Task<IReadOnlyList<ChannelItemInfo>> XtreamShowSeasonsAsync(PortalitoServices services, string seriesIdText, CancellationToken cancellationToken)
+    {
+        if (services.Xtream is not { } xtream || !int.TryParse(seriesIdText, NumberStyles.None, CultureInfo.InvariantCulture, out var seriesId))
+        {
+            return Array.Empty<ChannelItemInfo>();
+        }
+
+        var episodes = await xtream.EpisodesAsync(seriesId, cancellationToken).ConfigureAwait(false);
+        return episodes
+            .Select(e => e.Season)
+            .Distinct()
+            .OrderBy(s => s)
+            .Select(s => new ChannelItemInfo
+            {
+                Id = VodItemId.XtreamSeason(seriesIdText, s).ToString(),
+                Name = $"Temporada {s.ToString(CultureInfo.InvariantCulture)}",
+                Type = ChannelItemType.Folder,
+                FolderType = ChannelFolderType.Container,
+                IndexNumber = s,
+            })
+            .ToList();
+    }
+
+    private async Task<IReadOnlyList<ChannelItemInfo>> XtreamSeasonEpisodesAsync(PortalitoServices services, string seriesIdText, string seasonText, CancellationToken cancellationToken)
+    {
+        if (services.Xtream is not { } xtream
+            || !int.TryParse(seriesIdText, NumberStyles.None, CultureInfo.InvariantCulture, out var seriesId)
+            || !int.TryParse(seasonText, NumberStyles.None, CultureInfo.InvariantCulture, out var season))
+        {
+            return Array.Empty<ChannelItemInfo>();
+        }
+
+        var episodes = await xtream.EpisodesAsync(seriesId, cancellationToken).ConfigureAwait(false);
+        return episodes
+            .Where(e => e.Season == season)
+            .OrderBy(e => e.Episode)
+            .Select(e => new ChannelItemInfo
+            {
+                Id = VodItemId.XtreamEpisode(seriesIdText, e.Id).ToString(),
+                Name = string.IsNullOrWhiteSpace(e.Title) ? $"Episodio {e.Episode.ToString(CultureInfo.InvariantCulture)}" : e.Title,
+                Type = ChannelItemType.Media,
+                MediaType = ChannelMediaType.Video,
+                ContentType = ChannelMediaContentType.Episode,
+                IndexNumber = e.Episode,
+                ParentIndexNumber = season,
+            })
+            .ToList();
     }
 
     /// <summary>One curated row's titles: "estrenos" = the newest of the newest year; "top" = the best-rated recent.</summary>

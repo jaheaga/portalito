@@ -84,6 +84,28 @@ public sealed class XtreamCatalog
         return seriesId is { } id ? await FindEpisodeAsync(id, season, episode, cancellationToken).ConfigureAwait(false) : null;
     }
 
+    /// <summary>All episodes of an IPTV series (every season), for browsing a show's seasons and episodes.</summary>
+    public async Task<IReadOnlyList<XtreamEpisode>> EpisodesAsync(int seriesId, CancellationToken cancellationToken)
+    {
+        var info = await SeriesInfoAsync(seriesId, cancellationToken).ConfigureAwait(false);
+        return info.Episodes;
+    }
+
+    /// <summary>One IPTV episode by its id (for playback: gives the container extension), or null when it's gone.</summary>
+    public async Task<XtreamEpisode?> EpisodeByIdAsync(int seriesId, string episodeId, CancellationToken cancellationToken)
+    {
+        var info = await SeriesInfoAsync(seriesId, cancellationToken).ConfigureAwait(false);
+        foreach (var e in info.Episodes)
+        {
+            if (e.Id == episodeId)
+            {
+                return e;
+            }
+        }
+
+        return null;
+    }
+
     /// <summary>Finds the IPTV episode for a known IPTV series id and a season/episode number.</summary>
     public async Task<XtreamEpisodeMatch?> FindEpisodeAsync(int seriesId, int season, int episode, CancellationToken cancellationToken)
     {
