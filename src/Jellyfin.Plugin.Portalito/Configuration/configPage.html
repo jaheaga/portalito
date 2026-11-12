@@ -67,6 +67,34 @@
                     <label class="inputLabel inputLabelUnfocused" for="AccountPassword">Portalito account password</label>
                     <input id="AccountPassword" name="AccountPassword" type="password" is="emby-input" autocomplete="off" />
                 </div>
+                <details style="margin: 1em 0;">
+                    <summary>Secondary source: IPTV (Xtream Codes)</summary>
+                    <div class="fieldDescription" style="margin: 0.5em 0;">An optional second source. When set, the portal's own movies and series can also play from this account (matched by TMDB id for series, title+year for movies). Which source is used is chosen by "Playback source" below &mdash; the stream itself is always proxied through this plugin, so these credentials never reach a client.</div>
+                    <div class="inputContainer">
+                        <label class="inputLabel inputLabelUnfocused" for="XtreamBaseUrl">IPTV server URL</label>
+                        <input id="XtreamBaseUrl" name="XtreamBaseUrl" type="text" is="emby-input" placeholder="e.g. http://host:8080" autocomplete="off" />
+                        <div class="fieldDescription">The Xtream panel address, scheme and port included. No trailing slash needed.</div>
+                    </div>
+                    <div class="inputContainer">
+                        <label class="inputLabel inputLabelUnfocused" for="XtreamUsername">IPTV username</label>
+                        <input id="XtreamUsername" name="XtreamUsername" type="text" is="emby-input" autocomplete="off" />
+                    </div>
+                    <div class="inputContainer">
+                        <label class="inputLabel inputLabelUnfocused" for="XtreamPassword">IPTV password</label>
+                        <input id="XtreamPassword" name="XtreamPassword" type="password" is="emby-input" autocomplete="off" />
+                    </div>
+                    <div class="inputContainer">
+                        <label class="inputLabel inputLabelUnfocused" for="PlaybackSource">Playback source</label>
+                        <select id="PlaybackSource" name="PlaybackSource" is="emby-select">
+                            <option value="PortalOnly">Portal only (default)</option>
+                            <option value="IptvOnly">IPTV only</option>
+                            <option value="PortalThenIptv">Portal, fall back to IPTV</option>
+                            <option value="IptvThenPortal">IPTV, fall back to Portal</option>
+                            <option value="Auto">Auto (use whichever source is healthy)</option>
+                        </select>
+                        <div class="fieldDescription">Decided here, never at playback: Jellyfin is always handed one source. The "fall back" modes serve the primary and switch to the backup only if the primary can't be resolved. "Auto" lets the source-health task pick the primary from whichever source is currently reachable.</div>
+                    </div>
+                </details>
                 <div class="inputContainer">
                     <label class="inputLabel inputLabelUnfocused" for="TmdbApiKey">TMDB API key (optional)</label>
                     <input id="TmdbApiKey" name="TmdbApiKey" type="password" is="emby-input" autocomplete="off" />
@@ -204,18 +232,19 @@
     <script type="text/javascript">
         (function () {
             var pluginId = '0bae4700-9bef-4e03-ad7f-cc99bf8f51ab';
-            var textFields = ['TripleDesKeyHex', 'Hosts', 'AppId', 'ApkVersion', 'DeviceSn', 'DeviceDrmId', 'DeviceToken', 'DeviceReserve1', 'ProxyBaseUrl', 'AccountEmail', 'AccountPassword', 'TmdbApiKey', 'FeaturedRows', 'ChannelImageUrl', 'FollowLibraryPath', 'EpgTimeZone', 'ContentAuthMethod', 'ContentAuthSaltHex', 'ContentAuthMd5Schedule', 'ContentAuthMd5KOverrides', 'PortalCode', 'ApiBasePath', 'PortalApkVer', 'PortalSpkgVer', 'PortalUserAgent', 'CdnUserAgent', 'LoginPasswordSalt', 'SnTokenSalt', 'LiveColumnCode', 'AllChannelsColumnId', 'Catalogs'];
+            var textFields = ['TripleDesKeyHex', 'Hosts', 'AppId', 'ApkVersion', 'DeviceSn', 'DeviceDrmId', 'DeviceToken', 'DeviceReserve1', 'ProxyBaseUrl', 'AccountEmail', 'AccountPassword', 'XtreamBaseUrl', 'XtreamUsername', 'XtreamPassword', 'TmdbApiKey', 'FeaturedRows', 'ChannelImageUrl', 'FollowLibraryPath', 'EpgTimeZone', 'ContentAuthMethod', 'ContentAuthSaltHex', 'ContentAuthMd5Schedule', 'ContentAuthMd5KOverrides', 'PortalCode', 'ApiBasePath', 'PortalApkVer', 'PortalSpkgVer', 'PortalUserAgent', 'CdnUserAgent', 'LoginPasswordSalt', 'SnTokenSalt', 'LiveColumnCode', 'AllChannelsColumnId', 'Catalogs'];
             var marks = { ok: '\u2705', warning: '\u26A0\uFE0F', error: '\u274C' };
 
             // Bulk import/export. Every key is matched by its normalized form (uppercase, no PORTALITO_
             // prefix, no separators), so ".env" keys, raw property names and underscore variants all resolve
             // to the same field -- e.g. PORTALITO_CONTENT_AUTH_MD5_K_OVERRIDES == ContentAuthMd5KOverrides.
             var boolFields = ['SkipPortalTlsVerification', 'FollowLibraryEnabled', 'SortFeaturedByRating'];
+            var selectFields = ['PlaybackSource'];
             function normalizeKey(k) {
                 return String(k).toUpperCase().replace(/^PORTALITO_/, '').replace(/[^A-Z0-9]/g, '');
             }
             var normIndex = {};
-            textFields.concat(boolFields).forEach(function (name) { normIndex[normalizeKey(name)] = name; });
+            textFields.concat(boolFields).concat(selectFields).forEach(function (name) { normIndex[normalizeKey(name)] = name; });
 
             function parseImport(text) {
                 var pairs = [], out = {}, ignored = 0;
@@ -271,6 +300,9 @@
                 boolFields.forEach(function (name) {
                     lines.push(envKey(name) + '=' + (document.querySelector('#' + name).checked ? 'true' : 'false'));
                 });
+                selectFields.forEach(function (name) {
+                    lines.push(envKey(name) + '=' + (document.querySelector('#' + name).value || ''));
+                });
                 document.querySelector('#ImportExportText').value = lines.join('\n');
                 document.querySelector('#PortalitoImportStatus').textContent = marks.ok + ' Exported current values \u2014 copy them from the box.';
             }
@@ -292,6 +324,7 @@
                     config.SkipPortalTlsVerification = document.querySelector('#SkipPortalTlsVerification').checked;
                     config.FollowLibraryEnabled = document.querySelector('#FollowLibraryEnabled').checked;
                     config.SortFeaturedByRating = document.querySelector('#SortFeaturedByRating').checked;
+                    config.PlaybackSource = document.querySelector('#PlaybackSource').value;
                     return ApiClient.updatePluginConfiguration(pluginId, config);
                 });
             }
@@ -317,6 +350,7 @@
                     document.querySelector('#SkipPortalTlsVerification').checked = !!config.SkipPortalTlsVerification;
                     document.querySelector('#FollowLibraryEnabled').checked = !!config.FollowLibraryEnabled;
                     document.querySelector('#SortFeaturedByRating').checked = !!config.SortFeaturedByRating;
+                    document.querySelector('#PlaybackSource').value = config.PlaybackSource || 'PortalOnly';
                     Dashboard.hideLoadingMsg();
                 });
             });

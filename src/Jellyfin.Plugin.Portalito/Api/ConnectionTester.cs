@@ -1,6 +1,7 @@
 using System.Net;
 using System.Security.Cryptography;
 using Jellyfin.Plugin.Portalito.Portal;
+using Jellyfin.Plugin.Portalito.Xtream;
 
 namespace Jellyfin.Plugin.Portalito.Api;
 
@@ -64,6 +65,11 @@ public sealed class ConnectionTester
             ? ConnectionCheck.Ok("Live TV", "An account is set, so live TV is available.")
             : ConnectionCheck.Warning("Live TV", "No account is set: the catalog and VOD work, but live TV needs a Portalito account."));
         checks.Add(await ProxyAsync(services, cancellationToken).ConfigureAwait(false));
+        if (services.Xtream is { } xtream)
+        {
+            checks.Add(await XtreamAsync(xtream, cancellationToken).ConfigureAwait(false));
+        }
+
         checks.Add(services.EpgTimeZoneProblem is { } problem
             ? ConnectionCheck.Warning("Guide time zone", problem)
             : ConnectionCheck.Ok("Guide time zone", $"Guide times are read as {Describe(services.EpgTimeZone ?? TimeZoneInfo.Local)}."));
@@ -89,6 +95,29 @@ public sealed class ConnectionTester
         catch (OperationCanceledException) when (!cancellationToken.IsCancellationRequested)
         {
             return ConnectionCheck.Error(Name, $"The portal didn't answer within {PortalTimeout.TotalSeconds:0} seconds.");
+        }
+    }
+
+    private static async Task<ConnectionCheck> XtreamAsync(XtreamClient xtream, CancellationToken cancellationToken)
+    {
+        const string Name = "IPTV source";
+        using var timeout = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
+        timeout.CancelAfter(PortalTimeout);
+        try
+        {
+            var auth = await xtream.AuthAsync(timeout.Token).ConfigureAwait(false);
+            var message = $"Signed in to {xtream.BaseUrl} (status {auth.Status}, {auth.ActiveConnections}/{auth.MaxConnections} connections).";
+            return auth.IsActive
+                ? ConnectionCheck.Ok(Name, message)
+                : ConnectionCheck.Warning(Name, message + " The account isn't Active, so streams may be refused.");
+        }
+        catch (XtreamException ex)
+        {
+            return ConnectionCheck.Error(Name, ex.Message);
+        }
+        catch (OperationCanceledException) when (!cancellationToken.IsCancellationRequested)
+        {
+            return ConnectionCheck.Error(Name, $"The IPTV server didn't answer within {PortalTimeout.TotalSeconds:0} seconds.");
         }
     }
 

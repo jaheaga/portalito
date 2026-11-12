@@ -30,6 +30,13 @@ public class ConfigPageTests
     private static string[] InputIds()
         => Regex.Matches(Html.Value, @"<input\s+id=""(\w+)""").Select(m => m.Groups[1].Value).ToArray();
 
+    private static string[] SelectIds()
+        => Regex.Matches(Html.Value, @"<select\s+id=""(\w+)""").Select(m => m.Groups[1].Value).ToArray();
+
+    // A config property is editable on the page through an <input> or a <select>.
+    private static string[] ControlIds()
+        => InputIds().Concat(SelectIds()).ToArray();
+
     private static string[] EditableProperties()
         => typeof(PluginConfiguration)
             .GetProperties()
@@ -67,7 +74,19 @@ public class ConfigPageTests
 
     [Fact]
     public void Every_editable_configuration_property_has_an_input_on_the_page()
-        => Assert.Empty(EditableProperties().Except(InputIds()));
+        => Assert.Empty(EditableProperties().Except(ControlIds()));
+
+    [Fact]
+    public void Every_select_is_a_configuration_property_handled_by_the_script()
+    {
+        var properties = typeof(PluginConfiguration).GetProperties().Select(p => p.Name).ToHashSet();
+        foreach (var id in SelectIds())
+        {
+            Assert.Contains(id, properties);
+            Assert.Contains($"config.{id} = document.querySelector('#{id}').value;", Html.Value);
+            Assert.Contains($"document.querySelector('#{id}').value = config.{id}", Html.Value);
+        }
+    }
 
     [Fact]
     public void Text_fields_loaded_and_saved_by_the_script_are_exactly_the_text_inputs()

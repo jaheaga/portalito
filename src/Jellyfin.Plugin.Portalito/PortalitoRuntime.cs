@@ -3,6 +3,7 @@ using Jellyfin.Plugin.Portalito.Catalog;
 using Jellyfin.Plugin.Portalito.Configuration;
 using Jellyfin.Plugin.Portalito.Portal;
 using Jellyfin.Plugin.Portalito.Proxy;
+using Jellyfin.Plugin.Portalito.Xtream;
 
 namespace Jellyfin.Plugin.Portalito;
 
@@ -16,7 +17,8 @@ public sealed record PortalitoServices(
     TimeZoneInfo? EpgTimeZone = null,
     string? EpgTimeZoneProblem = null,
     DiscoveryBrowser? Discovery = null,
-    string? ChannelImageUrl = null);
+    string? ChannelImageUrl = null,
+    XtreamClient? Xtream = null);
 
 public interface IPortalitoServicesProvider
 {
@@ -56,6 +58,10 @@ public sealed class PortalitoRuntime : IPortalitoServicesProvider
     // PooledConnectionLifetime: a long-lived pooled connection otherwise keeps a CDN's old DNS answer forever.
     private readonly HttpClient _upstream = new(new SocketsHttpHandler { ConnectTimeout = TimeSpan.FromSeconds(4), PooledConnectionLifetime = TimeSpan.FromMinutes(5) }) { Timeout = Timeout.InfiniteTimeSpan };
     private readonly HttpClient _tmdbHttp = new() { Timeout = TimeSpan.FromSeconds(10) };
+
+    // The Xtream player_api.php calls (not the streams themselves -- those go through the proxy's _upstream). The full
+    // VOD list is large, so the timeout is generous.
+    private readonly HttpClient _xtreamHttp = new() { Timeout = TimeSpan.FromSeconds(45) };
     private readonly Dictionary<bool, HttpClient> _portalHttp = new();
 
     private readonly string _stampNonce = Convert.ToHexString(RandomNumberGenerator.GetBytes(4)).ToLowerInvariant();
@@ -71,6 +77,7 @@ public sealed class PortalitoRuntime : IPortalitoServicesProvider
     private string? _coreDeviceSn;
     private volatile string? _selfProvisionedSn;
     private (string Key, Metadata.TmdbClient? Client)? _tmdb;
+    private (string Key, XtreamClient? Client)? _xtream;
     private (string Catalogs, CatalogBrowser Browser)? _catalogs;
     private string? _stampFingerprint;
     private long _stampGeneration;
@@ -158,6 +165,17 @@ public sealed class PortalitoRuntime : IPortalitoServicesProvider
         }
 
         var tmdb = tmdbEntry.Client;
+
+        // Optional secondary source: built only when all three Xtream fields are set; otherwise off. Kept across other
+        // changes. Its own HttpClient is shared (not rebuilt), like TMDB's.
+        var xtreamOptions = XtreamOptions.FromConfiguration(config);
+        var xtreamKey = xtreamOptions.IsConfigured ? $"{xtreamOptions.BaseUrl}\u001f{xtreamOptions.Username}\u001f{xtreamOptions.Password}" : string.Empty;
+        if (_xtream is not { } xtreamEntry || xtreamEntry.Key != xtreamKey)
+        {
+            _xtream = xtreamEntry = (xtreamKey, xtreamKey.Length == 0 ? null : new XtreamClient(_xtreamHttp, xtreamOptions));
+        }
+
+        var xtream = xtreamEntry.Client;
         var epgZone = Live.EpgMapper.ResolveZone(config.EpgTimeZone, out var epgZoneProblem);
 
         // TMDB-driven "Destacado" rows: only with a TMDB key and at least one valid configured row.
@@ -166,7 +184,7 @@ public sealed class PortalitoRuntime : IPortalitoServicesProvider
         var channelImage = Uri.TryCreate(config.ChannelImageUrl.Trim(), UriKind.Absolute, out var image) && image.Scheme is "http" or "https"
             ? image.ToString()
             : null;
-        return new PortalitoServices(portal, signer, proxy, catalogs.Browser, tmdb, epgZone, epgZoneProblem, discovery, channelImage);
+        return new PortalitoServices(portal, signer, proxy, catalogs.Browser, tmdb, epgZone, epgZoneProblem, discovery, channelImage, xtream);
     }
 
     private (PortalClient Portal, ProxyUrlSigner Signer, PortalitoProxyService Proxy) BuildCore(PluginConfiguration config)
@@ -335,5 +353,9 @@ public sealed class PortalitoRuntime : IPortalitoServicesProvider
             c.LoginPasswordSalt,
             c.LiveColumnCode,
             c.AllChannelsColumnId,
-            c.Catalogs);
+            c.Catalogs,
+            c.XtreamBaseUrl,
+            c.XtreamUsername,
+            c.XtreamPassword,
+            c.PlaybackSource);
 }

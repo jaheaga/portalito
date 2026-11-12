@@ -109,6 +109,27 @@ public class PluginConfiguration : BasePluginConfiguration
     /// <summary>Gets or sets the optional Portalito account password (see <see cref="AccountEmail"/>).</summary>
     public string AccountPassword { get; set; } = string.Empty;
 
+    // --- Secondary source: IPTV (Xtream Codes) ---
+    // An optional second media source. When configured it can play the portal's own movies and series (matched by TMDB
+    // id for series, title+year for movies), chosen by PlaybackSource below. Nothing here is service-specific: the
+    // operator fills in their own panel's URL and credentials. All blank by default (the source is simply off).
+
+    /// <summary>Gets or sets the Xtream (IPTV) panel base URL, scheme and port included (e.g. <c>http://host:8080</c>).</summary>
+    public string XtreamBaseUrl { get; set; } = string.Empty;
+
+    /// <summary>Gets or sets the Xtream (IPTV) account username.</summary>
+    public string XtreamUsername { get; set; } = string.Empty;
+
+    /// <summary>Gets or sets the Xtream (IPTV) account password.</summary>
+    public string XtreamPassword { get; set; } = string.Empty;
+
+    /// <summary>
+    /// Gets or sets which source a title plays from, as a <see cref="PlaybackSourceMode"/> name (parsed by
+    /// <see cref="PlaybackSourceModeExtensions.PlaybackSourceMode"/>). Defaults to <c>PortalOnly</c>, which is exactly
+    /// how the plugin behaved before the IPTV source existed, so existing installs are unaffected until it is changed.
+    /// </summary>
+    public string PlaybackSource { get; set; } = nameof(Configuration.PlaybackSourceMode.PortalOnly);
+
     /// <summary>
     /// Gets or sets the optional TMDB v3 API key. When set, TMDB fills in synopses and posters Portalito leaves blank, and
     /// the <see cref="FeaturedRows"/> (if any) are built from TMDB lists -- limited to titles the portal has.

@@ -31,6 +31,18 @@ the page's **Import / export** box. Keep your real values in a git-ignored `.env
 |---|---|---|
 | `AccountEmail`, `AccountPassword` | `PORTALITO_ACCOUNT_EMAIL`, `…_PASSWORD` | Log in with an account instead of an anonymous device. **Live TV needs an account**; catalog and VOD don't. An account holds one session at a time — logging in here signs out the device that used it before, so a dedicated account is best. Both or neither. |
 
+## Secondary source: IPTV / Xtream Codes (optional)
+
+An optional second media source. When all three fields are set, the portal's own movies and series can also
+play from this IPTV account — matched by TMDB id (series) or title+year (movies). The stream is always proxied
+through the plugin, so the credentials never reach a client.
+
+| Field | `.env` key | What it is |
+|---|---|---|
+| `XtreamBaseUrl` | `PORTALITO_XTREAM_BASE_URL` | The Xtream panel URL, scheme and port included, e.g. `http://host:8080`. No trailing slash. |
+| `XtreamUsername`, `XtreamPassword` | `PORTALITO_XTREAM_USERNAME`, `…_PASSWORD` | The IPTV account credentials. |
+| `PlaybackSource` | `PORTALITO_PLAYBACK_SOURCE` | Which source a title plays from — decided here, never at playback. One of `PortalOnly` (default), `IptvOnly`, `PortalThenIptv`, `IptvThenPortal`, `Auto`. The two "Then" modes serve the primary and fall back to the backup only if the primary can't be resolved; `Auto` lets the source-health task pick the primary from whichever source is reachable. |
+
 ## Portal protocol (Advanced)
 
 | Field | `.env` key | What it is |
