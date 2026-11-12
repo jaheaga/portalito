@@ -18,7 +18,7 @@ public sealed record PortalitoServices(
     string? EpgTimeZoneProblem = null,
     DiscoveryBrowser? Discovery = null,
     string? ChannelImageUrl = null,
-    XtreamClient? Xtream = null);
+    XtreamCatalog? Xtream = null);
 
 public interface IPortalitoServicesProvider
 {
@@ -77,7 +77,7 @@ public sealed class PortalitoRuntime : IPortalitoServicesProvider
     private string? _coreDeviceSn;
     private volatile string? _selfProvisionedSn;
     private (string Key, Metadata.TmdbClient? Client)? _tmdb;
-    private (string Key, XtreamClient? Client)? _xtream;
+    private (string Key, XtreamCatalog? Client)? _xtream;
     private (string Catalogs, CatalogBrowser Browser)? _catalogs;
     private string? _stampFingerprint;
     private long _stampGeneration;
@@ -172,7 +172,7 @@ public sealed class PortalitoRuntime : IPortalitoServicesProvider
         var xtreamKey = xtreamOptions.IsConfigured ? $"{xtreamOptions.BaseUrl}\u001f{xtreamOptions.Username}\u001f{xtreamOptions.Password}" : string.Empty;
         if (_xtream is not { } xtreamEntry || xtreamEntry.Key != xtreamKey)
         {
-            _xtream = xtreamEntry = (xtreamKey, xtreamKey.Length == 0 ? null : new XtreamClient(_xtreamHttp, xtreamOptions));
+            _xtream = xtreamEntry = (xtreamKey, xtreamKey.Length == 0 ? null : new XtreamCatalog(new XtreamClient(_xtreamHttp, xtreamOptions), _clock));
         }
 
         var xtream = xtreamEntry.Client;

@@ -98,7 +98,7 @@ public sealed class ConnectionTester
         }
     }
 
-    private static async Task<ConnectionCheck> XtreamAsync(XtreamClient xtream, CancellationToken cancellationToken)
+    private static async Task<ConnectionCheck> XtreamAsync(XtreamCatalog xtream, CancellationToken cancellationToken)
     {
         const string Name = "IPTV source";
         using var timeout = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
