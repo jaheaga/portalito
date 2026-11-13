@@ -1,5 +1,20 @@
 # Changelog
 
+## 0.1.2.14 — 2026-11-13
+
+- **New: a secondary IPTV source, so you can keep watching when the portal is down.** You can now point
+  Portalito at an Xtream Codes (IPTV) account as a backup. When the portal is unavailable, the Destacado rows
+  still browse, play and resume — the movie or series is matched to your IPTV account (by TMDB id for series,
+  title + year for movies) and streamed from there instead, through Portalito's own proxy. Set it up under
+  **Dashboard → Plugins → Portalito**: fill in the IPTV base URL, username and password, and pick a **Playback
+  source** (Portal only / IPTV only / Portal then IPTV / IPTV then Portal). Movies and series are supported;
+  live TV from the IPTV account is a later step. Leave the fields empty to keep Portalito portal-only exactly
+  as before.
+- **Movies and series now play in their best quality (real 1080p).** The portal offers each title in several
+  renditions (480p / 720p / 1080p); Portalito was picking whichever the portal listed first — usually the
+  lowest. It now selects the highest available rendition, so playback uses the full quality your account is
+  entitled to.
+
 ## 0.1.2.13 — 2026-10-29
 
 - **The year now reaches series you already had.** 0.1.2.12 added the year to series names ("One Piece (1999)"
