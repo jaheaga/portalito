@@ -9,6 +9,14 @@
     "imageUrl": "https://raw.githubusercontent.com/jaheaga/portalito/main/assets/branding/portalito-banner.png",
     "versions": [
       {
+        "version": "0.1.2.14",
+        "targetAbi": "10.11.0.0",
+        "sourceUrl": "https://github.com/jaheaga/portalito/releases/download/v0.1.2.14/Portalito_0.1.2.14.zip",
+        "checksum": "bd94caf48f84b4126b9e1e36def76f10",
+        "changelog": "New: a secondary IPTV source, so you can keep watching when the portal is down. You can now point Portalito at an Xtream Codes (IPTV) account as a backup. When the portal is unavailable, the Destacado rows still browse, play and resume \u2014 the movie or series is matched to your IPTV account (by TMDB\u2026",
+        "timestamp": "2026-11-13T12:46:35Z"
+      },
+      {
         "version": "0.1.2.13",
         "targetAbi": "10.11.0.0",
         "sourceUrl": "https://github.com/jaheaga/portalito/releases/download/v0.1.2.13/Portalito_0.1.2.13.zip",
