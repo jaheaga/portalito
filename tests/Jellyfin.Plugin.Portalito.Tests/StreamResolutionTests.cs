@@ -379,6 +379,69 @@ public class StreamResolutionTests
     {
         Assert.Null(PortalClient.ParseExpiry(url));
     }
+
+    private static JsonObject Tier(string quality, string contentId) => new()
+    {
+        ["quality"] = quality,
+        ["movieList"] = new JsonArray(new JsonObject
+        {
+            ["contentId"] = contentId,
+            ["licenseList"] = new JsonArray(new JsonObject { ["license"] = "LIC-" + quality }),
+        }),
+    };
+
+    private static string? MovieId(JsonObject? movie) => movie?["contentId"]?.GetValue<string>();
+
+    [Fact]
+    public async Task ResolveVod_picks_the_highest_quality_tier()
+    {
+        // The portal lists totalMovieList ascending (480p, 720p, 1080p); playback must use the 1080p source,
+        // not the first (480p) tier the array starts with.
+        var transport = Portal((t, r) => r.Path switch
+        {
+            "v10/startPlayVOD" => t.Ok(new JsonObject
+            {
+                ["episodeList"] = new JsonArray(new JsonObject
+                {
+                    ["totalMovieList"] = new JsonArray(
+                        Tier("480p", "MEDIA-480"),
+                        Tier("720p", "MEDIA-720"),
+                        Tier("1080p", "MEDIA-1080")),
+                }),
+            }),
+            "v14/getSlbInfo" => Slb(t, Cdn("vod", "http://vodcdn.test", "sign_type=cfl&token=" + new string('B', 32))),
+            _ => FakePortalTransport.Error("x", r.Path),
+        });
+        var client = new PortalClient(Options(), transport);
+
+        var vod = await client.ResolveVodAsync("content1");
+
+        Assert.Equal("MEDIA-1080", vod.MediaCode);
+    }
+
+    [Fact]
+    public void SelectBestMovie_prefers_highest_resolution_skips_empty_and_keeps_order_on_ties()
+    {
+        // highest resolution wins regardless of the portal's order
+        Assert.Equal("hi", MovieId(PortalClient.SelectBestMovie(new JsonArray(
+            Tier("480p", "lo"), Tier("1080p", "hi"), Tier("720p", "mid")))));
+
+        // an empty tier (no playable movieList) is skipped in favour of a lower non-empty one
+        Assert.Equal("only", MovieId(PortalClient.SelectBestMovie(new JsonArray(
+            new JsonObject { ["quality"] = "1080p", ["movieList"] = new JsonArray() },
+            Tier("480p", "only")))));
+
+        // unknown / absent qualities keep the portal's order (first wins) — reproduces the old "first tier" behaviour
+        Assert.Equal("first", MovieId(PortalClient.SelectBestMovie(new JsonArray(
+            Tier(string.Empty, "first"), Tier(string.Empty, "second")))));
+
+        // a word label ("4K"/"UHD") ranks by its resolution (2160), not its stray leading digit
+        Assert.Equal("uhd", MovieId(PortalClient.SelectBestMovie(new JsonArray(
+            Tier("1080p", "fhd"), Tier("4K", "uhd")))));
+
+        Assert.Null(PortalClient.SelectBestMovie(null));
+        Assert.Null(PortalClient.SelectBestMovie(new JsonArray()));
+    }
 }
 
 public class HttpPortalTransportTests

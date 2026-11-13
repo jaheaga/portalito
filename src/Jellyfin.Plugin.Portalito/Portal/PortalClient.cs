@@ -737,9 +737,8 @@ public sealed partial class PortalClient : IStreamResolver
     public async Task<VodStream> ResolveVodAsync(string contentId, string seriesContentId = "", CancellationToken cancellationToken = default)
     {
         var play = (await PlayVodAsync(contentId, seriesContentId, cancellationToken: cancellationToken).ConfigureAwait(false)).Require();
-        var movie = (((play["episodeList"] as JsonArray)?.OfType<JsonObject>().FirstOrDefault()?["totalMovieList"] as JsonArray)
-                ?.OfType<JsonObject>().FirstOrDefault()?["movieList"] as JsonArray)
-            ?.OfType<JsonObject>().FirstOrDefault();
+        var episode = (play["episodeList"] as JsonArray)?.OfType<JsonObject>().FirstOrDefault();
+        var movie = SelectBestMovie(episode?["totalMovieList"] as JsonArray);
         var mediaCode = ReadScalar(movie?["contentId"]);
         var license = ReadScalar((movie?["licenseList"] as JsonArray)?.OfType<JsonObject>().FirstOrDefault()?["license"]);
         if (string.IsNullOrEmpty(mediaCode) || string.IsNullOrEmpty(license))
@@ -748,13 +747,89 @@ public sealed partial class PortalClient : IStreamResolver
         }
 
         var videoFormat = ReadScalar(movie?["videoFormat"]);
-        var subtitles = SubtitleFiles((play["episodeList"] as JsonArray)?.OfType<JsonObject>().FirstOrDefault());
+        var subtitles = SubtitleFiles(episode);
 
         var slb = (await GetSlbAsync(cancellationToken: cancellationToken).ConfigureAwait(false)).Require();
         var entry = FindCflEntries(slb, "vod").FirstOrDefault()
             ?? throw new PortalException("get_slb has no cfl CDN entry for vod");
 
         return new VodStream(mediaCode, entry.Host, entry.Url, license, ParseExpiry(entry.Url), videoFormat, subtitles);
+    }
+
+    /// <summary>
+    /// The portal groups a title's sources into quality tiers (<c>totalMovieList[] = {quality, movieList[]}</c>,
+    /// e.g. <c>480p</c> / <c>720p</c> / <c>1080p</c>) and lists them ascending. This returns the first playable
+    /// source from the <b>highest</b> tier that has one, so playback uses the best rendition the account is
+    /// entitled to instead of the first (lowest) tier the array starts with. The reference apps pick by the
+    /// quality string's resolution and skip empty tiers; so do we. Ties and unknown/absent qualities keep the
+    /// portal's order (the earlier tier wins), which reproduces the old "first tier" behaviour when nothing can
+    /// be ranked; empty tiers are skipped, so a later non-empty tier is still found.
+    /// </summary>
+    internal static JsonObject? SelectBestMovie(JsonArray? totalMovieList)
+    {
+        if (totalMovieList is null)
+        {
+            return null;
+        }
+
+        JsonObject? best = null;
+        var bestRank = int.MinValue;
+        foreach (var tier in totalMovieList.OfType<JsonObject>())
+        {
+            var movie = (tier["movieList"] as JsonArray)?.OfType<JsonObject>().FirstOrDefault();
+            if (movie is null)
+            {
+                continue;
+            }
+
+            var rank = QualityRank(ReadScalar(tier["quality"]));
+            if (best is null || rank > bestRank)
+            {
+                best = movie;
+                bestRank = rank;
+            }
+        }
+
+        return best;
+    }
+
+    /// <summary>
+    /// Orders quality tiers by vertical resolution so the highest wins: a 3-4 digit resolution in the quality
+    /// string (<c>480p</c>/<c>720p</c>/<c>1080p</c>/<c>2160p</c>) is used directly, then the common word labels,
+    /// else 0. A short digit run like the "4K" label's leading <c>4</c> is ignored in favour of the word.
+    /// </summary>
+    private static int QualityRank(string? quality)
+    {
+        if (string.IsNullOrWhiteSpace(quality))
+        {
+            return 0;
+        }
+
+        var i = 0;
+        while (i < quality.Length && !char.IsDigit(quality[i]))
+        {
+            i++;
+        }
+
+        var j = i;
+        while (j < quality.Length && char.IsDigit(quality[j]))
+        {
+            j++;
+        }
+
+        if (j - i >= 3 && int.TryParse(quality.AsSpan(i, j - i), out var n))
+        {
+            return n;
+        }
+
+        return quality.Trim().ToLowerInvariant() switch
+        {
+            "4k" or "uhd" => 2160,
+            "fhd" => 1080,
+            "hd" => 720,
+            "sd" => 480,
+            _ => 0,
+        };
     }
 
     /// <summary>
