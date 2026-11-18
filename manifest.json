@@ -9,6 +9,14 @@
     "imageUrl": "https://raw.githubusercontent.com/jaheaga/portalito/main/assets/branding/portalito-banner.png",
     "versions": [
       {
+        "version": "0.2.0.0",
+        "targetAbi": "10.11.0.0",
+        "sourceUrl": "https://github.com/jaheaga/portalito/releases/download/v0.2.0.0/Portalito_0.2.0.0.zip",
+        "checksum": "dfcfb1df41041a1a230a671ff95999b6",
+        "changelog": "Keeps Portalito working against portals that have tightened their API \u2014 they now sign every request and hand out their real hosts dynamically instead of publishing fixed ones. Two new, optional settings under Dashboard \u2192 Plugins \u2192 Portalito (advanced), both empty by default, so existing installs\u2026",
+        "timestamp": "2026-11-18T13:53:49Z"
+      },
+      {
         "version": "0.1.2.14",
         "targetAbi": "10.11.0.0",
         "sourceUrl": "https://github.com/jaheaga/portalito/releases/download/v0.1.2.14/Portalito_0.1.2.14.zip",
