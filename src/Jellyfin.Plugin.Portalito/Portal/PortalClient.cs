@@ -36,12 +36,21 @@ public sealed partial class PortalClient : IStreamResolver
     private volatile PortalSession? _session;
     private volatile string? _preferredHost;
 
+    // SLB host discovery (optional): the live hosts resolved from the seed Hosts, and a cooldown so a failed
+    // resolve falls back to the seeds without re-attempting on every call.
+    private readonly SlbDiscovery? _discovery;
+    private readonly SemaphoreSlim _discoveryLock = new(1, 1);
+    private volatile IReadOnlyList<string>? _discoveredHosts;
+    private DateTimeOffset _discoveryRetryAfter = DateTimeOffset.MinValue;
+    private static readonly TimeSpan DiscoveryRetryCooldown = TimeSpan.FromSeconds(30);
+
     /// <param name="onDeviceProvisioned">
     /// Called with the device serial when a fresh free-tier device is provisioned (see <see cref="ProvisionDeviceAsync"/>),
     /// so the host can persist it into configuration and later activations use the fast path. Optional.
     /// </param>
     /// <param name="clock">Time source for the account-takeover cooldown; the system clock when not given.</param>
-    public PortalClient(PortalOptions options, IPortalTransport transport, Action<string>? onDeviceProvisioned = null, TimeProvider? clock = null)
+    /// <param name="discovery">Optional SLB host discovery; when given and enabled, the resolved hosts are tried before the seeds.</param>
+    public PortalClient(PortalOptions options, IPortalTransport transport, Action<string>? onDeviceProvisioned = null, TimeProvider? clock = null, SlbDiscovery? discovery = null)
     {
         options.Validate();
         _options = options;
@@ -50,6 +59,7 @@ public sealed partial class PortalClient : IStreamResolver
         _device = BuildDeviceFields(options);
         _onDeviceProvisioned = onDeviceProvisioned;
         _clock = clock ?? TimeProvider.System;
+        _discovery = discovery;
     }
 
     /// <summary>
@@ -136,6 +146,8 @@ public sealed partial class PortalClient : IStreamResolver
 
         var wire = _cipher.Encrypt(body.ToJsonString());
 
+        await EnsureDiscoveredAsync(cancellationToken).ConfigureAwait(false);
+
         string? lastError = null;
         foreach (var host in HostOrder())
         {
@@ -156,7 +168,42 @@ public sealed partial class PortalClient : IStreamResolver
             }
         }
 
+        // Every host failed: drop the discovered set so the next call re-resolves (the hosts may have rotated).
+        _discoveredHosts = null;
+        _preferredHost = null;
         return new PortalResponse(path, null, TransportError: lastError ?? "no portal hosts");
+    }
+
+    /// <summary>Resolves the live hosts once (when discovery is enabled), with a short cooldown after a failed resolve.</summary>
+    private async Task EnsureDiscoveredAsync(CancellationToken cancellationToken)
+    {
+        if (_discovery is null || _discoveredHosts is { Count: > 0 } || _clock.GetUtcNow() < _discoveryRetryAfter)
+        {
+            return;
+        }
+
+        await _discoveryLock.WaitAsync(cancellationToken).ConfigureAwait(false);
+        try
+        {
+            if (_discoveredHosts is { Count: > 0 } || _clock.GetUtcNow() < _discoveryRetryAfter)
+            {
+                return;
+            }
+
+            var hosts = await _discovery.ResolvePortalHostsAsync(cancellationToken).ConfigureAwait(false);
+            if (hosts.Count > 0)
+            {
+                _discoveredHosts = hosts;
+            }
+            else
+            {
+                _discoveryRetryAfter = _clock.GetUtcNow() + DiscoveryRetryCooldown;
+            }
+        }
+        finally
+        {
+            _discoveryLock.Release();
+        }
     }
 
     private PortalResponse ParseResponse(string path, string text)
@@ -205,15 +252,26 @@ public sealed partial class PortalClient : IStreamResolver
 
     private IEnumerable<string> HostOrder()
     {
+        var seen = new HashSet<string>(StringComparer.Ordinal);
+
         var preferred = _preferredHost;
-        if (preferred is not null)
+        if (preferred is not null && seen.Add(preferred))
         {
             yield return preferred;
         }
 
+        // Discovered (live) hosts come before the configured seeds; when discovery is off this is null.
+        foreach (var host in _discoveredHosts ?? Array.Empty<string>())
+        {
+            if (seen.Add(host))
+            {
+                yield return host;
+            }
+        }
+
         foreach (var host in _options.Hosts)
         {
-            if (host != preferred)
+            if (seen.Add(host))
             {
                 yield return host;
             }

@@ -161,6 +161,26 @@
                         <input id="PortalSpkgVer" name="PortalSpkgVer" type="text" is="emby-input" autocomplete="off" />
                     </div>
                     <div class="inputContainer">
+                        <label class="inputLabel inputLabelUnfocused" for="RequestSignSecret">Request signature secret</label>
+                        <input id="RequestSignSecret" name="RequestSignSecret" type="text" is="emby-input" autocomplete="off" />
+                        <div class="fieldDescription">When set, each request carries X-Request-Trace (a GUID) and X-Client-Meta = md5(GUID + secret). Empty = off.</div>
+                    </div>
+                    <div class="inputContainer">
+                        <label class="inputLabel inputLabelUnfocused" for="DiscoveryAesKey">SLB discovery AES key</label>
+                        <input id="DiscoveryAesKey" name="DiscoveryAesKey" type="text" is="emby-input" autocomplete="off" />
+                        <div class="fieldDescription">ASCII AES key for host discovery. With the path below, the hosts above are used as discovery seeds. Empty = off.</div>
+                    </div>
+                    <div class="inputContainer">
+                        <label class="inputLabel inputLabelUnfocused" for="DiscoveryPath">SLB discovery path</label>
+                        <input id="DiscoveryPath" name="DiscoveryPath" type="text" is="emby-input" autocomplete="off" />
+                        <div class="fieldDescription">The discovery request path on each seed host (e.g. /v1/&lt;segment&gt;/&lt;segment&gt;). Empty = off.</div>
+                    </div>
+                    <div class="inputContainer">
+                        <label class="inputLabel inputLabelUnfocused" for="DiscoveryService">SLB discovery service name</label>
+                        <input id="DiscoveryService" name="DiscoveryService" type="text" is="emby-input" autocomplete="off" />
+                        <div class="fieldDescription">Which discovered service's hosts to use. Empty means "portal".</div>
+                    </div>
+                    <div class="inputContainer">
                         <label class="inputLabel inputLabelUnfocused" for="PortalUserAgent">Portal API User-Agent</label>
                         <input id="PortalUserAgent" name="PortalUserAgent" type="text" is="emby-input" autocomplete="off" />
                     </div>
@@ -232,7 +252,7 @@
     <script type="text/javascript">
         (function () {
             var pluginId = '0bae4700-9bef-4e03-ad7f-cc99bf8f51ab';
-            var textFields = ['TripleDesKeyHex', 'Hosts', 'AppId', 'ApkVersion', 'DeviceSn', 'DeviceDrmId', 'DeviceToken', 'DeviceReserve1', 'ProxyBaseUrl', 'AccountEmail', 'AccountPassword', 'XtreamBaseUrl', 'XtreamUsername', 'XtreamPassword', 'TmdbApiKey', 'FeaturedRows', 'ChannelImageUrl', 'FollowLibraryPath', 'EpgTimeZone', 'ContentAuthMethod', 'ContentAuthSaltHex', 'ContentAuthMd5Schedule', 'ContentAuthMd5KOverrides', 'PortalCode', 'ApiBasePath', 'PortalApkVer', 'PortalSpkgVer', 'PortalUserAgent', 'CdnUserAgent', 'LoginPasswordSalt', 'SnTokenSalt', 'LiveColumnCode', 'AllChannelsColumnId', 'Catalogs'];
+            var textFields = ['TripleDesKeyHex', 'Hosts', 'AppId', 'ApkVersion', 'DeviceSn', 'DeviceDrmId', 'DeviceToken', 'DeviceReserve1', 'ProxyBaseUrl', 'AccountEmail', 'AccountPassword', 'XtreamBaseUrl', 'XtreamUsername', 'XtreamPassword', 'TmdbApiKey', 'FeaturedRows', 'ChannelImageUrl', 'FollowLibraryPath', 'EpgTimeZone', 'ContentAuthMethod', 'ContentAuthSaltHex', 'ContentAuthMd5Schedule', 'ContentAuthMd5KOverrides', 'PortalCode', 'ApiBasePath', 'PortalApkVer', 'PortalSpkgVer', 'RequestSignSecret', 'DiscoveryAesKey', 'DiscoveryPath', 'DiscoveryService', 'PortalUserAgent', 'CdnUserAgent', 'LoginPasswordSalt', 'SnTokenSalt', 'LiveColumnCode', 'AllChannelsColumnId', 'Catalogs'];
             var marks = { ok: '\u2705', warning: '\u26A0\uFE0F', error: '\u274C' };
 
             // Bulk import/export. Every key is matched by its normalized form (uppercase, no PORTALITO_

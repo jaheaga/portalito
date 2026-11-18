@@ -198,6 +198,7 @@ public sealed class PortalitoRuntime : IPortalitoServicesProvider
         }
 
         var transport = new HttpPortalTransport(portalHttp, options);
+        var slbDiscovery = options.DiscoveryEnabled ? new SlbDiscovery(portalHttp, options) : null;
         var portal = new PortalClient(options, transport, provisionedSn =>
         {
             // A fresh free-tier device was registered: persist its serial so later activations reuse it. Into the current
@@ -207,7 +208,8 @@ public sealed class PortalitoRuntime : IPortalitoServicesProvider
             _getConfig().DeviceSn = provisionedSn;
             _saveConfig();
         },
-        _clock);
+        _clock,
+        slbDiscovery);
         var signer = new ProxyUrlSigner(config.ProxySigningSecret, ProxyBaseUrl(config), _clock);
         var contentAuth = BuildContentAuthSigner(config);
         var proxy = new PortalitoProxyService(_upstream, portal, signer, contentAuth, new ProxyIdentity(options.AppId, options.ApkVersion, options.CdnUserAgent), _clock);
@@ -239,6 +241,10 @@ public sealed class PortalitoRuntime : IPortalitoServicesProvider
             c.ApiBasePath,
             c.PortalApkVer,
             c.PortalSpkgVer,
+            c.RequestSignSecret,
+            c.DiscoveryAesKey,
+            c.DiscoveryPath,
+            c.DiscoveryService,
             c.PortalUserAgent,
             c.CdnUserAgent,
             c.LoginPasswordSalt,
@@ -349,6 +355,10 @@ public sealed class PortalitoRuntime : IPortalitoServicesProvider
             c.ApiBasePath,
             c.PortalApkVer,
             c.PortalSpkgVer,
+            c.RequestSignSecret,
+            c.DiscoveryAesKey,
+            c.DiscoveryPath,
+            c.DiscoveryService,
             c.PortalUserAgent,
             c.CdnUserAgent,
             c.LoginPasswordSalt,

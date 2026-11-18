@@ -36,6 +36,27 @@ public class PluginConfiguration : BasePluginConfiguration
     /// <summary>Gets or sets the value sent as the <c>spkgVer</c> header and the <c>sysVersion</c> body field.</summary>
     public string PortalSpkgVer { get; set; } = string.Empty;
 
+    /// <summary>
+    /// Gets or sets the secret for the per-request signature headers. When set, every portal request carries
+    /// <c>X-Request-Trace</c> (a fresh GUID) and <c>X-Client-Meta</c> = <c>md5(guid + secret)</c> (lowercase hex).
+    /// Empty (the default) sends neither header, exactly as before.
+    /// </summary>
+    public string RequestSignSecret { get; set; } = string.Empty;
+
+    /// <summary>
+    /// Gets or sets the AES key (ASCII, 16/24/32 bytes) for SLB host discovery. With this and <see cref="DiscoveryPath"/>
+    /// both set, the plugin resolves the live portal hosts at runtime (an AES-wrapped request to the configured
+    /// <see cref="Hosts"/>, used as discovery seeds) and calls those instead of the seeds. Empty = discovery off: the
+    /// <see cref="Hosts"/> are called directly, exactly as before.
+    /// </summary>
+    public string DiscoveryAesKey { get; set; } = string.Empty;
+
+    /// <summary>Gets or sets the SLB discovery request path (e.g. <c>/v1/&lt;segment&gt;/&lt;segment&gt;</c>); empty = discovery off.</summary>
+    public string DiscoveryPath { get; set; } = string.Empty;
+
+    /// <summary>Gets or sets the discovered service name whose hosts become the portal hosts; empty means <c>portal</c>.</summary>
+    public string DiscoveryService { get; set; } = string.Empty;
+
     /// <summary>Gets or sets the User-Agent sent to the portal API.</summary>
     public string PortalUserAgent { get; set; } = string.Empty;
 

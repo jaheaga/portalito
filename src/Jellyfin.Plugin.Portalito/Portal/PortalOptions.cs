@@ -31,6 +31,21 @@ public sealed record PortalOptions
 
     public string SpkgVer { get; init; } = string.Empty;
 
+    /// <summary>Secret for the per-request signature headers (empty = not sent).</summary>
+    public string RequestSignSecret { get; init; } = string.Empty;
+
+    /// <summary>AES key (ASCII) for SLB host discovery (empty = discovery off).</summary>
+    public string DiscoveryAesKey { get; init; } = string.Empty;
+
+    /// <summary>SLB discovery request path (empty = discovery off).</summary>
+    public string DiscoveryPath { get; init; } = string.Empty;
+
+    /// <summary>Discovered service whose hosts become the portal hosts; defaults to <c>portal</c>.</summary>
+    public string DiscoveryService { get; init; } = "portal";
+
+    /// <summary>Gets a value indicating whether SLB host discovery is configured.</summary>
+    public bool DiscoveryEnabled => DiscoveryAesKey.Length > 0 && DiscoveryPath.Length > 0;
+
     public string PortalUserAgent { get; init; } = string.Empty;
 
     public string CdnUserAgent { get; init; } = string.Empty;
@@ -63,6 +78,10 @@ public sealed record PortalOptions
         ApiBasePath = config.ApiBasePath.Trim(),
         ApkVer = config.PortalApkVer.Trim(),
         SpkgVer = config.PortalSpkgVer.Trim(),
+        RequestSignSecret = config.RequestSignSecret.Trim(),
+        DiscoveryAesKey = config.DiscoveryAesKey.Trim(),
+        DiscoveryPath = config.DiscoveryPath.Trim(),
+        DiscoveryService = string.IsNullOrWhiteSpace(config.DiscoveryService) ? "portal" : config.DiscoveryService.Trim(),
         PortalUserAgent = config.PortalUserAgent.Trim(),
         CdnUserAgent = config.CdnUserAgent.Trim(),
         LoginPasswordSalt = config.LoginPasswordSalt,

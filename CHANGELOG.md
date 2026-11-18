@@ -1,5 +1,21 @@
 # Changelog
 
+## 0.2.0.0 — 2026-11-18
+
+Keeps Portalito working against portals that have tightened their API — they now sign every request and hand
+out their real hosts dynamically instead of publishing fixed ones. Two new, optional settings under **Dashboard
+→ Plugins → Portalito** (advanced), both empty by default, so **existing installs keep working unchanged** until
+you fill them in.
+
+- **Signed requests.** Some portals now reject any call that isn't signed. Set a **Request signature secret** and
+  Portalito signs every request the way the portal's own app does (a per-request `X-Request-Trace` token plus an
+  `X-Client-Meta` hash of it). Leave it empty to send requests exactly as before.
+- **Automatic host discovery.** Some portals no longer talk on fixed hosts — the app has to ask for the live
+  ones at startup, and they rotate. Set a **discovery AES key** and **discovery path** and the hosts you
+  configure become *seeds*: Portalito asks them for the current hosts and uses those, re-checking automatically
+  when they change, so playback doesn't break when the portal moves. Leave them empty to call your configured
+  hosts directly, as before.
+
 ## 0.1.2.14 — 2026-11-13
 
 - **New: a secondary IPTV source, so you can keep watching when the portal is down.** You can now point

@@ -19,15 +19,15 @@ for line in open("scripts/scrub-denylist.sha256", encoding="utf-8"):
         length, digest = line.split()
         wanted.setdefault(int(length), set()).add(bytes.fromhex(digest))
 
-# Build output and VCS metadata are skipped. .env and private/ hold the operator's own real values (and the private
-# denylist); they are git-ignored and never published, so they are skipped too (.env.example is still scanned).
+# Build output and VCS metadata are skipped. Any .env* file (except the public .env.example) and private/ hold the
+# operator's own real values (and the private denylist); they are git-ignored (see .gitignore: .env.* with
+# !.env.example) and never published, so they are skipped too. .env.example is still scanned.
 skip_dirs = {".git", "bin", "obj", "artifacts", "private"}
-skip_files = {".env", ".env.local"}
 hits = []
 for base, dirs, files in os.walk("."):
     dirs[:] = [d for d in dirs if d not in skip_dirs]
     for name in files:
-        if name in skip_files:
+        if name == ".env" or (name.startswith(".env") and name != ".env.example"):
             continue
         path = os.path.join(base, name)
         data = open(path, "rb").read()

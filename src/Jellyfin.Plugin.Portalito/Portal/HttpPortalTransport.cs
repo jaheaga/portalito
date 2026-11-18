@@ -1,4 +1,5 @@
 using System.Net.Http.Headers;
+using System.Security.Cryptography;
 using System.Text;
 
 namespace Jellyfin.Plugin.Portalito.Portal;
@@ -14,6 +15,7 @@ public sealed class HttpPortalTransport : IPortalTransport
     private readonly string _apkVer;
     private readonly string _spkgVer;
     private readonly string _userAgent;
+    private readonly string _signSecret;
 
     public HttpPortalTransport(HttpClient http, PortalOptions options)
     {
@@ -23,6 +25,22 @@ public sealed class HttpPortalTransport : IPortalTransport
         _apkVer = options.ApkVer;
         _spkgVer = options.SpkgVer;
         _userAgent = options.PortalUserAgent;
+        _signSecret = options.RequestSignSecret;
+    }
+
+    /// <summary>
+    /// The per-request signature the portal's middleware checks: a random nonce plus its MD5 with the shared secret.
+    /// Returns (<c>null</c>, <c>null</c>) when no secret is configured, so nothing is sent.
+    /// </summary>
+    internal static (string? Trace, string? Meta) SignatureHeaders(string secret, string nonce)
+    {
+        if (string.IsNullOrEmpty(secret))
+        {
+            return (null, null);
+        }
+
+        var meta = Convert.ToHexString(MD5.HashData(Encoding.UTF8.GetBytes(nonce + secret))).ToLowerInvariant();
+        return (nonce, meta);
     }
 
     /// <summary>Creates the HttpClient the portal transport should use.</summary>
@@ -47,6 +65,13 @@ public sealed class HttpPortalTransport : IPortalTransport
         request.Headers.TryAddWithoutValidation("spkgVer", _spkgVer);
         request.Headers.UserAgent.Clear();
         request.Headers.TryAddWithoutValidation("User-Agent", _userAgent);
+
+        var (trace, meta) = SignatureHeaders(_signSecret, Guid.NewGuid().ToString());
+        if (trace is not null)
+        {
+            request.Headers.TryAddWithoutValidation("X-Request-Trace", trace);
+            request.Headers.TryAddWithoutValidation("X-Client-Meta", meta);
+        }
 
         using var timeout = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
         timeout.CancelAfter(RequestTimeout);
