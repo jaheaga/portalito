@@ -9,6 +9,14 @@
     "imageUrl": "https://raw.githubusercontent.com/jaheaga/portalito/main/assets/branding/portalito-banner.png",
     "versions": [
       {
+        "version": "0.2.0.1",
+        "targetAbi": "10.11.0.0",
+        "sourceUrl": "https://github.com/jaheaga/portalito/releases/download/v0.2.0.1/Portalito_0.2.0.1.zip",
+        "checksum": "f2cbeaa68aa5c6d460ec60e557ef9205",
+        "changelog": "Robustness fixes for the 0.2.0.0 host-discovery and request-signing features. No effect on installs that don't use them. A wrong-length discovery AES key no longer throws on every request; discovery just falls back to the configured hosts (and is retried later), instead of leaving the plugin\u2026",
+        "timestamp": "2026-11-18T14:19:54Z"
+      },
+      {
         "version": "0.2.0.0",
         "targetAbi": "10.11.0.0",
         "sourceUrl": "https://github.com/jaheaga/portalito/releases/download/v0.2.0.0/Portalito_0.2.0.0.zip",
