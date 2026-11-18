@@ -1,5 +1,19 @@
 # Changelog
 
+## 0.2.0.1 — 2026-11-18
+
+Robustness fixes for the 0.2.0.0 host-discovery and request-signing features. No effect on installs that don't
+use them.
+
+- A wrong-length discovery AES key no longer throws on every request; discovery just falls back to the
+  configured hosts (and is retried later), instead of leaving the plugin unable to call the portal.
+- Discovered host values are now normalized (any scheme or path stripped) the same way configured hosts are, so
+  a host returned as a full URL still works.
+- After every host fails, discovery now waits a short cooldown before re-resolving, instead of paying a fresh
+  discovery round-trip on each call during an outage.
+- The discovery request is now signed too when a signature secret is set, in case the portal enforces the
+  signature on that endpoint.
+
 ## 0.2.0.0 — 2026-11-18
 
 Keeps Portalito working against portals that have tightened their API — they now sign every request and hand

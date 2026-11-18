@@ -11,7 +11,7 @@ namespace Jellyfin.Plugin.Portalito.Portal;
 /// is set, the plugin runs this against the configured <see cref="PortalOptions.Hosts"/> (the seeds) and calls the hosts it
 /// returns. All values are configuration; nothing here is specific to any one portal.
 /// </summary>
-public sealed class SlbDiscovery
+public sealed class SlbDiscovery : IHostDiscovery
 {
     private static readonly TimeSpan RequestTimeout = TimeSpan.FromSeconds(15);
 
@@ -35,8 +35,18 @@ public sealed class SlbDiscovery
             return Array.Empty<string>();
         }
 
-        var wire = EncryptPayload(BuildRequestBody(_options), _options.DiscoveryAesKey);
-        var envelope = new JsonObject { ["s"] = wire, ["status"] = 0 }.ToJsonString();
+        string envelope;
+        try
+        {
+            var wire = EncryptPayload(BuildRequestBody(_options), _options.DiscoveryAesKey);
+            envelope = new JsonObject { ["s"] = wire, ["status"] = 0 }.ToJsonString();
+        }
+        catch
+        {
+            // A bad key (e.g. not 16/24/32 bytes) can't be encrypted with: disable discovery for this round so the
+            // caller falls back to the seeds, instead of throwing out of every portal call.
+            return Array.Empty<string>();
+        }
 
         foreach (var seed in _options.Hosts)
         {
@@ -70,6 +80,14 @@ public sealed class SlbDiscovery
         request.Headers.TryAddWithoutValidation("ETag", string.Empty);
         request.Headers.UserAgent.Clear();
         request.Headers.TryAddWithoutValidation("User-Agent", _options.PortalUserAgent);
+
+        // Sign the discovery call too, in case the portal enforces the signature on every endpoint (no-op when no secret).
+        var (trace, meta) = HttpPortalTransport.SignatureHeaders(_options.RequestSignSecret, Guid.NewGuid().ToString());
+        if (trace is not null)
+        {
+            request.Headers.TryAddWithoutValidation("X-Request-Trace", trace);
+            request.Headers.TryAddWithoutValidation("X-Client-Meta", meta);
+        }
 
         using var timeout = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
         timeout.CancelAfter(RequestTimeout);
@@ -168,9 +186,16 @@ public sealed class SlbDiscovery
 
                 foreach (var detail in details.OfType<JsonObject>())
                 {
-                    if ((detail["url"] as JsonValue)?.GetValue<string>() is { Length: > 0 } url && !hosts.Contains(url))
+                    if ((detail["url"] as JsonValue)?.GetValue<string>() is not { Length: > 0 } raw)
                     {
-                        hosts.Add(url);
+                        continue;
+                    }
+
+                    // Normalize exactly like the configured seeds: a discovered value may carry a scheme or path.
+                    var host = PortalOptions.StripSchemeAndPath(raw);
+                    if (host.Length > 0 && !hosts.Contains(host))
+                    {
+                        hosts.Add(host);
                     }
                 }
             }

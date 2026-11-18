@@ -44,6 +44,22 @@ internal sealed class FakePortalTransport : IPortalTransport
 
 internal sealed record FakeRequest(string Host, string Path, JsonObject Body);
 
+/// <summary>An SLB discovery that returns a fixed host list and counts how often it was asked to resolve.</summary>
+internal sealed class FakeDiscovery : IHostDiscovery
+{
+    private readonly IReadOnlyList<string> _hosts;
+
+    public FakeDiscovery(IReadOnlyList<string> hosts) => _hosts = hosts;
+
+    public int Calls { get; private set; }
+
+    public Task<IReadOnlyList<string>> ResolvePortalHostsAsync(CancellationToken cancellationToken)
+    {
+        Calls++;
+        return Task.FromResult(_hosts);
+    }
+}
+
 public class PortalClientTests
 {
     private static PortalOptions Options(params string[] hosts) => new()
@@ -597,5 +613,69 @@ public class PortalClientTests
             new[] { "a.test", "b.test:8443", "c.test" },
             PortalOptions.ParseHosts(" a.test , https://b.test:8443/api ,, c.test/ "));
         Assert.Empty(PortalOptions.ParseHosts(null));
+    }
+
+    // ---- SLB host discovery ----
+
+    [Fact]
+    public async Task Discovered_hosts_are_tried_before_the_configured_seeds()
+    {
+        var transport = new FakePortalTransport();
+        transport.Handler = r => r.Host == "disc.test"
+            ? throw new HttpRequestException("down")
+            : transport.Ok(Activation("tok1"));
+        var discovery = new FakeDiscovery(new[] { "disc.test" });
+        var client = new PortalClient(Options(), transport, discovery: discovery);
+
+        Assert.True((await client.ActivateAsync()).IsSuccess);
+
+        Assert.Equal(1, discovery.Calls);
+        // discovered host first, then the seed it failed over to.
+        Assert.Equal(new[] { "disc.test", "host-a.test" }, transport.Requests.Select(r => r.Host));
+    }
+
+    [Fact]
+    public async Task A_total_host_failure_waits_the_cooldown_before_re_resolving_discovery()
+    {
+        var clock = new ManualClock(DateTimeOffset.UnixEpoch);
+        var discovery = new FakeDiscovery(new[] { "disc.test" });
+        var down = true;
+        var transport = new FakePortalTransport();
+        transport.Handler = r => down ? throw new HttpRequestException("down") : transport.Ok(Activation("tok1"));
+        var client = new PortalClient(Options("host-a.test"), transport, clock: clock, discovery: discovery);
+
+        // Every host is down -> total failure; discovery ran once and the discovered host was tried before the seed.
+        Assert.False((await client.ActivateAsync()).IsSuccess);
+        Assert.Equal(1, discovery.Calls);
+        Assert.Equal(new[] { "disc.test", "host-a.test" }, transport.Requests.Select(r => r.Host));
+
+        // Hosts recover. Within the cooldown the plugin does NOT re-resolve; it just uses the seed.
+        down = false;
+        Assert.True((await client.ActivateAsync()).IsSuccess);
+        Assert.Equal(1, discovery.Calls);
+        Assert.Equal("host-a.test", transport.Requests[^1].Host);
+
+        // Past the cooldown, discovery is re-resolved (the preferred seed from the previous call is still tried first).
+        clock.Now += TimeSpan.FromSeconds(31);
+        Assert.True((await client.ActivateAsync()).IsSuccess);
+        Assert.Equal(2, discovery.Calls);
+    }
+
+    [Fact]
+    public async Task Empty_discovery_falls_back_to_seeds_and_waits_before_retrying()
+    {
+        var clock = new ManualClock(DateTimeOffset.UnixEpoch);
+        var discovery = new FakeDiscovery(Array.Empty<string>());
+        var transport = new FakePortalTransport();
+        transport.Handler = _ => transport.Ok(Activation("tok1"));
+        var client = new PortalClient(Options("host-a.test"), transport, clock: clock, discovery: discovery);
+
+        Assert.True((await client.ActivateAsync()).IsSuccess);
+        Assert.Equal("host-a.test", transport.Requests[^1].Host);
+        Assert.Equal(1, discovery.Calls);
+
+        // Second call within the cooldown: discovery is not retried.
+        Assert.True((await client.ActivateAsync()).IsSuccess);
+        Assert.Equal(1, discovery.Calls);
     }
 }

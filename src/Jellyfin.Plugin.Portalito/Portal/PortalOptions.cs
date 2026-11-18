@@ -131,7 +131,8 @@ public sealed record PortalOptions
         }
     }
 
-    private static string StripSchemeAndPath(string host)
+    /// <summary>Reduces a host value to a bare host:port, dropping any scheme and path (shared with discovered hosts).</summary>
+    internal static string StripSchemeAndPath(string host)
     {
         var h = host;
         var scheme = h.IndexOf("://", StringComparison.Ordinal);

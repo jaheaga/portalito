@@ -67,6 +67,35 @@ public class SlbDiscoveryTests
         Assert.Matches("^[0-9a-f]{32}$", meta);
     }
 
+    [Fact]
+    public void ParsePortalHosts_strips_scheme_and_path_from_discovered_urls()
+    {
+        var services = new JsonObject
+        {
+            ["global"] = new JsonArray { Entry("portal", "https://g1.example/api/core", "g2.example:8443/x") },
+        };
+
+        var hosts = SlbDiscovery.ParsePortalHosts(Wrap(services), TestKey, "portal");
+
+        Assert.Equal(new[] { "g1.example", "g2.example:8443" }, hosts);
+    }
+
+    [Fact]
+    public async Task ResolvePortalHostsAsync_with_a_bad_length_key_returns_empty_without_throwing()
+    {
+        var options = new Jellyfin.Plugin.Portalito.Portal.PortalOptions
+        {
+            Hosts = new[] { "seed.example" },
+            DiscoveryAesKey = "0123456789abcdefghij", // 20 bytes: not a valid AES key size (16/24/32)
+            DiscoveryPath = "/v1/x/y",
+            PortalUserAgent = "ua",
+        };
+        var discovery = new SlbDiscovery(new HttpClient(), options);
+
+        // Degrades to "no discovered hosts" instead of throwing a CryptographicException out of every portal call.
+        Assert.Empty(await discovery.ResolvePortalHostsAsync(CancellationToken.None));
+    }
+
     private static JsonObject Entry(string service, params string[] urls)
     {
         var details = new JsonArray();

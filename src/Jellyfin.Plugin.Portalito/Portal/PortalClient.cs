@@ -37,11 +37,12 @@ public sealed partial class PortalClient : IStreamResolver
     private volatile string? _preferredHost;
 
     // SLB host discovery (optional): the live hosts resolved from the seed Hosts, and a cooldown so a failed
-    // resolve falls back to the seeds without re-attempting on every call.
-    private readonly SlbDiscovery? _discovery;
+    // resolve (or a total host failure) falls back to the seeds without re-attempting on every call. The cooldown is
+    // kept as UTC ticks so the lock-free fast-path read is atomic (a DateTimeOffset struct could tear).
+    private readonly IHostDiscovery? _discovery;
     private readonly SemaphoreSlim _discoveryLock = new(1, 1);
     private volatile IReadOnlyList<string>? _discoveredHosts;
-    private DateTimeOffset _discoveryRetryAfter = DateTimeOffset.MinValue;
+    private long _discoveryRetryAfterTicks;
     private static readonly TimeSpan DiscoveryRetryCooldown = TimeSpan.FromSeconds(30);
 
     /// <param name="onDeviceProvisioned">
@@ -50,7 +51,7 @@ public sealed partial class PortalClient : IStreamResolver
     /// </param>
     /// <param name="clock">Time source for the account-takeover cooldown; the system clock when not given.</param>
     /// <param name="discovery">Optional SLB host discovery; when given and enabled, the resolved hosts are tried before the seeds.</param>
-    public PortalClient(PortalOptions options, IPortalTransport transport, Action<string>? onDeviceProvisioned = null, TimeProvider? clock = null, SlbDiscovery? discovery = null)
+    public PortalClient(PortalOptions options, IPortalTransport transport, Action<string>? onDeviceProvisioned = null, TimeProvider? clock = null, IHostDiscovery? discovery = null)
     {
         options.Validate();
         _options = options;
@@ -168,16 +169,18 @@ public sealed partial class PortalClient : IStreamResolver
             }
         }
 
-        // Every host failed: drop the discovered set so the next call re-resolves (the hosts may have rotated).
+        // Every host failed: drop the discovered set so the next call re-resolves (the hosts may have rotated), but hold
+        // off for the cooldown so a sustained outage doesn't pay a fresh discovery round-trip on every single call.
         _discoveredHosts = null;
         _preferredHost = null;
+        Volatile.Write(ref _discoveryRetryAfterTicks, (_clock.GetUtcNow() + DiscoveryRetryCooldown).UtcTicks);
         return new PortalResponse(path, null, TransportError: lastError ?? "no portal hosts");
     }
 
     /// <summary>Resolves the live hosts once (when discovery is enabled), with a short cooldown after a failed resolve.</summary>
     private async Task EnsureDiscoveredAsync(CancellationToken cancellationToken)
     {
-        if (_discovery is null || _discoveredHosts is { Count: > 0 } || _clock.GetUtcNow() < _discoveryRetryAfter)
+        if (_discovery is null || _discoveredHosts is { Count: > 0 } || _clock.GetUtcNow().UtcTicks < Volatile.Read(ref _discoveryRetryAfterTicks))
         {
             return;
         }
@@ -185,7 +188,7 @@ public sealed partial class PortalClient : IStreamResolver
         await _discoveryLock.WaitAsync(cancellationToken).ConfigureAwait(false);
         try
         {
-            if (_discoveredHosts is { Count: > 0 } || _clock.GetUtcNow() < _discoveryRetryAfter)
+            if (_discoveredHosts is { Count: > 0 } || _clock.GetUtcNow().UtcTicks < Volatile.Read(ref _discoveryRetryAfterTicks))
             {
                 return;
             }
@@ -197,7 +200,7 @@ public sealed partial class PortalClient : IStreamResolver
             }
             else
             {
-                _discoveryRetryAfter = _clock.GetUtcNow() + DiscoveryRetryCooldown;
+                Volatile.Write(ref _discoveryRetryAfterTicks, (_clock.GetUtcNow() + DiscoveryRetryCooldown).UtcTicks);
             }
         }
         finally
