@@ -30,8 +30,20 @@ channel hides itself and the connection test reports "not configured".
 
 ## Requirements
 
-- Jellyfin **12** (target ABI `12.0.0.0`).
+- Jellyfin **12** (target ABI `12.0.0.0`) for Portalito **0.3.x**.
 - A portal account and the protocol parameters it uses (see below).
+
+> **Jellyfin version compatibility.** Portalito **0.3.x requires Jellyfin 12** — it is built for .NET 10 and
+> will **not load** on older servers (it shows as *NotSupported*). If you are still on **Jellyfin 10.11**, stay
+> on Portalito **0.2.0.1** and do **not** move to 0.3.x until you have upgraded Jellyfin to 12. Jellyfin's plugin
+> catalog hides 0.3.x from 10.11 servers automatically, so a normal **Update** will not offer it and you will not
+> be prompted — the only ways to break this are installing the zip by hand or upgrading Jellyfin to 12 without
+> then updating the plugin. Upgrade order on the server: **Jellyfin 10.11 → 12 first, then update Portalito to 0.3.x.**
+
+| Portalito | Jellyfin | Runtime |
+| --- | --- | --- |
+| 0.3.x | 12.x | .NET 10 |
+| 0.2.0.1 and earlier | 10.11.x | .NET 9 |
 
 ## Install
 
