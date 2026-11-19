@@ -19,7 +19,17 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent.parent
 DLL_NAME = "Jellyfin.Plugin.Portalito.dll"
-DEFAULT_DLL = ROOT / "src" / "Jellyfin.Plugin.Portalito" / "bin" / "Release" / "net9.0" / DLL_NAME
+RELEASE_DIR = ROOT / "src" / "Jellyfin.Plugin.Portalito" / "bin" / "Release"
+
+
+def _default_dll() -> Path:
+    # Resolve the built DLL under whatever target framework the csproj uses (net9.0, net10.0, ...), newest
+    # build wins, so a framework bump doesn't need a change here. Falls back to a stable path for the error.
+    matches = sorted(RELEASE_DIR.glob(f"net*/{DLL_NAME}"), key=lambda p: p.stat().st_mtime)
+    return matches[-1] if matches else RELEASE_DIR / "net10.0" / DLL_NAME
+
+
+DEFAULT_DLL = _default_dll()
 
 
 def build_zip(dll: Path, meta_path: Path, out_dir: Path, now: datetime) -> Path:
