@@ -1,11 +1,11 @@
 <Project Sdk="Microsoft.NET.Sdk">
 
   <PropertyGroup>
-    <TargetFramework>net9.0</TargetFramework>
+    <TargetFramework>net10.0</TargetFramework>
     <RootNamespace>Jellyfin.Plugin.Portalito</RootNamespace>
     <AssemblyName>Jellyfin.Plugin.Portalito</AssemblyName>
-    <AssemblyVersion>0.2.0.1</AssemblyVersion>
-    <FileVersion>0.2.0.1</FileVersion>
+    <AssemblyVersion>0.3.0.0</AssemblyVersion>
+    <FileVersion>0.3.0.0</FileVersion>
     <Nullable>enable</Nullable>
     <ImplicitUsings>enable</ImplicitUsings>
     <TreatWarningsAsErrors>false</TreatWarningsAsErrors>
@@ -13,9 +13,9 @@
 
   <ItemGroup>
     <FrameworkReference Include="Microsoft.AspNetCore.App" />
-    <!-- Build against the 10.11 ABI floor (matches meta.json targetAbi 10.11.0.0) so the plugin loads on
-         any 10.11.x server; a build against a higher patch would demand shared libs an older server lacks. -->
-    <PackageReference Include="Jellyfin.Controller" Version="10.11.0" />
+    <!-- Build against the 12.0 ABI floor (matches meta.json targetAbi 12.0.0.0) so the plugin loads on
+         any 12.x server; a build against a higher patch would demand shared libs an older server lacks. -->
+    <PackageReference Include="Jellyfin.Controller" Version="12.0.0" />
     <!-- Compile-only: Jellyfin ships SkiaSharp (and its native lib) for its own image encoder, so the plugin
          uses the server's copy and bundles nothing. -->
     <PackageReference Include="SkiaSharp" Version="3.116.1" ExcludeAssets="runtime;native" PrivateAssets="all" />

@@ -30,7 +30,7 @@ channel hides itself and the connection test reports "not configured".
 
 ## Requirements
 
-- Jellyfin **10.11** (target ABI `10.11.0.0`).
+- Jellyfin **12** (target ABI `12.0.0.0`).
 - A portal account and the protocol parameters it uses (see below).
 
 ## Install

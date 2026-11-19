@@ -1,6 +1,6 @@
 # Architecture
 
-Portalito is a Jellyfin 10.11 plugin (.NET 9) that exposes an IPTV "portal" middleware as a Jellyfin
+Portalito is a Jellyfin 12 plugin (.NET 10) that exposes an IPTV "portal" middleware as a Jellyfin
 **channel** (VOD + a live-channel browser) and a Jellyfin **Live TV service**. Everything runs inside
 Jellyfin: there is no helper server. Every service-specific value comes from the plugin configuration —
 see [CONFIGURATION.md](CONFIGURATION.md).
@@ -133,7 +133,7 @@ plugin's own proxy** (`/Portalito/...`), which fetches from the CDN with the rig
   round-1 schedule / K overrides). CDNs are tried in order with failover; a rejected signature or a license
   conflict re-resolves the session once; edge 404/5xx on a segment is retried briefly.
 - **VOD.** Resolved once (`v10/startPlayVOD`) to a file URL + license; the container (ts/mp4) is known before ffmpeg
-  opens it. Subtitles are downloaded to local files (`SubtitleFileCache`) because Jellyfin 10.11 can't read
+  opens it. Subtitles are downloaded to local files (`SubtitleFileCache`) because Jellyfin can't read
   http subtitle paths. Tracks are probed with ffprobe (`VodTracks`) so audio/subtitle selection works.
 - **Session cache.** Resolved CDN sessions are cached per channel/title and refreshed before they expire
   (`StreamSessionCache`), so the many segment requests don't each hit the portal.

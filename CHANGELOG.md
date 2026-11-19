@@ -1,5 +1,16 @@
 # Changelog
 
+## 0.3.0.0 — 2026-11-19
+
+Rebuilt for **Jellyfin 12**. Jellyfin 12 runs on .NET 10 and won't load plugins built for the 10.11 line, so
+this release retargets Portalito to it; the 10.11-compatible build stays available as 0.2.0.1.
+
+- **Requires Jellyfin 12** (target ABI `12.0.0.0`). Install this on a 12.x server; keep 0.2.0.1 on 10.11.x.
+- Retargeted to **.NET 10** and built against `Jellyfin.Controller` 12.0.0 (the 12.0 ABI floor), so it loads on
+  any 12.x server.
+- No functional changes to Live TV, VOD, discovery, signing or the proxy — the migration is build-only. The one
+  API that Jellyfin reworked (the user list) was already resolved at runtime, so no behavior changed.
+
 ## 0.2.0.1 — 2026-11-18
 
 Robustness fixes for the 0.2.0.0 host-discovery and request-signing features. No effect on installs that don't

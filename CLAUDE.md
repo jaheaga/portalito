@@ -1,6 +1,6 @@
 # Portalito — notes for AI agents
 
-A Jellyfin 10.11 channel + Live TV plugin (.NET 9) for IPTV "portal" middleware. Public repo. Read
+A Jellyfin 12 channel + Live TV plugin (.NET 10) for IPTV "portal" middleware. Public repo. Read
 [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) and [docs/DEVELOPMENT.md](docs/DEVELOPMENT.md) first.
 
 ## Non-negotiable
@@ -20,8 +20,8 @@ A Jellyfin 10.11 channel + Live TV plugin (.NET 9) for IPTV "portal" middleware.
 
 ## Measured traps
 
-- Build against the ABI floor (`Jellyfin.Controller` 10.11.0) or the plugin loads as `NotSupported` on older
-  10.11.x servers. Never reuse a release version/tag (the asset CDN serves stale zips). See
+- Build against the ABI floor (`Jellyfin.Controller` 12.0.0) or the plugin loads as `NotSupported` on older
+  12.x servers. Never reuse a release version/tag (the asset CDN serves stale zips). See
   [docs/RELEASING.md](docs/RELEASING.md).
 - Bump `DataVersion` in `PortalitoVodChannel` whenever a code change alters listings — Jellyfin caches them 3 h. Config
   changes are covered by the channel's `GetCacheKey` (a change counter — never a config hash).

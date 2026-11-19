@@ -29,11 +29,11 @@ after yours.
 
 ## Rules learned the hard way
 
-- **Build against the ABI floor.** `Jellyfin.Controller` is pinned to `10.11.0`, matching
-  `targetAbi 10.11.0.0`. The referenced Jellyfin assemblies' versions are baked into the DLL; building
-  against a newer patch (e.g. 10.11.11) makes the plugin demand shared libraries an older 10.11.x server
+- **Build against the ABI floor.** `Jellyfin.Controller` is pinned to `12.0.0`, matching
+  `targetAbi 12.0.0.0`. The referenced Jellyfin assemblies' versions are baked into the DLL; building
+  against a newer patch (e.g. 12.2.0) makes the plugin demand shared libraries an older 12.x server
   doesn't have, and it loads as **`NotSupported`** ("Could not load file or assembly 'MediaBrowser.Common,
-  Version=10.11.11.0'"). Check a built DLL's references with `System.Reflection.Metadata` — `strings` can't
+  Version=12.2.0.0'"). Check a built DLL's references with `System.Reflection.Metadata` — `strings` can't
   see them.
 - **Never reuse a version or a tag.** Deleting and re-creating a GitHub Release under the same tag keeps
   the same asset URL, and its CDN keeps serving the *old* zip for a while; servers install the stale file.

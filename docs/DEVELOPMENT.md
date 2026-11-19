@@ -2,7 +2,7 @@
 
 ## Build and test
 
-Requires the .NET 9 SDK.
+Requires the .NET 10 SDK.
 
 ```sh
 dotnet build src/Jellyfin.Plugin.Portalito -c Release   # must be 0 warnings
