@@ -19,7 +19,8 @@ public sealed record PortalitoServices(
     DiscoveryBrowser? Discovery = null,
     string? ChannelImageUrl = null,
     XtreamCatalog? Xtream = null,
-    Configuration.PlaybackSourceMode PlaybackSource = Configuration.PlaybackSourceMode.PortalOnly);
+    Configuration.PlaybackSourceMode PlaybackSource = Configuration.PlaybackSourceMode.PortalOnly,
+    bool ShowIptvLiveTab = false);
 
 public interface IPortalitoServicesProvider
 {
@@ -185,7 +186,9 @@ public sealed class PortalitoRuntime : IPortalitoServicesProvider
         var channelImage = Uri.TryCreate(config.ChannelImageUrl.Trim(), UriKind.Absolute, out var image) && image.Scheme is "http" or "https"
             ? image.ToString()
             : null;
-        return new PortalitoServices(portal, signer, proxy, catalogs.Browser, tmdb, epgZone, epgZoneProblem, discovery, channelImage, xtream, config.PlaybackSourceMode());
+        // The "TV IPTV" live tab only makes sense when the IPTV source is configured; the flag is ignored otherwise.
+        var showIptvLiveTab = xtream is not null && config.ShowIptvLiveTab;
+        return new PortalitoServices(portal, signer, proxy, catalogs.Browser, tmdb, epgZone, epgZoneProblem, discovery, channelImage, xtream, config.PlaybackSourceMode(), showIptvLiveTab);
     }
 
     private (PortalClient Portal, ProxyUrlSigner Signer, PortalitoProxyService Proxy) BuildCore(PluginConfiguration config)
@@ -381,5 +384,6 @@ public sealed class PortalitoRuntime : IPortalitoServicesProvider
             c.XtreamBaseUrl,
             c.XtreamUsername,
             c.XtreamPassword,
-            c.PlaybackSource);
+            c.PlaybackSource,
+            c.ShowIptvLiveTab);
 }

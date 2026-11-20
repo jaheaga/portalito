@@ -175,6 +175,14 @@ public class PluginConfiguration : BasePluginConfiguration
     public string PlaybackSource { get; set; } = nameof(Configuration.PlaybackSourceMode.PortalOnly);
 
     /// <summary>
+    /// Gets or sets a value indicating whether the channel shows a "TV IPTV" tab of live channels sourced straight from the
+    /// Xtream account (its own live categories, played through the signed proxy), alongside the portal's own tabs. Off by
+    /// default and shown only when the IPTV source is configured; independent of <see cref="PlaybackSource"/> (that governs
+    /// VOD/series playback, this is its own live grid).
+    /// </summary>
+    public bool ShowIptvLiveTab { get; set; }
+
+    /// <summary>
     /// Gets or sets the optional TMDB v3 API key. When set, TMDB fills in synopses and posters Portalito leaves blank, and
     /// the <see cref="FeaturedRows"/> (if any) are built from TMDB lists -- limited to titles the portal has.
     /// </summary>

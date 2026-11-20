@@ -56,6 +56,28 @@ public sealed class XtreamClient
     public Task<IReadOnlyList<XtreamCategory>> GetSeriesCategoriesAsync(CancellationToken cancellationToken)
         => CategoriesAsync("get_series_categories", cancellationToken);
 
+    /// <summary>Lists the live-TV categories.</summary>
+    public Task<IReadOnlyList<XtreamCategory>> GetLiveCategoriesAsync(CancellationToken cancellationToken)
+        => CategoriesAsync("get_live_categories", cancellationToken);
+
+    /// <summary>Lists every live channel (id, name, <c>stream_icon</c>, category id). Unlike VOD there is no detail call.</summary>
+    public async Task<IReadOnlyList<XtreamLiveItem>> GetLiveStreamsAsync(CancellationToken cancellationToken)
+    {
+        var array = await GetArrayAsync(Api("get_live_streams"), cancellationToken).ConfigureAwait(false);
+        var items = new List<XtreamLiveItem>(array.Count);
+        foreach (var entry in array)
+        {
+            if (entry is not JsonObject o || Int(o["stream_id"]) is not { } id)
+            {
+                continue;
+            }
+
+            items.Add(new XtreamLiveItem(id, Str(o["name"]) ?? string.Empty, Str(o["stream_icon"]), Str(o["category_id"]) ?? string.Empty));
+        }
+
+        return items;
+    }
+
     /// <summary>
     /// Lists every VOD stream (id, name, container extension). The bulk list carries no TMDB id -- that is only in
     /// <see cref="GetVodInfoAsync"/> -- so movie matching is by title + year, with a lazy TMDB confirmation.

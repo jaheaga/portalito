@@ -124,6 +124,32 @@ public class XtreamTests
     }
 
     [Fact]
+    public void BuildLiveIndex_groups_channels_by_category_and_keeps_only_non_empty_ones_in_panel_order()
+    {
+        var categories = new[]
+        {
+            new XtreamCategory("10", "Deportes"),
+            new XtreamCategory("20", "Noticias"),   // listed but has no channels -> dropped
+            new XtreamCategory("30", "Peliculas"),
+        };
+        var streams = new[]
+        {
+            new XtreamLiveItem(1, "Sports One", "http://cdn/1.png", "10"),
+            new XtreamLiveItem(2, "Sports Two", null, "10"),
+            new XtreamLiveItem(3, "Cine 24h", "http://cdn/3.png", "30"),
+            new XtreamLiveItem(4, "Unfiled", null, "99"),   // category not in the list -> not reachable by category
+        };
+
+        var index = XtreamCatalog.BuildLiveIndex(categories, streams);
+
+        // Only categories that actually have channels, in the panel's order (Deportes before Peliculas; Noticias gone).
+        Assert.Equal(new[] { "Deportes", "Peliculas" }, index.Categories.Select(c => c.Name));
+        Assert.Equal(new[] { 1, 2 }, index.ByCategory["10"].Select(c => c.StreamId));
+        Assert.Equal(new[] { 3 }, index.ByCategory["30"].Select(c => c.StreamId));
+        Assert.DoesNotContain(index.Categories, c => c.Id == "20");
+    }
+
+    [Fact]
     public void XtreamOptions_is_configured_only_when_all_three_fields_are_set()
     {
         var config = new PluginConfiguration { XtreamBaseUrl = "http://host:8080/", XtreamUsername = "u", XtreamPassword = " p " };

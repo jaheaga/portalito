@@ -154,12 +154,14 @@ public sealed class PortalitoVodChannel : IChannel, IRequiresMediaInfoCallback, 
     /// "v26" -> "v27" (2026-10-02): TMDB Destacado rows rate their titles with TMDB's vote average, and every Destacado
     /// row writes its ratings onto the titles Jellyfin already saved -- the rows are ordered by rating (see
     /// <see cref="FeaturedSortFilter"/>).
+    /// "v29" -> "v30" (2026-11-20): an optional "TV IPTV" root tab lists the Xtream account's own live channels (new
+    /// xliv/xlcat/xlch item ids), so the root and its folders change when the tab is enabled.
     /// "v28" -> "v29" (2026-11-12): Destacado rows can resolve to the IPTV (Xtream) source (new xmov/xshw/xssn/xepi
     /// item ids) when the playback source is IPTV or the portal is down, so a row's items change with the source.
     /// "v27" -> "v28" (2026-10-28): series folders carry their year ("One Piece (1999)" vs "One Piece (2023)") so a show
     /// and its remake/live-action adaptation are told apart in browse and global search (see <see cref="SeasonGrouping.WithYear"/>).
     /// </summary>
-    public string DataVersion => $"v29:{DateTime.UtcNow:yyyyMMdd}";
+    public string DataVersion => $"v30:{DateTime.UtcNow:yyyyMMdd}";
 
     public string HomePageUrl => string.Empty;
 
@@ -271,6 +273,10 @@ public sealed class PortalitoVodChannel : IChannel, IRequiresMediaInfoCallback, 
                 return Slice(await XtreamShowSeasonsAsync(services, folder.Primary, cancellationToken).ConfigureAwait(false), window);
             case VodItemKind.XtreamSeason:
                 return Slice(await XtreamSeasonEpisodesAsync(services, folder.Primary, folder.Secondary!, cancellationToken).ConfigureAwait(false), window);
+            case VodItemKind.XtreamLiveRoot:
+                return Slice(await XtreamLiveCategoryFoldersAsync(services, cancellationToken).ConfigureAwait(false), window);
+            case VodItemKind.XtreamLiveCategory:
+                return Slice(await XtreamLiveChannelsAsync(services, folder.Primary, cancellationToken).ConfigureAwait(false), window);
             default:
                 throw new ArgumentException($"'{query.FolderId}' is not a folder.", nameof(query));
         }
@@ -296,6 +302,20 @@ public sealed class PortalitoVodChannel : IChannel, IRequiresMediaInfoCallback, 
             // Same signed HLS proxy source Jellyfin's Live TV section plays; no portal call until ffmpeg fetches it.
             // Its source takes the library item's id, as a title's does below: otherwise Android TV opens it and stays black.
             var live = MediaSources.Live(item.Primary, services.Signer.LivePlaylistUrl(item.Primary, MediaSources.LiveUrlValidity));
+            live.Id = (LibraryItemId(id, item.Kind) ?? Guid.Parse(MediaSources.SourceIdFor(id))).ToString("N");
+            return new[] { live };
+        }
+
+        if (item.Kind == VodItemKind.XtreamLiveChannel)
+        {
+            // The id already carries the Xtream stream id, so there's no listing call here: sign the proxied "live"
+            // route (a continuous .ts stream) straight away. Infinite stream, so no runtime probe -- like portal live.
+            if (services.Xtream is null)
+            {
+                return Array.Empty<MediaSourceInfo>();
+            }
+
+            var live = MediaSources.LiveDirect(id, services.Signer.XtreamUrl("live", item.Primary, "ts", MediaSources.LiveUrlValidity));
             live.Id = (LibraryItemId(id, item.Kind) ?? Guid.Parse(MediaSources.SourceIdFor(id))).ToString("N");
             return new[] { live };
         }
@@ -565,7 +585,7 @@ public sealed class PortalitoVodChannel : IChannel, IRequiresMediaInfoCallback, 
         var type = kind switch
         {
             VodItemKind.Episode or VodItemKind.XtreamEpisode => typeof(MediaBrowser.Controller.Entities.TV.Episode),
-            VodItemKind.LiveChannel => typeof(MediaBrowser.Controller.Entities.Video),
+            VodItemKind.LiveChannel or VodItemKind.XtreamLiveChannel => typeof(MediaBrowser.Controller.Entities.Video),
             _ => typeof(MediaBrowser.Controller.Entities.Movies.Movie),
         };
         return _library.GetNewItemId(channelItemId + Name + "16", type);
@@ -623,12 +643,21 @@ public sealed class PortalitoVodChannel : IChannel, IRequiresMediaInfoCallback, 
             CollageAsync(services, "Destacado", CollageFit.Cover, featured, cancellationToken),
             CollageAsync(services, "Descubrir", CollageFit.Cover, discover, cancellationToken),
             CollageAsync(services, "TV en vivo", CollageFit.Contain, liveRoot, cancellationToken)).ConfigureAwait(false);
-        return new[]
+        var folders = new List<ChannelItemInfo>
         {
             Folder(VodItemId.Featured().ToString(), "Destacado", ChannelFolderType.Container, images[0]),
             Folder(VodItemId.Discover().ToString(), "Descubrir", ChannelFolderType.Container, images[1]),
             Folder(VodItemId.LiveRoot().ToString(), "TV en vivo", ChannelFolderType.Container, images[2]),
         };
+
+        // The optional IPTV live tab comes last, after the portal's own tabs; only when configured and enabled.
+        if (services.ShowIptvLiveTab)
+        {
+            var iptvImage = await XtreamLiveRootCollageAsync(services, cancellationToken).ConfigureAwait(false);
+            folders.Add(Folder(VodItemId.XtreamLiveRoot().ToString(), "TV IPTV", ChannelFolderType.Container, iptvImage));
+        }
+
+        return folders;
     }
 
     /// <summary>
@@ -809,6 +838,139 @@ public sealed class PortalitoVodChannel : IChannel, IRequiresMediaInfoCallback, 
             })
             .ToList();
     }
+
+    /// <summary>
+    /// "TV IPTV": the Xtream account's own live categories (in panel order, only those with channels), each a folder of
+    /// channels. Unlike "TV en vivo" this never touches the portal; the listing is read from the cached live index.
+    /// Each folder's thumbnail is its first channel's logo -- no collage render, so the tab opens fast.
+    /// </summary>
+    private async Task<IReadOnlyList<ChannelItemInfo>> XtreamLiveCategoryFoldersAsync(PortalitoServices services, CancellationToken cancellationToken)
+    {
+        if (services.Xtream is not { } xtream)
+        {
+            return Array.Empty<ChannelItemInfo>();
+        }
+
+        IReadOnlyList<XtreamCategory> categories;
+        try
+        {
+            categories = await xtream.LiveCategoriesAsync(cancellationToken).ConfigureAwait(false);
+        }
+        catch (XtreamException ex)
+        {
+            _logger.LogWarning("TV IPTV categories unavailable ({Reason})", ex.Message);
+            return Array.Empty<ChannelItemInfo>();
+        }
+
+        var folders = new List<ChannelItemInfo>(categories.Count);
+        foreach (var category in categories)
+        {
+            if (!VodItemId.IsSafePart(category.Id))
+            {
+                continue;
+            }
+
+            // Normally a dictionary lookup against the index the call above cached. Guarded only because the index's
+            // TTL could expire between that call and this loop, so the first lookup here re-fetches and can throw --
+            // which must leave the folder (its channels listed on open) rather than break the whole TV IPTV listing.
+            string? image = null;
+            try
+            {
+                var channels = await xtream.LiveChannelsAsync(category.Id, cancellationToken).ConfigureAwait(false);
+                image = channels.Select(c => XtreamIconUrl(services, c.Icon)).FirstOrDefault(u => u is not null);
+            }
+            catch (XtreamException ex)
+            {
+                _logger.LogDebug("No TV IPTV thumbnail for category {Category} ({Reason})", category.Id, ex.Message);
+            }
+
+            folders.Add(Folder(VodItemId.XtreamLiveCategory(category.Id).ToString(), category.Name, ChannelFolderType.Container, image));
+        }
+
+        return folders;
+    }
+
+    /// <summary>One Xtream live category's channels, as playable live items (a stream id that doesn't fit the id charset is skipped).</summary>
+    private async Task<IReadOnlyList<ChannelItemInfo>> XtreamLiveChannelsAsync(PortalitoServices services, string categoryId, CancellationToken cancellationToken)
+    {
+        if (services.Xtream is not { } xtream)
+        {
+            return Array.Empty<ChannelItemInfo>();
+        }
+
+        IReadOnlyList<XtreamLiveItem> channels;
+        try
+        {
+            channels = await xtream.LiveChannelsAsync(categoryId, cancellationToken).ConfigureAwait(false);
+        }
+        catch (XtreamException ex)
+        {
+            _logger.LogWarning("TV IPTV channels unavailable for category {Category} ({Reason})", categoryId, ex.Message);
+            return Array.Empty<ChannelItemInfo>();
+        }
+
+        return channels
+            .Select(c => (Code: c.StreamId.ToString(CultureInfo.InvariantCulture), Channel: c))
+            .Where(c => VodItemId.IsSafePart(c.Code))
+            .Select(c => new ChannelItemInfo
+            {
+                Id = VodItemId.XtreamLiveChannel(c.Code).ToString(),
+                Name = c.Channel.Name,
+                Type = ChannelItemType.Media,
+                MediaType = ChannelMediaType.Video,
+                IsLiveStream = true,
+                ImageUrl = XtreamIconUrl(services, c.Channel.Icon),
+            })
+            .ToList();
+    }
+
+    /// <summary>The "TV IPTV" tab's own thumbnail: a collage of the first live-channel logos, or none if unavailable.</summary>
+    private async Task<string?> XtreamLiveRootCollageAsync(PortalitoServices services, CancellationToken cancellationToken)
+    {
+        if (services.Xtream is not { } xtream)
+        {
+            return null;
+        }
+
+        try
+        {
+            var icons = new List<string>();
+            foreach (var category in await xtream.LiveCategoriesAsync(cancellationToken).ConfigureAwait(false))
+            {
+                foreach (var channel in await xtream.LiveChannelsAsync(category.Id, cancellationToken).ConfigureAwait(false))
+                {
+                    if (channel.Icon is { Length: > 0 } icon
+                        && Uri.TryCreate(icon, UriKind.Absolute, out var u) && u.Scheme is "http" or "https")
+                    {
+                        icons.Add(icon);
+                    }
+
+                    if (icons.Count >= CollagePlanner.PerCollage)
+                    {
+                        break;
+                    }
+                }
+
+                if (icons.Count >= CollagePlanner.PerCollage)
+                {
+                    break;
+                }
+            }
+
+            return await CollageAsync(services, "TV IPTV", CollageFit.Contain, icons, cancellationToken).ConfigureAwait(false);
+        }
+        catch (XtreamException ex)
+        {
+            _logger.LogDebug("No TV IPTV tab collage ({Reason})", ex.Message);
+            return null;
+        }
+    }
+
+    /// <summary>A live channel's logo as a signed image-proxy URL (so an http icon isn't mixed content), or null when it's unusable.</summary>
+    private static string? XtreamIconUrl(PortalitoServices services, string? icon)
+        => icon is { Length: > 0 } && Uri.TryCreate(icon, UriKind.Absolute, out var u) && u.Scheme is "http" or "https"
+            ? services.Signer.ImageUrl(icon, MediaSources.ImageUrlValidity)
+            : null;
 
     /// <summary>One catalog's collages, most specific first (see <see cref="CollagePlanner"/>).</summary>
     private sealed record CatalogCollages(

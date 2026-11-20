@@ -19,6 +19,9 @@ public class VodItemIdTests
     [InlineData("xshw:10418")]
     [InlineData("xssn:10418:1")]
     [InlineData("xepi:10418:821201")]
+    [InlineData("xliv:root")]
+    [InlineData("xlcat:258")]
+    [InlineData("xlch:821207")]
     public void Round_trips_through_its_string_form(string text)
     {
         Assert.True(VodItemId.TryParse(text, out var id));

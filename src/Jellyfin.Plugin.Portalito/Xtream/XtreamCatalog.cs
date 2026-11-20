@@ -19,6 +19,11 @@ public sealed record XtreamTitleIndex<T>(
 /// <summary>Both series lookups built from one fetch: by TMDB id (exact) and by normalized title+year.</summary>
 public sealed record XtreamSeriesIndexes(IReadOnlyDictionary<int, int> ByTmdb, XtreamTitleIndex<int> ByName);
 
+/// <summary>The live-TV listing built from one fetch: the categories that have channels, in panel order, and their channels.</summary>
+public sealed record XtreamLiveIndex(
+    IReadOnlyList<XtreamCategory> Categories,
+    IReadOnlyDictionary<string, IReadOnlyList<XtreamLiveItem>> ByCategory);
+
 /// <summary>
 /// Matches a portal title to the same title on the IPTV (Xtream) source, so the portal's own movies and series can play
 /// from the IPTV account. Series match exactly by TMDB id (the series list carries it) or by normalized title+year when
@@ -29,12 +34,14 @@ public sealed class XtreamCatalog
 {
     private const string SeriesKey = "series-index";
     private const string MovieKey = "movie-index";
+    private const string LiveKey = "live-index";
 
     private readonly XtreamClient _client;
     private readonly SingleFlight _flights = new();
     private readonly TtlCache<XtreamSeriesIndexes> _series;
     private readonly TtlCache<XtreamTitleIndex<XtreamMovieMatch>> _movies;
     private readonly TtlCache<XtreamSeriesInfo> _seriesInfo;
+    private readonly TtlCache<XtreamLiveIndex> _live;
 
     public XtreamCatalog(XtreamClient client, TimeProvider clock)
     {
@@ -42,6 +49,9 @@ public sealed class XtreamCatalog
         _series = new TtlCache<XtreamSeriesIndexes>(clock, TimeSpan.FromHours(6), capacity: 1);
         _movies = new TtlCache<XtreamTitleIndex<XtreamMovieMatch>>(clock, TimeSpan.FromHours(6), capacity: 1);
         _seriesInfo = new TtlCache<XtreamSeriesInfo>(clock, TimeSpan.FromMinutes(30), capacity: 256);
+
+        // The live listing changes more often than the VOD catalog (channels come and go), so it has a shorter TTL.
+        _live = new TtlCache<XtreamLiveIndex>(clock, TimeSpan.FromMinutes(30), capacity: 1);
     }
 
     /// <summary>Gets the underlying client (for health checks and building stream URLs).</summary>
@@ -145,6 +155,55 @@ public sealed class XtreamCatalog
         }
 
         return (tmdb == expectedTmdbId, info.ContainerExtension);
+    }
+
+    /// <summary>The live-TV categories that have at least one channel, in the panel's order (for the "TV IPTV" tab).</summary>
+    public async Task<IReadOnlyList<XtreamCategory>> LiveCategoriesAsync(CancellationToken cancellationToken)
+        => (await LiveIndexAsync(cancellationToken).ConfigureAwait(false)).Categories;
+
+    /// <summary>One live category's channels, or an empty list when the category is unknown or empty.</summary>
+    public async Task<IReadOnlyList<XtreamLiveItem>> LiveChannelsAsync(string categoryId, CancellationToken cancellationToken)
+    {
+        var index = await LiveIndexAsync(cancellationToken).ConfigureAwait(false);
+        return index.ByCategory.TryGetValue(categoryId, out var channels) ? channels : Array.Empty<XtreamLiveItem>();
+    }
+
+    /// <summary>Groups the live channels under their category id and keeps the categories that have channels, in panel order (the testable core).</summary>
+    internal static XtreamLiveIndex BuildLiveIndex(IReadOnlyList<XtreamCategory> categories, IReadOnlyList<XtreamLiveItem> streams)
+    {
+        var byCategory = new Dictionary<string, List<XtreamLiveItem>>();
+        foreach (var s in streams)
+        {
+            if (!byCategory.TryGetValue(s.CategoryId, out var list))
+            {
+                byCategory[s.CategoryId] = list = new List<XtreamLiveItem>();
+            }
+
+            list.Add(s);
+        }
+
+        // Only categories the panel actually lists and that hold channels, in the panel's own order. A channel whose
+        // category id isn't in the category list (some panels leave a few unfiled) is simply not reachable by category.
+        var ordered = categories.Where(c => byCategory.ContainsKey(c.Id)).ToList();
+        return new XtreamLiveIndex(ordered, byCategory.ToDictionary(kv => kv.Key, kv => (IReadOnlyList<XtreamLiveItem>)kv.Value));
+    }
+
+    private Task<XtreamLiveIndex> LiveIndexAsync(CancellationToken cancellationToken)
+    {
+        if (_live.TryGet(LiveKey, out var cached))
+        {
+            return Task.FromResult(cached);
+        }
+
+        return _flights.RunAsync(LiveKey, async () =>
+        {
+            var categoriesTask = _client.GetLiveCategoriesAsync(cancellationToken);
+            var streams = await _client.GetLiveStreamsAsync(cancellationToken).ConfigureAwait(false);
+            var categories = await categoriesTask.ConfigureAwait(false);
+            var result = BuildLiveIndex(categories, streams);
+            _live.Set(LiveKey, result);
+            return result;
+        }, cancellationToken);
     }
 
     /// <summary>The title-match rule, over an already-built index (the testable core): exact title+year, else a unique title.</summary>

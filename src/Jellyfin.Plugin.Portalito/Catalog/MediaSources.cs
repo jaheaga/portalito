@@ -80,6 +80,37 @@ internal static class MediaSources
     };
 
     /// <summary>
+    /// A live source for the IPTV (Xtream) source: one continuous stream (usually MPEG-TS, <c>/live/.../{id}.ts</c>),
+    /// proxied and re-signed like <see cref="Direct"/> but marked infinite so Jellyfin treats it as live -- no runtime,
+    /// seeking or trickplay (the same reason <see cref="Live"/> does, though the upstream here is a raw connection, not
+    /// an HLS playlist). The container is deliberately left unset: unlike <see cref="Vod"/> (whose CDN container is
+    /// known from the portal's videoFormat), an Xtream live stream may not be TS -- a panel can be HLS-only or
+    /// redirect <c>.ts</c> to <c>.m3u8</c> -- so forcing ffmpeg to <c>-f mpegts</c> would fail to start instead of
+    /// probing. The <c>.ts</c> in the URL still hints the demuxer. Its id is set by the caller to the library item's
+    /// id, like <see cref="Live"/>, so Android TV can open it.
+    /// </summary>
+    public static MediaSourceInfo LiveDirect(string id, string url) => new()
+    {
+        Id = SourceIdFor(id),
+        Path = url,
+        Protocol = MediaProtocol.Http,
+        IsRemote = true,
+        IsInfiniteStream = true,
+        RequiresOpening = false,
+        RequiresClosing = false,
+        ReadAtNativeFramerate = false,
+        SupportsProbing = true,
+        SupportsDirectPlay = false,
+        SupportsDirectStream = false,
+        SupportsTranscoding = true,
+        MediaStreams = new List<MediaStream>
+        {
+            new() { Type = MediaStreamType.Video, Index = -1 },
+            new() { Type = MediaStreamType.Audio, Index = -1 },
+        },
+    };
+
+    /// <summary>
     /// A VOD source for the IPTV (Xtream) secondary source: like <see cref="Vod"/> but the container is only set when
     /// it's one we know ffmpeg takes by that name (<paramref name="container"/> null otherwise, so ffmpeg probes the
     /// stream instead of being forced to a container name it might not recognise, e.g. "mkv" vs "matroska"). The URL's

@@ -42,6 +42,9 @@ public sealed record XtreamCategory(string Id, string Name);
 /// <summary>One movie in the bulk VOD list (no TMDB id there -- see <see cref="XtreamVodInfo"/>).</summary>
 public sealed record XtreamVodItem(int StreamId, string Name, string? ContainerExtension, string CategoryId);
 
+/// <summary>One live channel in the bulk live list: its stream id, name, logo URL (<c>stream_icon</c>) and category.</summary>
+public sealed record XtreamLiveItem(int StreamId, string Name, string? Icon, string CategoryId);
+
 /// <summary>A movie's detail: its TMDB id and the real container extension.</summary>
 public sealed record XtreamVodInfo(int? TmdbId, string? ContainerExtension);
 

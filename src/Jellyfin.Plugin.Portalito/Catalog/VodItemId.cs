@@ -63,6 +63,15 @@ public enum VodItemKind
 
     /// <summary>An episode on the IPTV source. Primary = series id; Secondary = episode id.</summary>
     XtreamEpisode,
+
+    /// <summary>The "TV IPTV" folder: one folder per live category the Xtream panel serves. No portal involvement.</summary>
+    XtreamLiveRoot,
+
+    /// <summary>One Xtream live category (a folder of channels). Primary = its category id.</summary>
+    XtreamLiveCategory,
+
+    /// <summary>A live channel on the IPTV source, played through the signed proxy's live route. Primary = stream id.</summary>
+    XtreamLiveChannel,
 }
 
 /// <summary>
@@ -115,6 +124,12 @@ public readonly partial record struct VodItemId(VodItemKind Kind, string Primary
     public static VodItemId XtreamSeason(string seriesId, int season) => new(VodItemKind.XtreamSeason, seriesId, season.ToString(System.Globalization.CultureInfo.InvariantCulture));
 
     public static VodItemId XtreamEpisode(string seriesId, string episodeId) => new(VodItemKind.XtreamEpisode, seriesId, episodeId);
+
+    public static VodItemId XtreamLiveRoot() => new(VodItemKind.XtreamLiveRoot, "root");
+
+    public static VodItemId XtreamLiveCategory(string categoryId) => new(VodItemKind.XtreamLiveCategory, categoryId);
+
+    public static VodItemId XtreamLiveChannel(string streamId) => new(VodItemKind.XtreamLiveChannel, streamId);
 
     /// <summary>Gets a value indicating whether a portal id may be embedded in an item id (and later in a URL).</summary>
     public static bool IsSafePart(string? part) => part is not null && SafePart().IsMatch(part);
@@ -203,6 +218,15 @@ public readonly partial record struct VodItemId(VodItemKind Kind, string Primary
             case ("xepi", 3):
                 id = XtreamEpisode(parts[1], parts[2]);
                 return true;
+            case ("xliv", 2):
+                id = XtreamLiveRoot();
+                return true;
+            case ("xlcat", 2):
+                id = XtreamLiveCategory(parts[1]);
+                return true;
+            case ("xlch", 2):
+                id = XtreamLiveChannel(parts[1]);
+                return true;
             default:
                 return false;
         }
@@ -226,6 +250,9 @@ public readonly partial record struct VodItemId(VodItemKind Kind, string Primary
         VodItemKind.XtreamShow => $"xshw:{Primary}",
         VodItemKind.XtreamSeason => $"xssn:{Primary}:{Secondary}",
         VodItemKind.XtreamEpisode => $"xepi:{Primary}:{Secondary}",
+        VodItemKind.XtreamLiveRoot => "xliv:root",
+        VodItemKind.XtreamLiveCategory => $"xlcat:{Primary}",
+        VodItemKind.XtreamLiveChannel => $"xlch:{Primary}",
         _ => throw new InvalidOperationException($"Unknown item kind {Kind}."),
     };
 

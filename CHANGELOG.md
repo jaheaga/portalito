@@ -1,5 +1,17 @@
 # Changelog
 
+## 0.4.0.0 — 2026-11-20
+
+A new optional **"TV IPTV"** tab that lists the live channels from your IPTV (Xtream) account directly, alongside
+the existing Destacado / Descubrir / TV en vivo tabs. Off by default.
+
+- **New: "TV IPTV" live tab** (under **Dashboard → Plugins → Portalito → Secondary source**, off by default,
+  shown only when the IPTV account is configured). It browses the IPTV account's own live categories and channels
+  and plays them through the plugin's signed proxy, like the portal's own live channels. This is independent of
+  the **Playback source** setting (which governs movie/series playback): the IPTV tab always plays from the IPTV
+  account.
+- Grid of channels only — no EPG/guide. Channel logos come from the IPTV account.
+
 ## 0.3.1.0 — 2026-11-20
 
 Optional self-healing for automatic host discovery, so the plugin keeps working after a portal retires the seed

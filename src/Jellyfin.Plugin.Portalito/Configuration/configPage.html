@@ -94,6 +94,13 @@
                         </select>
                         <div class="fieldDescription">Decided here, never at playback: Jellyfin is always handed one source. The "fall back" modes serve the primary and switch to the backup only if the primary can't be resolved. "Auto" lets the source-health task pick the primary from whichever source is currently reachable.</div>
                     </div>
+                    <div class="checkboxContainer checkboxContainer-withDescription">
+                        <label class="emby-checkbox-label">
+                            <input id="ShowIptvLiveTab" name="ShowIptvLiveTab" type="checkbox" is="emby-checkbox" />
+                            <span>Show a "TV IPTV" live tab</span>
+                        </label>
+                        <div class="fieldDescription checkboxFieldDescription">Adds a "TV IPTV" tab to the channel with the live channels from the IPTV account above (its own live categories), alongside the portal's own tabs. This is separate from the playback source: it always plays from the IPTV account. Only shown when the IPTV source is configured. Off by default.</div>
+                    </div>
                 </details>
                 <div class="inputContainer">
                     <label class="inputLabel inputLabelUnfocused" for="TmdbApiKey">TMDB API key (optional)</label>
@@ -270,7 +277,7 @@
             // Bulk import/export. Every key is matched by its normalized form (uppercase, no PORTALITO_
             // prefix, no separators), so ".env" keys, raw property names and underscore variants all resolve
             // to the same field -- e.g. PORTALITO_CONTENT_AUTH_MD5_K_OVERRIDES == ContentAuthMd5KOverrides.
-            var boolFields = ['SkipPortalTlsVerification', 'FollowLibraryEnabled', 'SortFeaturedByRating', 'PersistDiscoveredSeeds'];
+            var boolFields = ['SkipPortalTlsVerification', 'FollowLibraryEnabled', 'SortFeaturedByRating', 'PersistDiscoveredSeeds', 'ShowIptvLiveTab'];
             var selectFields = ['PlaybackSource'];
             function normalizeKey(k) {
                 return String(k).toUpperCase().replace(/^PORTALITO_/, '').replace(/[^A-Z0-9]/g, '');
@@ -357,6 +364,7 @@
                     config.FollowLibraryEnabled = document.querySelector('#FollowLibraryEnabled').checked;
                     config.SortFeaturedByRating = document.querySelector('#SortFeaturedByRating').checked;
                     config.PersistDiscoveredSeeds = document.querySelector('#PersistDiscoveredSeeds').checked;
+                    config.ShowIptvLiveTab = document.querySelector('#ShowIptvLiveTab').checked;
                     config.PlaybackSource = document.querySelector('#PlaybackSource').value;
                     return ApiClient.updatePluginConfiguration(pluginId, config);
                 });
@@ -384,6 +392,7 @@
                     document.querySelector('#FollowLibraryEnabled').checked = !!config.FollowLibraryEnabled;
                     document.querySelector('#SortFeaturedByRating').checked = !!config.SortFeaturedByRating;
                     document.querySelector('#PersistDiscoveredSeeds').checked = !!config.PersistDiscoveredSeeds;
+                    document.querySelector('#ShowIptvLiveTab').checked = !!config.ShowIptvLiveTab;
                     document.querySelector('#PlaybackSource').value = config.PlaybackSource || 'PortalOnly';
                     Dashboard.hideLoadingMsg();
                 });
