@@ -1,5 +1,18 @@
 # Changelog
 
+## 0.3.1.0 — 2026-11-20
+
+Optional self-healing for automatic host discovery, so the plugin keeps working after a portal retires the seed
+hosts you first configured. No effect unless you turn it on.
+
+- **New: keep discovery seeds fresh automatically** (under **Dashboard → Plugins → Portalito**, off by default).
+  With it on, each successful host discovery also records the current discovery-service hosts as extra bootstrap
+  seeds, so discovery can still start after the hosts you configured are retired. The learned seeds are tried
+  **after** your configured hosts, are kept newest-first and capped, and never change which hosts the portal API
+  is actually called on — so your configured hosts are never overwritten.
+- A companion **discovery seed service name** setting (default `dcs`) names which discovered service answers the
+  discovery request; leave it unless your portal names that service differently.
+
 ## 0.3.0.0 — 2026-11-19
 
 Rebuilt for **Jellyfin 12**. Jellyfin 12 runs on .NET 10 and won't load plugins built for the 10.11 line, so

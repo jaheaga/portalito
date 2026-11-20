@@ -180,6 +180,18 @@
                         <input id="DiscoveryService" name="DiscoveryService" type="text" is="emby-input" autocomplete="off" />
                         <div class="fieldDescription">Which discovered service's hosts to use. Empty means "portal".</div>
                     </div>
+                    <div class="checkboxContainer checkboxContainer-withDescription">
+                        <label class="emby-checkbox-label">
+                            <input id="PersistDiscoveredSeeds" name="PersistDiscoveredSeeds" type="checkbox" is="emby-checkbox" />
+                            <span>Keep discovery seeds fresh automatically</span>
+                        </label>
+                        <div class="fieldDescription checkboxFieldDescription">With this on, each successful discovery records the current discovery-service hosts (below) as extra bootstrap seeds, so discovery still starts after the hosts you configured above are retired. The learned seeds are tried after your configured hosts. Off by default.</div>
+                    </div>
+                    <div class="inputContainer">
+                        <label class="inputLabel inputLabelUnfocused" for="DiscoverySeedService">SLB discovery seed service name</label>
+                        <input id="DiscoverySeedService" name="DiscoverySeedService" type="text" is="emby-input" autocomplete="off" />
+                        <div class="fieldDescription">Which discovered service answers the discovery request (its hosts are the seeds kept fresh above). Empty means "dcs". A different service from the one above.</div>
+                    </div>
                     <div class="inputContainer">
                         <label class="inputLabel inputLabelUnfocused" for="PortalUserAgent">Portal API User-Agent</label>
                         <input id="PortalUserAgent" name="PortalUserAgent" type="text" is="emby-input" autocomplete="off" />
@@ -252,13 +264,13 @@
     <script type="text/javascript">
         (function () {
             var pluginId = '0bae4700-9bef-4e03-ad7f-cc99bf8f51ab';
-            var textFields = ['TripleDesKeyHex', 'Hosts', 'AppId', 'ApkVersion', 'DeviceSn', 'DeviceDrmId', 'DeviceToken', 'DeviceReserve1', 'ProxyBaseUrl', 'AccountEmail', 'AccountPassword', 'XtreamBaseUrl', 'XtreamUsername', 'XtreamPassword', 'TmdbApiKey', 'FeaturedRows', 'ChannelImageUrl', 'FollowLibraryPath', 'EpgTimeZone', 'ContentAuthMethod', 'ContentAuthSaltHex', 'ContentAuthMd5Schedule', 'ContentAuthMd5KOverrides', 'PortalCode', 'ApiBasePath', 'PortalApkVer', 'PortalSpkgVer', 'RequestSignSecret', 'DiscoveryAesKey', 'DiscoveryPath', 'DiscoveryService', 'PortalUserAgent', 'CdnUserAgent', 'LoginPasswordSalt', 'SnTokenSalt', 'LiveColumnCode', 'AllChannelsColumnId', 'Catalogs'];
+            var textFields = ['TripleDesKeyHex', 'Hosts', 'AppId', 'ApkVersion', 'DeviceSn', 'DeviceDrmId', 'DeviceToken', 'DeviceReserve1', 'ProxyBaseUrl', 'AccountEmail', 'AccountPassword', 'XtreamBaseUrl', 'XtreamUsername', 'XtreamPassword', 'TmdbApiKey', 'FeaturedRows', 'ChannelImageUrl', 'FollowLibraryPath', 'EpgTimeZone', 'ContentAuthMethod', 'ContentAuthSaltHex', 'ContentAuthMd5Schedule', 'ContentAuthMd5KOverrides', 'PortalCode', 'ApiBasePath', 'PortalApkVer', 'PortalSpkgVer', 'RequestSignSecret', 'DiscoveryAesKey', 'DiscoveryPath', 'DiscoveryService', 'DiscoverySeedService', 'PortalUserAgent', 'CdnUserAgent', 'LoginPasswordSalt', 'SnTokenSalt', 'LiveColumnCode', 'AllChannelsColumnId', 'Catalogs'];
             var marks = { ok: '\u2705', warning: '\u26A0\uFE0F', error: '\u274C' };
 
             // Bulk import/export. Every key is matched by its normalized form (uppercase, no PORTALITO_
             // prefix, no separators), so ".env" keys, raw property names and underscore variants all resolve
             // to the same field -- e.g. PORTALITO_CONTENT_AUTH_MD5_K_OVERRIDES == ContentAuthMd5KOverrides.
-            var boolFields = ['SkipPortalTlsVerification', 'FollowLibraryEnabled', 'SortFeaturedByRating'];
+            var boolFields = ['SkipPortalTlsVerification', 'FollowLibraryEnabled', 'SortFeaturedByRating', 'PersistDiscoveredSeeds'];
             var selectFields = ['PlaybackSource'];
             function normalizeKey(k) {
                 return String(k).toUpperCase().replace(/^PORTALITO_/, '').replace(/[^A-Z0-9]/g, '');
@@ -344,6 +356,7 @@
                     config.SkipPortalTlsVerification = document.querySelector('#SkipPortalTlsVerification').checked;
                     config.FollowLibraryEnabled = document.querySelector('#FollowLibraryEnabled').checked;
                     config.SortFeaturedByRating = document.querySelector('#SortFeaturedByRating').checked;
+                    config.PersistDiscoveredSeeds = document.querySelector('#PersistDiscoveredSeeds').checked;
                     config.PlaybackSource = document.querySelector('#PlaybackSource').value;
                     return ApiClient.updatePluginConfiguration(pluginId, config);
                 });
@@ -370,6 +383,7 @@
                     document.querySelector('#SkipPortalTlsVerification').checked = !!config.SkipPortalTlsVerification;
                     document.querySelector('#FollowLibraryEnabled').checked = !!config.FollowLibraryEnabled;
                     document.querySelector('#SortFeaturedByRating').checked = !!config.SortFeaturedByRating;
+                    document.querySelector('#PersistDiscoveredSeeds').checked = !!config.PersistDiscoveredSeeds;
                     document.querySelector('#PlaybackSource').value = config.PlaybackSource || 'PortalOnly';
                     Dashboard.hideLoadingMsg();
                 });

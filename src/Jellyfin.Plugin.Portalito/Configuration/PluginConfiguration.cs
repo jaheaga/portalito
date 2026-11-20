@@ -57,6 +57,29 @@ public class PluginConfiguration : BasePluginConfiguration
     /// <summary>Gets or sets the discovered service name whose hosts become the portal hosts; empty means <c>portal</c>.</summary>
     public string DiscoveryService { get; set; } = string.Empty;
 
+    /// <summary>
+    /// Gets or sets a value indicating whether the plugin keeps its discovery seeds fresh automatically. When on (and
+    /// discovery is configured), each successful discovery also records the current <see cref="DiscoverySeedService"/>
+    /// hosts into <see cref="DiscoveredSeeds"/>, so the plugin can still bootstrap discovery after the originally
+    /// configured <see cref="Hosts"/> are retired. Off by default; leaves <see cref="Hosts"/> as the only seeds.
+    /// </summary>
+    public bool PersistDiscoveredSeeds { get; set; }
+
+    /// <summary>
+    /// Gets or sets the discovered service name whose hosts are the discovery bootstrap seeds (the ones that answer the
+    /// discovery request), recorded when <see cref="PersistDiscoveredSeeds"/> is on; empty means <c>dcs</c>. This is a
+    /// different service from <see cref="DiscoveryService"/> (the portal API hosts).
+    /// </summary>
+    public string DiscoverySeedService { get; set; } = string.Empty;
+
+    /// <summary>
+    /// Gets or sets the discovery bootstrap seeds the plugin has learned (comma-separated host:port), newest first.
+    /// Written by the plugin when <see cref="PersistDiscoveredSeeds"/> is on; tried after <see cref="Hosts"/> when
+    /// bootstrapping discovery. Not a user setting and deliberately out of the runtime fingerprint, so recording a
+    /// fresh set never rebuilds the runtime. Normally left to the plugin to manage.
+    /// </summary>
+    public string DiscoveredSeeds { get; set; } = string.Empty;
+
     /// <summary>Gets or sets the User-Agent sent to the portal API.</summary>
     public string PortalUserAgent { get; set; } = string.Empty;
 

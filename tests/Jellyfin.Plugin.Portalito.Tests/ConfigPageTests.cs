@@ -13,7 +13,7 @@ namespace Jellyfin.Plugin.Portalito.Tests;
 public class ConfigPageTests
 {
     // Set programmatically (generated on first use / a one-time migration flag), deliberately not editable on the page.
-    private static readonly string[] NotOnThePage = { nameof(PluginConfiguration.ProxySigningSecret), nameof(PluginConfiguration.FeaturedRowsSeeded) };
+    private static readonly string[] NotOnThePage = { nameof(PluginConfiguration.ProxySigningSecret), nameof(PluginConfiguration.FeaturedRowsSeeded), nameof(PluginConfiguration.DiscoveredSeeds) };
 
     private static readonly Lazy<string> Html = new(() =>
     {

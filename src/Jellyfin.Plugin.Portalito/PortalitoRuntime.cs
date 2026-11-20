@@ -198,7 +198,16 @@ public sealed class PortalitoRuntime : IPortalitoServicesProvider
         }
 
         var transport = new HttpPortalTransport(portalHttp, options);
-        var slbDiscovery = options.DiscoveryEnabled ? new SlbDiscovery(portalHttp, options) : null;
+        var slbDiscovery = options.DiscoveryEnabled
+            ? new SlbDiscovery(portalHttp, options, seeds =>
+            {
+                // A discovery turned up fresher bootstrap seeds: record them so a later restart can still reach the
+                // discovery service after the configured Hosts are retired. Into the current configuration (see the
+                // device-serial note below); kept out of the fingerprint, so this write never rebuilds the runtime.
+                _getConfig().DiscoveredSeeds = string.Join(',', seeds);
+                _saveConfig();
+            })
+            : null;
         var portal = new PortalClient(options, transport, provisionedSn =>
         {
             // A fresh free-tier device was registered: persist its serial so later activations reuse it. Into the current
@@ -245,6 +254,8 @@ public sealed class PortalitoRuntime : IPortalitoServicesProvider
             c.DiscoveryAesKey,
             c.DiscoveryPath,
             c.DiscoveryService,
+            c.PersistDiscoveredSeeds,
+            c.DiscoverySeedService,
             c.PortalUserAgent,
             c.CdnUserAgent,
             c.LoginPasswordSalt,
@@ -359,6 +370,8 @@ public sealed class PortalitoRuntime : IPortalitoServicesProvider
             c.DiscoveryAesKey,
             c.DiscoveryPath,
             c.DiscoveryService,
+            c.PersistDiscoveredSeeds,
+            c.DiscoverySeedService,
             c.PortalUserAgent,
             c.CdnUserAgent,
             c.LoginPasswordSalt,

@@ -15,13 +15,37 @@ public sealed class SlbDiscovery : IHostDiscovery
 {
     private static readonly TimeSpan RequestTimeout = TimeSpan.FromSeconds(15);
 
+    /// <summary>How many learned bootstrap seeds to keep: enough redundancy to survive a rotation, few enough that a long
+    /// list of stale hosts can't build up (newest first, so older ones age out past this cap).</summary>
+    internal const int MaxPersistedSeeds = 8;
+
     private readonly HttpClient _http;
     private readonly PortalOptions _options;
+    private readonly Action<IReadOnlyList<string>>? _onSeedsDiscovered;
 
-    public SlbDiscovery(HttpClient http, PortalOptions options)
+    /// <param name="onSeedsDiscovered">
+    /// Called with the refreshed bootstrap seeds (newest first) when <see cref="PortalOptions.PersistDiscoveredSeeds"/> is
+    /// on and a discovery returns a seed set that differs from the one in <paramref name="options"/>, so the host can
+    /// persist them for the next startup. Optional.
+    /// </param>
+    public SlbDiscovery(HttpClient http, PortalOptions options, Action<IReadOnlyList<string>>? onSeedsDiscovered = null)
     {
         _http = http;
         _options = options;
+        _onSeedsDiscovered = onSeedsDiscovered;
+    }
+
+    /// <summary>The hosts to try as discovery bootstrap seeds: the configured hosts first, then any the plugin has learned.</summary>
+    private IEnumerable<string> BootstrapSeeds()
+    {
+        var seen = new HashSet<string>(StringComparer.Ordinal);
+        foreach (var host in _options.Hosts.Concat(_options.DiscoverySeeds))
+        {
+            if (seen.Add(host))
+            {
+                yield return host;
+            }
+        }
     }
 
     /// <summary>
@@ -48,7 +72,7 @@ public sealed class SlbDiscovery : IHostDiscovery
             return Array.Empty<string>();
         }
 
-        foreach (var seed in _options.Hosts)
+        foreach (var seed in BootstrapSeeds())
         {
             try
             {
@@ -56,6 +80,7 @@ public sealed class SlbDiscovery : IHostDiscovery
                 var hosts = ParsePortalHosts(text, _options.DiscoveryAesKey, _options.DiscoveryService);
                 if (hosts.Count > 0)
                 {
+                    MaybePersistSeeds(text);
                     return hosts;
                 }
             }
@@ -70,6 +95,41 @@ public sealed class SlbDiscovery : IHostDiscovery
         }
 
         return Array.Empty<string>();
+    }
+
+    /// <summary>
+    /// When seed persistence is on, records the current bootstrap-seed hosts (the <see cref="PortalOptions.DiscoverySeedService"/>
+    /// entries of the same directory) so discovery can still start after the configured hosts are retired. Fresh hosts
+    /// go first and the list is capped at <see cref="MaxPersistedSeeds"/>, so stale ones age out; the host is told only
+    /// when the set actually changes, to avoid needless configuration writes.
+    /// </summary>
+    private void MaybePersistSeeds(string responseText)
+    {
+        if (!_options.PersistDiscoveredSeeds || _onSeedsDiscovered is null)
+        {
+            return;
+        }
+
+        var fresh = ParsePortalHosts(responseText, _options.DiscoveryAesKey, _options.DiscoverySeedService);
+        if (fresh.Count == 0)
+        {
+            return;
+        }
+
+        var merged = new List<string>();
+        var seen = new HashSet<string>(StringComparer.Ordinal);
+        foreach (var host in fresh.Concat(_options.DiscoverySeeds))
+        {
+            if (seen.Add(host) && merged.Count < MaxPersistedSeeds)
+            {
+                merged.Add(host);
+            }
+        }
+
+        if (!merged.SequenceEqual(_options.DiscoverySeeds, StringComparer.Ordinal))
+        {
+            _onSeedsDiscovered(merged);
+        }
     }
 
     private async Task<string> PostAsync(string seed, string envelope, CancellationToken cancellationToken)

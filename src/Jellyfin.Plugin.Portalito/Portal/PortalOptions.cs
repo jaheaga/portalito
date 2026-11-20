@@ -43,6 +43,15 @@ public sealed record PortalOptions
     /// <summary>Discovered service whose hosts become the portal hosts; defaults to <c>portal</c>.</summary>
     public string DiscoveryService { get; init; } = "portal";
 
+    /// <summary>Whether to record the live discovery-seed hosts so bootstrap survives the configured seeds being retired.</summary>
+    public bool PersistDiscoveredSeeds { get; init; }
+
+    /// <summary>Discovered service whose hosts are the discovery bootstrap seeds (answer the discovery request); defaults to <c>dcs</c>.</summary>
+    public string DiscoverySeedService { get; init; } = "dcs";
+
+    /// <summary>Bootstrap seeds the plugin has learned (host:port), tried after <see cref="Hosts"/> when resolving discovery.</summary>
+    public IReadOnlyList<string> DiscoverySeeds { get; init; } = Array.Empty<string>();
+
     /// <summary>Gets a value indicating whether SLB host discovery is configured.</summary>
     public bool DiscoveryEnabled => DiscoveryAesKey.Length > 0 && DiscoveryPath.Length > 0;
 
@@ -82,6 +91,9 @@ public sealed record PortalOptions
         DiscoveryAesKey = config.DiscoveryAesKey.Trim(),
         DiscoveryPath = config.DiscoveryPath.Trim(),
         DiscoveryService = string.IsNullOrWhiteSpace(config.DiscoveryService) ? "portal" : config.DiscoveryService.Trim(),
+        PersistDiscoveredSeeds = config.PersistDiscoveredSeeds,
+        DiscoverySeedService = string.IsNullOrWhiteSpace(config.DiscoverySeedService) ? "dcs" : config.DiscoverySeedService.Trim(),
+        DiscoverySeeds = ParseHosts(config.DiscoveredSeeds),
         PortalUserAgent = config.PortalUserAgent.Trim(),
         CdnUserAgent = config.CdnUserAgent.Trim(),
         LoginPasswordSalt = config.LoginPasswordSalt,
