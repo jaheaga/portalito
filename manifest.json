@@ -9,6 +9,14 @@
     "imageUrl": "https://raw.githubusercontent.com/jaheaga/portalito/main/assets/branding/portalito-banner.png",
     "versions": [
       {
+        "version": "0.4.0.0",
+        "targetAbi": "12.0.0.0",
+        "sourceUrl": "https://github.com/jaheaga/portalito/releases/download/v0.4.0.0/Portalito_0.4.0.0.zip",
+        "checksum": "4b957c56e46603cb13844e404d150e90",
+        "changelog": "A new optional \"TV IPTV\" tab that lists the live channels from your IPTV (Xtream) account directly, alongside the existing Destacado / Descubrir / TV en vivo tabs. Off by default. New: \"TV IPTV\" live tab (under Dashboard \u2192 Plugins \u2192 Portalito \u2192 Secondary source, off by default, shown only when the\u2026",
+        "timestamp": "2026-11-20T16:50:22Z"
+      },
+      {
         "version": "0.3.0.0",
         "targetAbi": "12.0.0.0",
         "sourceUrl": "https://github.com/jaheaga/portalito/releases/download/v0.3.0.0/Portalito_0.3.0.0.zip",
