@@ -58,7 +58,7 @@ public class XtreamTests
             new XtreamSeriesItem(777, "Duplicate upload", 240411, "28", 2026),
         }).ByTmdb;
 
-        Assert.Equal(1, index.Count);
+        Assert.Single(index);
         Assert.Equal(10418, index[240411]); // first id wins; the duplicate (777) is ignored
         Assert.False(index.ContainsKey(0));
     }
