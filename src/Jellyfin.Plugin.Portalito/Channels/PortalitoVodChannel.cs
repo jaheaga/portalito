@@ -42,6 +42,11 @@ public sealed class PortalitoVodChannel : IChannel, IRequiresMediaInfoCallback, 
     // thumbnail this time, and a warm cache makes the next open instant.
     private static readonly TimeSpan RootCollageTimeout = TimeSpan.FromSeconds(4);
 
+    // How long one TV IPTV listing may spend backfilling missing channel logos from the community set. The first cold
+    // open fetches the community database (then every lookup is an in-memory hit); past this, channels not yet resolved
+    // get a name tile and are retried on a later open, so a slow source never holds the listing open indefinitely.
+    private static readonly TimeSpan LogoResolveBudget = TimeSpan.FromSeconds(8);
+
     /// <summary>How long one listing may spend filling blanks from TMDB.</summary>
     internal static readonly TimeSpan TmdbBudget = TimeSpan.FromSeconds(5);
 
@@ -70,11 +75,6 @@ public sealed class PortalitoVodChannel : IChannel, IRequiresMediaInfoCallback, 
 
     // Collage renders (four poster downloads each), across every listing at once.
     private readonly SemaphoreSlim _collageRenders = new(4);
-
-    // Background community-logo lookups for TV IPTV channels: deduped per channel, and bounded so a cold category
-    // open doesn't fire dozens of external requests at once.
-    private readonly SingleFlight _logoLookups = new();
-    private readonly SemaphoreSlim _logoLookupSlots = new(4);
 
     /// <param name="runtimes">Known title runtimes (see <see cref="RuntimeStore"/>); in-memory only when not given.</param>
     /// <param name="library">Jellyfin's library, to give a playing item its runtime right away; optional (tests).</param>
@@ -172,6 +172,8 @@ public sealed class PortalitoVodChannel : IChannel, IRequiresMediaInfoCallback, 
     /// "v26" -> "v27" (2026-10-02): TMDB Destacado rows rate their titles with TMDB's vote average, and every Destacado
     /// row writes its ratings onto the titles Jellyfin already saved -- the rows are ordered by rating (see
     /// <see cref="FeaturedSortFilter"/>).
+    /// "v31" -> "v32" (2026-11-23): TV IPTV logo backfill now joins the community set's channel and logo lists and
+    /// matches decorated channel names, and the backfilled logos feed the category collages -- so folder/item images change.
     /// "v30" -> "v31" (2026-11-23): TV IPTV category folders now show a 4-up logo collage (not one channel's logo), and
     /// channels without a panel logo get a backfilled community logo or a name tile -- both change per-folder/item images.
     /// "v29" -> "v30" (2026-11-20): an optional "TV IPTV" root tab lists the Xtream account's own live channels (new
@@ -181,7 +183,9 @@ public sealed class PortalitoVodChannel : IChannel, IRequiresMediaInfoCallback, 
     /// "v27" -> "v28" (2026-10-28): series folders carry their year ("One Piece (1999)" vs "One Piece (2023)") so a show
     /// and its remake/live-action adaptation are told apart in browse and global search (see <see cref="SeasonGrouping.WithYear"/>).
     /// </summary>
-    public string DataVersion => $"v31:{DateTime.UtcNow:yyyyMMdd}";
+    // "v33" -> "v34" (2026-11-23): TV IPTV live-channel names are cleaned for display (country/quality/operator
+    // moved into a "· AR HD" suffix; confusable glyphs and leetspeak fixed), so saved listings must re-render.
+    public string DataVersion => $"v34:{DateTime.UtcNow:yyyyMMdd}";
 
     public string HomePageUrl => string.Empty;
 
@@ -890,8 +894,11 @@ public sealed class PortalitoVodChannel : IChannel, IRequiresMediaInfoCallback, 
 
         // One folder per category with a safe id, each a 4-up collage of its channels' logos -- the same shape as the
         // portal's "TV en vivo" folders (see LiveCategoryFoldersAsync), with one shared "used" set so sibling folders
-        // don't repeat the same logo.
+        // don't repeat the same logo. Channels without a panel logo are backfilled from the community set (bounded by
+        // one shared budget across all categories), so a category of mostly-logoless channels isn't four of one logo.
         var safeCategories = categories.Where(c => VodItemId.IsSafePart(c.Id)).ToList();
+        using var budget = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
+        budget.CancelAfter(LogoResolveBudget);
         var candidates = new List<IReadOnlyList<CollageImage>>(safeCategories.Count);
         foreach (var category in safeCategories)
         {
@@ -908,7 +915,7 @@ public sealed class PortalitoVodChannel : IChannel, IRequiresMediaInfoCallback, 
                 channels = Array.Empty<XtreamLiveItem>();
             }
 
-            candidates.Add(XtreamLogoCandidates(channels));
+            candidates.Add(await XtreamLogoCandidatesAsync(services, channels, budget.Token).ConfigureAwait(false));
         }
 
         var picks = CollagePlanner.PickAll(candidates, new HashSet<string>(StringComparer.Ordinal));
@@ -919,12 +926,40 @@ public sealed class PortalitoVodChannel : IChannel, IRequiresMediaInfoCallback, 
             .ToList();
     }
 
-    /// <summary>A category's channel logos as collage candidates (http(s) icons only), keyed by name so one show's channels count once.</summary>
-    private static IReadOnlyList<CollageImage> XtreamLogoCandidates(IReadOnlyList<XtreamLiveItem> channels)
-        => channels
-            .Where(c => c.Icon is { Length: > 0 } icon && Uri.TryCreate(icon, UriKind.Absolute, out var u) && u.Scheme is "http" or "https")
-            .Select(c => new CollageImage(CollageImage.KeyFor(c.Name), c.Icon!))
-            .ToList();
+    /// <summary>
+    /// A category's collage candidates: each channel's panel logo, or one backfilled from the community set, keyed by
+    /// name so one show's channels count once. Stops once it has enough distinct logos for the picker, so it resolves
+    /// only a handful per category rather than the whole list.
+    /// </summary>
+    private async Task<IReadOnlyList<CollageImage>> XtreamLogoCandidatesAsync(PortalitoServices services, IReadOnlyList<XtreamLiveItem> channels, CancellationToken budget)
+    {
+        var candidates = new List<CollageImage>();
+        var seen = new HashSet<string>(StringComparer.Ordinal);
+        foreach (var channel in channels)
+        {
+            var url = await BestLogoUrlAsync(services, channel, budget).ConfigureAwait(false);
+            if (url is null)
+            {
+                continue;
+            }
+
+            if (seen.Add(CollageImage.KeyFor(channel.Name)))
+            {
+                candidates.Add(new CollageImage(CollageImage.KeyFor(channel.Name), url));
+            }
+
+            if (candidates.Count >= CollagePlanner.PerCollage * 2)
+            {
+                break;
+            }
+        }
+
+        return candidates;
+    }
+
+    /// <summary>A channel's own panel logo as a raw http(s) URL (for a collage, which fetches it server-side), or null.</summary>
+    private static string? RawIconUrl(string? icon)
+        => icon is { Length: > 0 } && Uri.TryCreate(icon, UriKind.Absolute, out var u) && u.Scheme is "http" or "https" ? icon : null;
 
     /// <summary>One Xtream live category's channels, as playable live items (a stream id that doesn't fit the id charset is skipped).</summary>
     private async Task<IReadOnlyList<ChannelItemInfo>> XtreamLiveChannelsAsync(PortalitoServices services, string categoryId, CancellationToken cancellationToken)
@@ -945,48 +980,88 @@ public sealed class PortalitoVodChannel : IChannel, IRequiresMediaInfoCallback, 
             return Array.Empty<ChannelItemInfo>();
         }
 
+        using var budget = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
+        budget.CancelAfter(LogoResolveBudget);
         var items = await Task.WhenAll(channels
             .Select(c => (Code: c.StreamId.ToString(CultureInfo.InvariantCulture), Channel: c))
             .Where(c => VodItemId.IsSafePart(c.Code))
-            .Select(async c => new ChannelItemInfo
+            .Select(async c =>
             {
-                Id = VodItemId.XtreamLiveChannel(c.Code).ToString(),
-                Name = c.Channel.Name,
-                Type = ChannelItemType.Media,
-                MediaType = ChannelMediaType.Video,
-                IsLiveStream = true,
-                ImageUrl = await ChannelImageAsync(services, c.Channel, cancellationToken).ConfigureAwait(false),
+                // The panel name is decorated (country prefix, confusable glyphs, quality/operator tags, emoji);
+                // show a cleaned version, but resolve the logo from the raw name (the community matcher and the
+                // 24/7 loop-title parser do their own normalization on it).
+                var display = ChannelDisplayName.Clean(c.Channel.Name);
+                return new ChannelItemInfo
+                {
+                    Id = VodItemId.XtreamLiveChannel(c.Code).ToString(),
+                    Name = display,
+                    Type = ChannelItemType.Media,
+                    MediaType = ChannelMediaType.Video,
+                    IsLiveStream = true,
+                    ImageUrl = await ChannelImageAsync(services, c.Channel, display, budget.Token, cancellationToken).ConfigureAwait(false),
+                };
             })).ConfigureAwait(false);
         return items;
     }
 
     /// <summary>
-    /// A live channel's thumbnail: the panel's own logo when it has one; otherwise a logo backfilled once from the
-    /// community set, or a generated name tile. The backfill is off (channels without a panel logo simply stay blank)
-    /// when no resolver was supplied (tests). A channel not yet looked up gets a name tile now and is resolved in the
-    /// background, so a real logo appears on a later open without ever blocking this listing on a network call.
+    /// A live channel's thumbnail: the panel's own logo when it has one; otherwise a logo backfilled from the community
+    /// set (through the signed image proxy), or a generated name tile when nothing matches. Backfill is off (channels
+    /// without a panel logo stay blank) when no resolver was supplied (tests).
     /// </summary>
-    private async Task<string?> ChannelImageAsync(PortalitoServices services, XtreamLiveItem channel, CancellationToken cancellationToken)
+    private async Task<string?> ChannelImageAsync(PortalitoServices services, XtreamLiveItem channel, string display, CancellationToken budget, CancellationToken cancellationToken)
     {
-        if (XtreamIconUrl(services, channel.Icon) is { } icon)
-        {
-            return icon;
-        }
+        return await BestLogoUrlAsync(services, channel, budget).ConfigureAwait(false) is { } url
+            ? services.Signer.ImageUrl(url, MediaSources.ImageUrlValidity)
+            : await NameTileAsync(services, display, cancellationToken).ConfigureAwait(false);
+    }
 
-        if (_logoResolver is null)
+    /// <summary>
+    /// The best raw logo URL for a channel: a community/TMDB match first, then the panel's own icon -- but only when the
+    /// icon's host actually resolves, because many panel icons are on dead addresses (the image proxy 502s on them and
+    /// Jellyfin then shows a broken image). A community/TMDB image is clean and reachable. Null when none is usable (the
+    /// caller draws a name tile, which looks intentional rather than broken).
+    /// </summary>
+    private async Task<string?> BestLogoUrlAsync(PortalitoServices services, XtreamLiveItem channel, CancellationToken budget)
+        => await ResolveLogoUrlAsync(services, channel.Name, budget).ConfigureAwait(false)
+           ?? await UsableIconAsync(services, channel.Icon).ConfigureAwait(false);
+
+    // Which icon hosts actually serve an image, cached for the process lifetime: many panel icons sit on hosts that are
+    // down (they resolve in DNS but answer 502/refuse/time out), and showing their URL leaves a broken image. One real
+    // fetch per host decides it; a host that only later comes back is re-checked on the next restart.
+    private readonly System.Collections.Concurrent.ConcurrentDictionary<string, bool> _iconHostReachable = new(StringComparer.OrdinalIgnoreCase);
+
+    /// <summary>The panel icon as a raw http(s) URL, but only if its host actually serves it; null otherwise (so the channel gets a name tile, not a broken image).</summary>
+    private async Task<string?> UsableIconAsync(PortalitoServices services, string? icon)
+    {
+        if (RawIconUrl(icon) is not { } url || !Uri.TryCreate(url, UriKind.Absolute, out var uri))
         {
             return null;
         }
 
-        if (_channelLogos.TryGet(channel.Name, out var known))
+        if (!_iconHostReachable.TryGetValue(uri.Host, out var reachable))
         {
-            return known.Url is { } url
-                ? services.Signer.ImageUrl(url, MediaSources.ImageUrlValidity)
-                : await NameTileAsync(services, channel.Name, cancellationToken).ConfigureAwait(false);
+            reachable = await IconHostServesAsync(services, uri).ConfigureAwait(false);
+            _iconHostReachable[uri.Host] = reachable;
         }
 
-        QueueLogoLookup(channel.Name);
-        return await NameTileAsync(services, channel.Name, cancellationToken).ConfigureAwait(false);
+        return reachable ? url : null;
+    }
+
+    private static async Task<bool> IconHostServesAsync(PortalitoServices services, Uri uri)
+    {
+        try
+        {
+            // The same path that actually serves the image, so a host that 502s or times out there is caught here.
+            // ResponseHeadersRead means only the status is read, not the image body.
+            using var timeout = new CancellationTokenSource(TimeSpan.FromSeconds(4));
+            using var response = await services.Proxy.OpenImageAsync(uri, timeout.Token).ConfigureAwait(false);
+            return response.IsSuccessStatusCode;
+        }
+        catch (Exception ex) when (ex is HttpRequestException or OperationCanceledException or ArgumentException or InvalidOperationException or IOException)
+        {
+            return false;
+        }
     }
 
     /// <summary>A label-only collage tile with the channel's name (the folder-collage renderer's zero-image case); file-cached.</summary>
@@ -994,49 +1069,93 @@ public sealed class PortalitoVodChannel : IChannel, IRequiresMediaInfoCallback, 
         => CollageAsync(services, name, CollageFit.Contain, Array.Empty<string>(), cancellationToken);
 
     /// <summary>
-    /// Resolves a missing channel's logo from the community set in the background and records the result (found URL or a
-    /// remembered no-match) so a later listing uses it. Deduped per channel and concurrency-bounded; a transient failure
-    /// is left unrecorded so it's retried, never poisoning the channel with a permanent no-match.
+    /// The backfilled logo URL for a channel name (the raw image URL, not proxied): from the durable store when it's
+    /// already known (including a remembered no-match -> null), otherwise looked up once and recorded. A real broadcast
+    /// channel is matched in the community set; a "24/7 &lt;show&gt;" VOD-loop channel (which no channel-logo set has)
+    /// falls back to the show/movie's TMDB poster. A budget timeout or a transient failure returns null without
+    /// recording, so it's retried on a later open rather than poisoned.
     /// </summary>
-    private void QueueLogoLookup(string name)
+    private async Task<string?> ResolveLogoUrlAsync(PortalitoServices services, string name, CancellationToken budget)
     {
-        if (_logoResolver is not { } resolver)
+        if (_channelLogos.TryGet(name, out var known))
         {
-            return;
+            return known.Url;
         }
 
-        _ = Task.Run(async () =>
+        try
         {
-            try
-            {
-                await _logoLookups.RunAsync(ChannelLogoStore.KeyFor(name), async () =>
-                {
-                    // Another listing may have resolved it between the queue and here.
-                    if (_channelLogos.TryGet(name, out _))
-                    {
-                        return 0;
-                    }
+            var url = _logoResolver is null ? null : await _logoResolver.FindLogoAsync(name, budget).ConfigureAwait(false);
+            url ??= await LoopPosterAsync(services, name, budget).ConfigureAwait(false);
+            _channelLogos.Record(name, url, DateTime.UtcNow);
+            return url;
+        }
+        catch (OperationCanceledException)
+        {
+            return null; // hit the budget: not recorded, so a later open retries
+        }
+        catch (HttpRequestException ex)
+        {
+            _logger.LogDebug(ex, "Logo lookup for {Channel} failed; will retry later", name);
+            return null; // an outage: not recorded
+        }
+    }
 
-                    await _logoLookupSlots.WaitAsync().ConfigureAwait(false);
-                    try
-                    {
-                        var url = await resolver.FindLogoAsync(name, CancellationToken.None).ConfigureAwait(false);
-                        _channelLogos.Record(name, url, DateTime.UtcNow);
-                    }
-                    finally
-                    {
-                        _logoLookupSlots.Release();
-                    }
+    // Trailing quality/variant tags to drop from a VOD-loop channel's title before searching TMDB.
+    private static readonly HashSet<string> LoopQualityTags = new(StringComparer.OrdinalIgnoreCase)
+    {
+        "hd", "sd", "fhd", "uhd", "4k", "fullhd", "opc", "alt",
+    };
 
-                    return 0;
-                }, CancellationToken.None).ConfigureAwait(false);
-            }
-            catch (Exception ex) when (ex is not OperationCanceledException)
+    /// <summary>
+    /// The TMDB poster for a "24/7 &lt;show&gt;" loop channel, or null when it isn't a loop channel, TMDB isn't
+    /// configured, or TMDB has no confident match. The title is read from the channel name after the "24/7" marker; a
+    /// TV show is tried before a movie.
+    /// </summary>
+    private static async Task<string?> LoopPosterAsync(PortalitoServices services, string channelName, CancellationToken budget)
+    {
+        if (services.Tmdb is not { } tmdb || LoopTitle(channelName) is not { } title)
+        {
+            return null;
+        }
+
+        foreach (var isSeries in new[] { true, false })
+        {
+            var info = await tmdb.LookupAsync(new Metadata.TitleQuery(title, null, null, isSeries), budget).ConfigureAwait(false);
+            if (info?.PosterUrl is { } poster)
             {
-                // An outage is not recorded, so the channel is looked up again on a later open.
-                _logger.LogDebug(ex, "Backfilling a logo for {Channel} failed; will retry later", name);
+                return poster;
             }
-        });
+        }
+
+        return null;
+    }
+
+    /// <summary>The show/movie title in a "24/7 ..." loop channel name (e.g. "24/7 ll EL CHAVO" -> "EL CHAVO"), or null if the name isn't one.</summary>
+    internal static string? LoopTitle(string channelName)
+    {
+        var match = System.Text.RegularExpressions.Regex.Match(channelName, @"^\s*24\s*[/|\-]?\s*7\b(.*)$", System.Text.RegularExpressions.RegexOptions.IgnoreCase);
+        if (!match.Success)
+        {
+            return null;
+        }
+
+        var tokens = match.Groups[1].Value
+            .Split(new[] { ' ', '|', '\t', '•', '·', '.', '*' }, StringSplitOptions.RemoveEmptyEntries)
+            .ToList();
+
+        // Drop a leading separator left over from the marker ("ll", "l", "I"), then any trailing quality tag.
+        while (tokens.Count > 0 && tokens[0] is "l" or "ll" or "I" or "i" or "il" or "-")
+        {
+            tokens.RemoveAt(0);
+        }
+
+        while (tokens.Count > 0 && LoopQualityTags.Contains(tokens[^1]))
+        {
+            tokens.RemoveAt(tokens.Count - 1);
+        }
+
+        var title = string.Join(' ', tokens).Trim();
+        return title.Length >= 2 ? title : null;
     }
 
     /// <summary>The "TV IPTV" tab's own thumbnail: a collage of the first live-channel logos, or none if unavailable.</summary>
@@ -1090,12 +1209,6 @@ public sealed class PortalitoVodChannel : IChannel, IRequiresMediaInfoCallback, 
             return null;
         }
     }
-
-    /// <summary>A live channel's logo as a signed image-proxy URL (so an http icon isn't mixed content), or null when it's unusable.</summary>
-    private static string? XtreamIconUrl(PortalitoServices services, string? icon)
-        => icon is { Length: > 0 } && Uri.TryCreate(icon, UriKind.Absolute, out var u) && u.Scheme is "http" or "https"
-            ? services.Signer.ImageUrl(icon, MediaSources.ImageUrlValidity)
-            : null;
 
     /// <summary>One catalog's collages, most specific first (see <see cref="CollagePlanner"/>).</summary>
     private sealed record CatalogCollages(

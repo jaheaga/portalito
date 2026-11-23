@@ -17,7 +17,8 @@ public static class ImageRepair
     /// <summary>The folders the plugin draws a collage for: the roots, catalogs, genre/year filters, curated rows, and live categories.</summary>
     public static bool IsCollageFolder(string? externalId)
         => VodItemId.TryParse(externalId, out var id)
-            && id.Kind is VodItemKind.Featured or VodItemKind.Row or VodItemKind.Discover or VodItemKind.Catalog or VodItemKind.Filter or VodItemKind.LiveRoot or VodItemKind.LiveCategory;
+            && id.Kind is VodItemKind.Featured or VodItemKind.Row or VodItemKind.Discover or VodItemKind.Catalog or VodItemKind.Filter
+                or VodItemKind.LiveRoot or VodItemKind.LiveCategory or VodItemKind.XtreamLiveRoot or VodItemKind.XtreamLiveCategory;
 
     /// <summary>
     /// A title still pointing straight at a portal CDN instead of through <c>/Portalito/img</c>: those predate the proxy
@@ -33,11 +34,21 @@ public static class ImageRepair
             && !primaryImagePath.Contains("/Portalito/", StringComparison.Ordinal)
             && !primaryImagePath.StartsWith(Metadata.TmdbClient.PosterBase, StringComparison.OrdinalIgnoreCase);
 
-    /// <summary>The folders walked to learn every collage folder's current image (a curated row holds titles, not folders).</summary>
+    /// <summary>A live channel whose logo the repair re-applies (an Xtream channel's backfilled logo, or a portal live channel's).</summary>
+    public static bool IsLiveChannel(string? externalId)
+        => VodItemId.TryParse(externalId, out var id) && id.Kind is VodItemKind.XtreamLiveChannel or VodItemKind.LiveChannel;
+
+    /// <summary>
+    /// The folders walked to learn every collage folder's and live channel's current image. Besides the collage-folder
+    /// roots it descends into the live-category folders (portal and Xtream) to reach the channels themselves, whose logos
+    /// are backfilled over time and so drift from the image Jellyfin saved on first browse.
+    /// </summary>
     public static bool ShouldOpen(string? externalId)
         => VodItemId.TryParse(externalId, out var id) && id.Kind switch
         {
-            VodItemKind.Featured or VodItemKind.Discover or VodItemKind.Catalog or VodItemKind.LiveRoot => true,
+            VodItemKind.Featured or VodItemKind.Discover or VodItemKind.Catalog
+                or VodItemKind.LiveRoot or VodItemKind.LiveCategory
+                or VodItemKind.XtreamLiveRoot or VodItemKind.XtreamLiveCategory => true,
             VodItemKind.Filter => id.Secondary == "years",
             _ => false,
         };
@@ -79,7 +90,7 @@ public sealed class ImageRepairTask : IScheduledTask
 
     public string Key => "PortalitoImageRepair";
 
-    public string Description => "Vuelve a poner las miniaturas de las carpetas de Portalito (Descubrir, categorías, géneros, años y TV en vivo) y quita imágenes rotas.";
+    public string Description => "Vuelve a poner las miniaturas de las carpetas de Portalito (Descubrir, categorías, géneros, años y TV en vivo), los logos de los canales de TV IPTV y quita imágenes rotas.";
 
     public string Category => "Portalito";
 
@@ -100,21 +111,19 @@ public sealed class ImageRepairTask : IScheduledTask
             return;
         }
 
-        var desired = await CurrentCollagesAsync(vodChannel, progress, cancellationToken).ConfigureAwait(false);
+        var (desired, names) = await CurrentImagesAsync(vodChannel, progress, cancellationToken).ConfigureAwait(false);
 
         var items = _libraryManager.GetItemList(new InternalItemsQuery { ChannelIds = new[] { channel.Id } });
-        int swapped = 0, cleared = 0;
+        int swapped = 0, cleared = 0, renamed = 0;
         foreach (var item in items)
         {
             cancellationToken.ThrowIfCancellationRequested();
             var primary = item.GetImageInfo(ImageType.Primary, 0);
-            if (item.ExternalId is { } externalId && desired.TryGetValue(externalId, out var collage))
-            {
-                if (primary?.Path == collage)
-                {
-                    continue;
-                }
+            var externalId = item.ExternalId;
+            var update = ItemUpdateType.None;
 
+            if (externalId is not null && desired.TryGetValue(externalId, out var image) && primary?.Path != image)
+            {
                 if (primary is not null)
                 {
                     // A local copy in the item's metadata folder (a downloaded image, or a child poster Jellyfin's
@@ -128,18 +137,34 @@ public sealed class ImageRepairTask : IScheduledTask
                     item.RemoveImage(primary);
                 }
 
-                item.SetImagePath(ImageType.Primary, collage);
-                await item.UpdateToRepositoryAsync(ItemUpdateType.ImageUpdate, cancellationToken).ConfigureAwait(false);
+                // The image is a collage file path (folders, name tiles) or a signed /Portalito/img URL (channel logos);
+                // Jellyfin re-downloads a URL on next access. This is what forces a saved channel item off a stale logo.
+                item.SetImagePath(ImageType.Primary, image);
+                update |= ItemUpdateType.ImageUpdate;
                 swapped++;
             }
-            else if (primary is not null && ImageRepair.IsBrokenTitlePoster(item.ExternalId, primary.Path))
+
+            // Channel display names are cleaned over time (see ChannelDisplayName) and, like images, Jellyfin copies
+            // a saved item's name only on first create, so re-apply the current one when it has drifted.
+            if (externalId is not null && names.TryGetValue(externalId, out var name) && item.Name != name)
+            {
+                item.Name = name;
+                update |= ItemUpdateType.MetadataEdit;
+                renamed++;
+            }
+
+            if (update != ItemUpdateType.None)
+            {
+                await item.UpdateToRepositoryAsync(update, cancellationToken).ConfigureAwait(false);
+            }
+            else if (primary is not null && ImageRepair.IsBrokenTitlePoster(externalId, primary.Path))
             {
                 await item.DeleteImageAsync(ImageType.Primary, 0).ConfigureAwait(false);
                 cleared++;
             }
         }
 
-        _logger.LogInformation("Image repair: {Swapped} folder collages updated, {Cleared} broken title posters cleared, of {Total} saved items", swapped, cleared, items.Count);
+        _logger.LogInformation("Image repair: {Swapped} folder/channel images updated, {Renamed} channels renamed, {Cleared} broken title posters cleared, of {Total} saved items", swapped, renamed, cleared, items.Count);
 
         // ChannelManager answers a listing it cached in the last 3 hours without touching the saved items at all
         // (GetChannelItemsInternal: "null if came from cache"), so a cleared title poster would only come back after
@@ -164,10 +189,14 @@ public sealed class ImageRepairTask : IScheduledTask
         progress.Report(100);
     }
 
-    /// <summary>Every collage folder's current image, straight from the channel (rendering any that are new).</summary>
-    private async Task<Dictionary<string, string>> CurrentCollagesAsync(PortalitoVodChannel vodChannel, IProgress<double> progress, CancellationToken cancellationToken)
+    /// <summary>
+    /// Every collage folder's and live channel's current image, straight from the channel (resolving/rendering any
+    /// that are new), plus each live channel's current cleaned display name.
+    /// </summary>
+    private async Task<(Dictionary<string, string> Images, Dictionary<string, string> Names)> CurrentImagesAsync(PortalitoVodChannel vodChannel, IProgress<double> progress, CancellationToken cancellationToken)
     {
         var desired = new Dictionary<string, string>(StringComparer.Ordinal);
+        var names = new Dictionary<string, string>(StringComparer.Ordinal);
         var pending = new Queue<string?>();
         pending.Enqueue(null); // the channel root
         int opened = 0, failed = 0;
@@ -179,16 +208,33 @@ public sealed class ImageRepairTask : IScheduledTask
             {
                 var result = await vodChannel.GetChannelItems(new InternalChannelItemQuery { FolderId = folderId! }, cancellationToken).ConfigureAwait(false);
                 opened++;
-                foreach (var item in result.Items.Where(i => i.Type == ChannelItemType.Folder))
+                foreach (var item in result.Items)
                 {
-                    if (ImageRepair.IsCollageFolder(item.Id) && !string.IsNullOrEmpty(item.ImageUrl))
+                    if (item.Type == ChannelItemType.Folder)
                     {
-                        desired[item.Id] = item.ImageUrl;
-                    }
+                        if (ImageRepair.IsCollageFolder(item.Id) && !string.IsNullOrEmpty(item.ImageUrl))
+                        {
+                            desired[item.Id] = item.ImageUrl;
+                        }
 
-                    if (ImageRepair.ShouldOpen(item.Id))
+                        if (ImageRepair.ShouldOpen(item.Id))
+                        {
+                            pending.Enqueue(item.Id);
+                        }
+                    }
+                    else if (ImageRepair.IsLiveChannel(item.Id))
                     {
-                        pending.Enqueue(item.Id);
+                        // A live channel item: its logo is the backfilled community/TMDB image (or a name tile), and
+                        // its name is the cleaned display name -- both drift from what Jellyfin saved on first browse.
+                        if (!string.IsNullOrEmpty(item.ImageUrl))
+                        {
+                            desired[item.Id] = item.ImageUrl;
+                        }
+
+                        if (!string.IsNullOrEmpty(item.Name))
+                        {
+                            names[item.Id] = item.Name;
+                        }
                     }
                 }
             }
@@ -202,8 +248,8 @@ public sealed class ImageRepairTask : IScheduledTask
             await Task.Delay(PauseBetweenFolders, cancellationToken).ConfigureAwait(false);
         }
 
-        _logger.LogInformation("Image repair: listed {Opened} folders ({Failed} failed), {Collages} collage folders", opened, failed, desired.Count);
-        return desired;
+        _logger.LogInformation("Image repair: listed {Opened} folders ({Failed} failed), {Images} folder/channel images, {Names} channel names", opened, failed, desired.Count, names.Count);
+        return (desired, names);
     }
 
     // One file Jellyfin has open (or that vanished meanwhile) must not abort the repair before the prune below:

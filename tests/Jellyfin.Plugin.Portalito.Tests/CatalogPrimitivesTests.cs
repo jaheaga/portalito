@@ -166,6 +166,9 @@ public class ImageRepairTests
     [InlineData("flt:1:years", true)]
     [InlineData("liv:root", true)]
     [InlineData("lcat:76301", true)]
+    [InlineData("xliv:root", true)]   // the TV IPTV tab
+    [InlineData("xlcat:258", true)]   // a TV IPTV category folder
+    [InlineData("xlch:587644", false)] // a channel is not a folder
     [InlineData("mov:ABC", false)]
     [InlineData("shw:ABC", false)]
     [InlineData("ssn:ABC", false)]
@@ -192,13 +195,24 @@ public class ImageRepairTests
     [InlineData("cat:2", true)]
     [InlineData("flt:2:years", true)]
     [InlineData("liv:root", true)]
+    [InlineData("lcat:76301", true)]   // descended into, to reach the portal live channels
+    [InlineData("xliv:root", true)]    // the TV IPTV tab
+    [InlineData("xlcat:258", true)]    // descended into, to reach the Xtream live channels
     [InlineData("row:0:top", false)] // a row holds titles, not collage folders
     [InlineData("flt:2:y2020", false)]
     [InlineData("flt:2:all", false)]
-    [InlineData("lcat:76301", false)]
     [InlineData("shw:ABC", false)]
     public void Walks_only_the_folders_that_hold_collage_folders(string externalId, bool open)
         => Assert.Equal(open, Channels.ImageRepair.ShouldOpen(externalId));
+
+    [Theory]
+    [InlineData("xlch:587644", true)]
+    [InlineData("lch:cx_ABC_720p", true)]
+    [InlineData("mov:ABC", false)]
+    [InlineData("xlcat:258", false)]
+    [InlineData("garbage", false)]
+    public void Live_channel_images_are_the_ones_refreshed(string externalId, bool isLive)
+        => Assert.Equal(isLive, Channels.ImageRepair.IsLiveChannel(externalId));
 
     [Theory]
     [InlineData("1\n00:00:01,000 --> 00:00:02,000\nHola\n", "srt", true)]

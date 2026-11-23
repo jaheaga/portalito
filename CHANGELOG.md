@@ -1,5 +1,44 @@
 # Changelog
 
+## 0.6.0.0 — 2026-11-23
+
+Cleans up the decorated channel names in the TV IPTV tab.
+
+- **Normalized live-channel names.** Panel names come heavily decorated — country/provider prefixes (`AR |`,
+  `CO |`, `CR:`), unicode look-alikes (`E$PN`, `F⚽X`, `TⓝΤ`), leetspeak (`$P0RTS`, `L1GA`, `P3RU`), quality
+  tags (`HD`/`SD`/`FHD`/`4K`), operator/backup tags (`OP 02`) and emoji (`⭐`). Each channel now shows a clean,
+  readable name that keeps the brand, the channel number and the original casing, with country, quality and
+  operator moved into a tidy `· AR HD #2` suffix so channels that differ only by those stay distinct.
+- **Existing channels get renamed too.** The weekly "Reparar imágenes Portalito" task now also re-applies the
+  cleaned name to channels Jellyfin already saved (names are sticky like images), so installs don't need a full
+  channel rebuild to pick up the change.
+
+## 0.5.1.0 — 2026-11-23
+
+Makes the TV IPTV channel-logo backfill actually work and feeds it into the folder collages.
+
+- **Fixed the logo source.** The community set (iptv-org) moved logos into a separate file; 0.5.0.0 looked for
+  them in the old place and so found none. The backfill now joins the channel list and the logo list (preferring
+  a channel's in-use, largest logo).
+- **Matches the messy channel names.** Panel channel names are decorated with country/provider prefixes
+  (`AR |`), quality suffixes (`HD`/`SD`/`FHD`), and unicode look-alikes (`C∆N∆L`, small-caps `ʜᴅ`); these are now
+  stripped before matching, which greatly increases how many channels get a logo.
+- **"24/7 &lt;show&gt;" loop channels get the show's artwork.** These aren't real broadcasters (no channel-logo set
+  has them), so the show/movie title is read from the name ("24/7 Betty la fea" -> Betty la fea) and its TMDB
+  poster is used (needs the TMDB key). A real show/movie wins a poster; a genre loop or an unmatched name keeps a
+  generated name tile.
+- **Dead panel-icon hosts no longer leave a broken image.** Many channels ship an icon URL on a host that's down;
+  a backfilled logo is preferred over the panel icon, and a panel icon is only used when its host actually serves
+  it (checked once per host) — otherwise the channel gets a name tile instead of a broken image.
+- **Wikimedia logos now load.** Some community logos are on Wikimedia Commons, which answers 403 without a
+  User-Agent; poster/logo fetches now send a descriptive one.
+- **Folder collages use the backfilled logos too,** so a category of channels the panel shipped without logos no
+  longer shows the same logo four times, and the TV IPTV category thumbnails are kept current.
+- **The weekly "Reparar imágenes" task now also refreshes live-channel logos** (portal and TV IPTV), so a channel
+  whose logo was filled in after it was first browsed picks it up instead of keeping Jellyfin's first saved image.
+- Backfill runs within a short per-listing time budget so a slow source never holds a listing open; results are
+  stored and reused for good.
+
 ## 0.5.0.0 — 2026-11-23
 
 Nicer thumbnails for the TV IPTV tab. No effect unless the TV IPTV tab is enabled.

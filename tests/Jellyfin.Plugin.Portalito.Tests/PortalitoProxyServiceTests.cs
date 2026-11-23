@@ -612,7 +612,7 @@ public class PortalitoProxyServiceTests
     // ---- images ----
 
     [Fact]
-    public async Task Image_is_fetched_with_no_auth_headers_at_all()
+    public async Task Image_is_fetched_with_a_plain_user_agent_and_no_portal_auth_headers()
     {
         _upstream.Respond = _ => new HttpResponseMessage(HttpStatusCode.OK) { Content = new ByteArrayContent(new byte[] { 1, 2, 3 }) };
 
@@ -623,7 +623,9 @@ public class PortalitoProxyServiceTests
         Assert.Equal("https://cdn.test/poster.jpg", req.Uri.ToString());
         Assert.Null(req.Header("Content-Auth"));
         Assert.Null(req.Header("Content-License"));
-        Assert.Null(req.Header("User-Agent"));
+        // A named User-Agent is sent: some hosts (Wikimedia) answer 403 without one. It must not be the portal identity.
+        Assert.NotNull(req.Header("User-Agent"));
+        Assert.Contains("Portalito", req.Header("User-Agent"));
         Assert.Equal(HttpStatusCode.OK, response.StatusCode);
         Assert.Equal(new byte[] { 1, 2, 3 }, await response.Content.ReadAsByteArrayAsync());
     }

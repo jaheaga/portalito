@@ -26,6 +26,10 @@ public sealed partial class PortalitoProxyService
     /// </summary>
     public static readonly TimeSpan PlaylistTimeout = TimeSpan.FromSeconds(10);
 
+    // Sent when fetching a poster/logo (see OpenImageAsync). Named, not a portal/service identity: it goes to third
+    // parties such as Wikimedia Commons, which rejects requests that set no User-Agent.
+    private const string ImageUserAgent = "Portalito/1.0 (Jellyfin plugin)";
+
     // The player asks for the live edge segment just before the CDN publishes it, so a first 404/5xx is normal and
     // clears on a quick retry (the reference client: 3 attempts ~800ms apart).
     private const int SegmentAttempts = 3;
@@ -429,6 +433,11 @@ public sealed partial class PortalitoProxyService
         }
 
         using var request = new HttpRequestMessage(HttpMethod.Get, upstream);
+
+        // A descriptive User-Agent: some public image hosts (Wikimedia Commons, which backs many community channel
+        // logos) answer 403 "Please set a user-agent" to a request without one. A named UA satisfies their policy and
+        // is accepted by the other hosts (imgur, TMDB, the portal's own poster CDN).
+        request.Headers.TryAddWithoutValidation("User-Agent", ImageUserAgent);
         return await SendForHeadersAsync(request, cancellationToken).ConfigureAwait(false);
     }
 
