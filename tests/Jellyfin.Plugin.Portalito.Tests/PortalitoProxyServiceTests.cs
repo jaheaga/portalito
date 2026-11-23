@@ -158,6 +158,65 @@ public class PortalitoProxyServiceTests
         Assert.Null(result.Body);
     }
 
+    // ---- Xtream live playlist ----
+
+    [Fact]
+    public async Task Xtream_playlist_rewrites_segments_and_uses_a_plain_user_agent_without_portal_auth()
+    {
+        _upstream.Respond = _ => Text(
+            "#EXTM3U\n#EXTINF:4,\nhttp://cdn.test/live/9/a.ts\n#EXTINF:4,\nhttp://cdn.test/live/9/b.ts\n");
+
+        var upstream = new Uri("http://panel.test/live/u/p/9.m3u8");
+        var result = await _service.GetXtreamPlaylistAsync(
+            upstream, url => _signer.XtreamSegmentUrl(url, PortalitoProxyService.SegmentUrlValidity), default);
+
+        Assert.Equal(HttpStatusCode.OK, result.Status);
+        var lines = result.Body!.Split('\n', StringSplitOptions.RemoveEmptyEntries);
+        var segLines = lines.Where(l => l.StartsWith(ProxyBase + "/Portalito/xseg.ts", StringComparison.Ordinal)).ToArray();
+        Assert.Equal(2, segLines.Length);
+        Assert.DoesNotContain(lines, l => l.StartsWith("http://cdn.test", StringComparison.Ordinal));
+
+        var q = System.Web.HttpUtility.ParseQueryString(new Uri(segLines[0]).Query);
+        Assert.Equal("http://cdn.test/live/9/a.ts", q["u"]);
+        Assert.True(_signer.VerifyXtreamSegment(q["u"]!, long.Parse(q["e"]!), q["s"]));
+
+        // Plain fetch: the plugin's User-Agent, and none of the portal's Content-Auth/License/App headers.
+        var req = Assert.Single(_upstream.Requests);
+        Assert.Equal("http://panel.test/live/u/p/9.m3u8", req.Uri.ToString());
+        Assert.Equal("ua", req.Header("User-Agent"));
+        Assert.Null(req.Header("Content-Auth"));
+        Assert.Null(req.Header("Content-License"));
+    }
+
+    [Fact]
+    public async Task Xtream_playlist_follows_a_master_to_its_best_variant()
+    {
+        _upstream.Respond = req => req.Uri.AbsolutePath.EndsWith("9.m3u8", StringComparison.Ordinal)
+            ? Text("#EXTM3U\n#EXT-X-STREAM-INF:BANDWIDTH=800000\nhttp://panel.test/live/u/p/9_low.m3u8\n#EXT-X-STREAM-INF:BANDWIDTH=4000000\nhttp://panel.test/live/u/p/9_hi.m3u8\n")
+            : Text("#EXTM3U\n#EXTINF:4,\nhttp://cdn.test/hi/a.ts\n");
+
+        var result = await _service.GetXtreamPlaylistAsync(
+            new Uri("http://panel.test/live/u/p/9.m3u8"), url => _signer.XtreamSegmentUrl(url, PortalitoProxyService.SegmentUrlValidity), default);
+
+        Assert.Equal(HttpStatusCode.OK, result.Status);
+        Assert.Equal("http://panel.test/live/u/p/9_hi.m3u8", _upstream.Requests[^1].Uri.ToString()); // highest bandwidth
+        var q = System.Web.HttpUtility.ParseQueryString(new Uri(result.Body!.Split('\n').First(l => l.Contains("xseg.ts"))).Query);
+        Assert.Equal("http://cdn.test/hi/a.ts", q["u"]);
+    }
+
+    [Fact]
+    public async Task Xtream_playlist_reports_bad_gateway_when_the_upstream_is_not_a_playlist()
+    {
+        // A raw-TS-only panel returns stream bytes, not an m3u8: not something this HLS route can serve.
+        _upstream.Respond = _ => Text("\x47\x40\x00\x10 not a playlist");
+
+        var result = await _service.GetXtreamPlaylistAsync(
+            new Uri("http://panel.test/live/u/p/9.m3u8"), url => url, default);
+
+        Assert.Equal(HttpStatusCode.BadGateway, result.Status);
+        Assert.Null(result.Body);
+    }
+
     [Fact]
     public async Task Playlist_401_re_resolves_once_and_retries()
     {

@@ -218,6 +218,36 @@ public class ProxyUrlSignerTests
     }
 
     [Fact]
+    public void Xtream_live_playlist_url_round_trips_and_rejects_a_different_id()
+    {
+        var (signer, _) = Create();
+
+        var url = signer.XtreamLivePlaylistUrl("587644", TimeSpan.FromDays(7));
+
+        Assert.StartsWith("http://127.0.0.1:8096/Portalito/xlive/587644.m3u8?", url);
+        var q = Query(url);
+        Assert.True(signer.VerifyXtreamLivePlaylist("587644", long.Parse(q["e"]), q["s"]));
+        Assert.False(signer.VerifyXtreamLivePlaylist("587645", long.Parse(q["e"]), q["s"]));
+    }
+
+    [Fact]
+    public void Xtream_segment_url_carries_the_signed_upstream_and_rejects_tampering()
+    {
+        var (signer, _) = Create();
+
+        var url = signer.XtreamSegmentUrl("http://cdn.test/live/587644/42.ts", TimeSpan.FromMinutes(10));
+
+        Assert.StartsWith("http://127.0.0.1:8096/Portalito/xseg.ts?", url);
+        var q = Query(url);
+        Assert.Equal("http://cdn.test/live/587644/42.ts", q["u"]);
+        Assert.True(signer.VerifyXtreamSegment(q["u"]!, long.Parse(q["e"]), q["s"]));
+        // A different upstream with the same signature (an open-relay attempt) is rejected.
+        Assert.False(signer.VerifyXtreamSegment("http://evil.test/x.ts", long.Parse(q["e"]), q["s"]));
+        // The live-playlist and segment kinds don't cross-verify.
+        Assert.False(signer.VerifyXtreamLivePlaylist(q["u"]!, long.Parse(q["e"]), q["s"]));
+    }
+
+    [Fact]
     public void Image_url_round_trips_a_complex_upstream_url_and_rejects_tampering()
     {
         var (signer, _) = Create();

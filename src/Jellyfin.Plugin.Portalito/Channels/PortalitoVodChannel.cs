@@ -308,14 +308,15 @@ public sealed class PortalitoVodChannel : IChannel, IRequiresMediaInfoCallback, 
 
         if (item.Kind == VodItemKind.XtreamLiveChannel)
         {
-            // The id already carries the Xtream stream id, so there's no listing call here: sign the proxied "live"
-            // route (a continuous .ts stream) straight away. Infinite stream, so no runtime probe -- like portal live.
+            // The id already carries the Xtream stream id, so there's no listing call here. The panel serves live as
+            // HLS, so this is the signed HLS-playlist proxy source (the proxy fetches the account's m3u8 and rewrites
+            // its segments), same shape as the portal's live channels. Infinite stream, so no runtime probe.
             if (services.Xtream is null)
             {
                 return Array.Empty<MediaSourceInfo>();
             }
 
-            var live = MediaSources.LiveDirect(id, services.Signer.XtreamUrl("live", item.Primary, "ts", MediaSources.LiveUrlValidity));
+            var live = MediaSources.Live(item.Primary, services.Signer.XtreamLivePlaylistUrl(item.Primary, MediaSources.LiveUrlValidity));
             live.Id = (LibraryItemId(id, item.Kind) ?? Guid.Parse(MediaSources.SourceIdFor(id))).ToString("N");
             return new[] { live };
         }

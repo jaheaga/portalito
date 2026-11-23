@@ -1,5 +1,15 @@
 # Changelog
 
+## 0.4.0.1 — 2026-11-23
+
+Fixes TV IPTV live playback. Panels that serve live channels as HLS (an `.m3u8` playlist) rather than a raw TS
+stream now play — the first-release direct relay only worked for raw-TS panels, so on an HLS panel channels failed
+to start or spun on "loading".
+
+- **TV IPTV live now goes through the plugin's HLS proxy**: the channel's playlist is fetched server-side, a master
+  playlist is followed to its best variant, and every segment URL is rewritten back through a signed proxy route —
+  the same mechanism the portal's own "TV en vivo" uses. The IPTV account's credentials never reach a client.
+
 ## 0.4.0.0 — 2026-11-20
 
 A new optional **"TV IPTV"** tab that lists the live channels from your IPTV (Xtream) account directly, alongside

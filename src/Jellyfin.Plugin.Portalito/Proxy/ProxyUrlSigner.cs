@@ -65,6 +65,34 @@ public sealed class ProxyUrlSigner
         => Verify(signature, expiry, "xvod", kind, id, ext);
 
     /// <summary>
+    /// A signed URL for an Xtream live channel's HLS playlist (the proxy fetches the account's <c>/live/.../{id}.m3u8</c>,
+    /// rewrites its segments to <see cref="XtreamSegmentUrl"/> and serves the result). Like <see cref="LivePlaylistUrl"/>
+    /// but for the IPTV source, which has no portal channel code -- only the Xtream stream id.
+    /// </summary>
+    public string XtreamLivePlaylistUrl(string id, TimeSpan validFor)
+    {
+        var e = ExpiryFor(validFor);
+        return $"{_baseUrl}/Portalito/xlive/{Uri.EscapeDataString(id)}.m3u8?e={e}&s={Sign("xlive", e, id)}";
+    }
+
+    public bool VerifyXtreamLivePlaylist(string id, long expiry, string? signature)
+        => Verify(signature, expiry, "xlive", id);
+
+    /// <summary>
+    /// A signed URL for one segment of an Xtream live playlist. The real segment URL (from the account's playlist) is
+    /// carried in <c>u</c> and signed; the proxy fetches it with the plugin's CDN User-Agent (no portal Content-Auth --
+    /// an Xtream segment URL carries its own credentials). The ".ts" path suffix keeps ffmpeg's HLS demuxer happy.
+    /// </summary>
+    public string XtreamSegmentUrl(string upstreamUrl, TimeSpan validFor)
+    {
+        var e = ExpiryFor(validFor);
+        return $"{_baseUrl}/Portalito/xseg.ts?u={Uri.EscapeDataString(upstreamUrl)}&e={e}&s={Sign("xseg", e, upstreamUrl)}";
+    }
+
+    public bool VerifyXtreamSegment(string upstreamUrl, long expiry, string? signature)
+        => Verify(signature, expiry, "xseg", upstreamUrl);
+
+    /// <summary>
     /// A VOD URL that never expires, for the "Siguiendo" library's <c>.strm</c> files: Jellyfin reads a .strm's URL when it
     /// plays the episode, maybe months after the file was written, so it can't carry an expiry. It still carries an HMAC
     /// over its ids (a different kind than <see cref="VodUrl"/>, so neither can stand in for the other), and rotating

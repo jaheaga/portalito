@@ -139,6 +139,69 @@ public sealed partial class PortalitoProxyService
         return new PlaylistResult(HttpStatusCode.BadGateway, null);
     }
 
+    /// <summary>
+    /// Fetches an Xtream live channel's HLS playlist from <paramref name="upstream"/> (the account's own
+    /// <c>/live/.../{id}.m3u8</c>), follows a master playlist to its best variant once, and rewrites every segment URL
+    /// through <paramref name="mapSegment"/> (a signed <c>xseg</c> route). Unlike the portal path there is no CDN
+    /// resolution, license or Content-Auth -- the account URL carries its own credentials and the segments are plain
+    /// fetches. A non-playlist response (a raw-TS-only panel) is reported as BadGateway rather than served.
+    /// </summary>
+    public async Task<PlaylistResult> GetXtreamPlaylistAsync(Uri upstream, Func<string, string> mapSegment, CancellationToken cancellationToken)
+    {
+        if (upstream.Scheme is not ("http" or "https"))
+        {
+            throw new ArgumentException("Stream URL must be http(s).", nameof(upstream));
+        }
+
+        using var timeout = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
+        timeout.CancelAfter(PlaylistTimeout);
+        var uri = upstream;
+        try
+        {
+            // At most one hop: a variant that is itself a master playlist is not followed further.
+            for (var hop = 0; ; hop++)
+            {
+                using var request = new HttpRequestMessage(HttpMethod.Get, uri);
+                request.Headers.TryAddWithoutValidation("User-Agent", _identity.UserAgent);
+                using var response = await _http.SendAsync(request, HttpCompletionOption.ResponseContentRead, timeout.Token).ConfigureAwait(false);
+
+                // Relative segment URIs resolve against where the playlist actually came from, after any redirect.
+                uri = response.RequestMessage?.RequestUri ?? uri;
+                if (!response.IsSuccessStatusCode)
+                {
+                    return new PlaylistResult(response.StatusCode, null);
+                }
+
+                var text = await response.Content.ReadAsStringAsync(timeout.Token).ConfigureAwait(false);
+                if (!IsPlaylist(text))
+                {
+                    return new PlaylistResult(HttpStatusCode.BadGateway, null);
+                }
+
+                var variant = HlsRewriter.BestVariant(text, uri);
+                if (variant is null)
+                {
+                    return new PlaylistResult(HttpStatusCode.OK, HlsRewriter.Rewrite(text, uri, mapSegment));
+                }
+
+                if (hop > 0)
+                {
+                    return new PlaylistResult(HttpStatusCode.BadGateway, null);
+                }
+
+                uri = new Uri(variant);
+            }
+        }
+        catch (HttpRequestException)
+        {
+            return new PlaylistResult(HttpStatusCode.BadGateway, null);
+        }
+        catch (OperationCanceledException) when (!cancellationToken.IsCancellationRequested)
+        {
+            return new PlaylistResult(HttpStatusCode.GatewayTimeout, null);
+        }
+    }
+
     /// <summary>Whether a 409 on <paramref name="channel"/> may re-resolve now; starts a new backoff when it may.</summary>
     private bool ConflictMayReResolve(string channel)
     {

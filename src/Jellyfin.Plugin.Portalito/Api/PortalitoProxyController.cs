@@ -87,6 +87,69 @@ public class PortalitoProxyController : ControllerBase
             },
             cancellationToken);
 
+    // The IPTV (Xtream) live equivalent of live/{channel}.m3u8: this panel (and most) serve live channels as HLS, not a
+    // raw TS stream, so the segments must be rewritten through the proxy just like the portal's. Tries the account's
+    // .m3u8 first, then .ts (some panels only emit the playlist from the .ts path).
+    [HttpGet("xlive/{id}.m3u8")]
+    public Task<IActionResult> XtreamLivePlaylist(string id, [FromQuery] long e, [FromQuery] string? s, CancellationToken cancellationToken)
+        => Guard(
+            async () =>
+            {
+                var services = _provider.Get();
+                if (services.Xtream is not { } xtream || !services.Signer.VerifyXtreamLivePlaylist(id, e, s))
+                {
+                    return StatusCode(StatusCodes.Status403Forbidden);
+                }
+
+                if (!int.TryParse(id, NumberStyles.None, CultureInfo.InvariantCulture, out var streamId))
+                {
+                    return BadRequest();
+                }
+
+                var lastStatus = System.Net.HttpStatusCode.BadGateway;
+                foreach (var ext in new[] { "m3u8", "ts" })
+                {
+                    var upstream = xtream.Client.LiveUrl(streamId, ext);
+                    var playlist = await services.Proxy.GetXtreamPlaylistAsync(
+                        upstream,
+                        url => services.Signer.XtreamSegmentUrl(url, Proxy.PortalitoProxyService.SegmentUrlValidity),
+                        cancellationToken).ConfigureAwait(false);
+                    if (playlist.Body is not null)
+                    {
+                        Response.Headers.CacheControl = "no-store";
+                        return Content(playlist.Body, MpegUrl);
+                    }
+
+                    lastStatus = playlist.Status;
+                }
+
+                _logger.LogWarning("xlive/{Id}: IPTV live playlist unavailable, answering {Status}", id, (int)lastStatus);
+                return StatusCode((int)lastStatus);
+            },
+            cancellationToken);
+
+    // ".ts" in the PATH for the same ffmpeg segment-extension reason as seg.ts. The real segment URL is in `u`, signed.
+    [HttpGet("xseg.ts")]
+    public Task<IActionResult> XtreamSegment([FromQuery] string? u, [FromQuery] long e, [FromQuery] string? s, CancellationToken cancellationToken)
+        => Guard(
+            async () =>
+            {
+                var services = _provider.Get();
+                if (string.IsNullOrEmpty(u) || !services.Signer.VerifyXtreamSegment(u, e, s))
+                {
+                    return StatusCode(StatusCodes.Status403Forbidden);
+                }
+
+                if (!Uri.TryCreate(u, UriKind.Absolute, out var upstreamUri))
+                {
+                    return BadRequest();
+                }
+
+                var upstream = await services.Proxy.OpenDirectAsync(upstreamUri, HttpMethod.Get, null, null, cancellationToken).ConfigureAwait(false);
+                return await RelayAsync(upstream, MpegTs, forwardRangeHeaders: false, cancellationToken).ConfigureAwait(false);
+            },
+            cancellationToken);
+
     [HttpGet("vod/{contentId}")]
     [HttpHead("vod/{contentId}")]
     public Task<IActionResult> Vod(string contentId, [FromQuery] string? series, [FromQuery] long e, [FromQuery] string? s, CancellationToken cancellationToken)
