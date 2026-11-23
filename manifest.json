@@ -9,6 +9,14 @@
     "imageUrl": "https://raw.githubusercontent.com/jaheaga/portalito/main/assets/branding/portalito-banner.png",
     "versions": [
       {
+        "version": "0.5.0.0",
+        "targetAbi": "12.0.0.0",
+        "sourceUrl": "https://github.com/jaheaga/portalito/releases/download/v0.5.0.0/Portalito_0.5.0.0.zip",
+        "checksum": "4824edd08c685110b164f5ba67b0ca8e",
+        "changelog": "Nicer thumbnails for the TV IPTV tab. No effect unless the TV IPTV tab is enabled. Category folders now show a 4-image collage of the channels inside them (the same style as the portal's own folders), instead of a single channel's logo \u2014 so a folder's tile actually represents what's in it.\u2026",
+        "timestamp": "2026-11-23T13:52:05Z"
+      },
+      {
         "version": "0.4.0.2",
         "targetAbi": "12.0.0.0",
         "sourceUrl": "https://github.com/jaheaga/portalito/releases/download/v0.4.0.2/Portalito_0.4.0.2.zip",
