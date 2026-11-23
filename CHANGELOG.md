@@ -1,5 +1,16 @@
 # Changelog
 
+## 0.5.0.0 — 2026-11-23
+
+Nicer thumbnails for the TV IPTV tab. No effect unless the TV IPTV tab is enabled.
+
+- **Category folders now show a 4-image collage** of the channels inside them (the same style as the portal's
+  own folders), instead of a single channel's logo — so a folder's tile actually represents what's in it.
+- **Channels with no logo are filled in automatically.** When the IPTV account ships a channel without a logo,
+  Portalito looks it up once in a public community IPTV logo set (matched by channel name), stores the result,
+  and reuses it from then on. Channels with no match get a clean generated name tile instead of a blank. The
+  lookup runs in the background, so opening the tab stays fast and a found logo appears on a later open.
+
 ## 0.4.0.2 — 2026-11-23
 
 Opening the Portalito channel is fast again when the TV IPTV tab is enabled.

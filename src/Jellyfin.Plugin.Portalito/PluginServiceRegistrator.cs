@@ -54,8 +54,24 @@ public class PluginServiceRegistrator : IPluginServiceRegistrator
         // Name-keyed show ids for the channel's show folders (see Catalog/ShowIndex).
         serviceCollection.AddSingleton(sp => new Catalog.ShowIndex(
             Path.Combine(sp.GetRequiredService<IApplicationPaths>().DataPath, "portalito", "shows.json")));
+        // Backfilled logos for TV IPTV channels the panel ships without one: a durable name -> logo map (data path, so
+        // it survives cache cleanup) filled from a community IPTV logo set. Found once, then kept for good.
+        serviceCollection.AddSingleton(sp => new Catalog.ChannelLogoStore(
+            Path.Combine(sp.GetRequiredService<IApplicationPaths>().DataPath, "portalito", "channel-logos.json")));
+        serviceCollection.AddSingleton(_ => new Metadata.CommunityLogoResolver(
+            new Metadata.HttpCommunityLogoTransport(CreateLogoSetClient()),
+            TimeProvider.System));
         serviceCollection.AddHostedService<Channels.RemovalMonitor>();
         serviceCollection.AddSingleton<ILiveTvService, PortalitoLiveTvService>();
         serviceCollection.AddSingleton<IChannel, PortalitoVodChannel>();
+    }
+
+    // The outbound client for the public community logo set. A generic User-Agent, never any portal/service identity:
+    // this request goes to a third party, so nothing service-specific may leave in it.
+    private static HttpClient CreateLogoSetClient()
+    {
+        var client = new HttpClient { Timeout = TimeSpan.FromSeconds(20) };
+        client.DefaultRequestHeaders.TryAddWithoutValidation("User-Agent", "Portalito");
+        return client;
     }
 }
