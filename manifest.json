@@ -9,6 +9,14 @@
     "imageUrl": "https://raw.githubusercontent.com/jaheaga/portalito/main/assets/branding/portalito-banner.png",
     "versions": [
       {
+        "version": "0.4.0.2",
+        "targetAbi": "12.0.0.0",
+        "sourceUrl": "https://github.com/jaheaga/portalito/releases/download/v0.4.0.2/Portalito_0.4.0.2.zip",
+        "checksum": "94975e2644ca3a10c3a888f7121387ed",
+        "changelog": "Opening the Portalito channel is fast again when the TV IPTV tab is enabled. The TV IPTV tab's root thumbnail is now built in parallel with the portal tabs' thumbnails (it was added after them) and is bounded by a short timeout, so a slow or large IPTV account can no longer delay the channel from\u2026",
+        "timestamp": "2026-11-23T13:21:53Z"
+      },
+      {
         "version": "0.4.0.1",
         "targetAbi": "12.0.0.0",
         "sourceUrl": "https://github.com/jaheaga/portalito/releases/download/v0.4.0.1/Portalito_0.4.0.1.zip",
