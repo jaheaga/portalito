@@ -1,5 +1,14 @@
 # Changelog
 
+## 0.4.0.2 — 2026-11-23
+
+Opening the Portalito channel is fast again when the TV IPTV tab is enabled.
+
+- The TV IPTV tab's root thumbnail is now built **in parallel** with the portal tabs' thumbnails (it was added
+  after them) and is **bounded by a short timeout**, so a slow or large IPTV account can no longer delay the
+  channel from opening. If the thumbnail isn't ready in time the tab simply opens without it that once; a warm
+  cache makes the next open instant. No effect unless the TV IPTV tab is enabled.
+
 ## 0.4.0.1 — 2026-11-23
 
 Fixes TV IPTV live playback. Panels that serve live channels as HLS (an `.m3u8` playlist) rather than a raw TS

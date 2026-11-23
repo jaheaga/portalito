@@ -37,6 +37,11 @@ public sealed class PortalitoVodChannel : IChannel, IRequiresMediaInfoCallback, 
     /// <summary>How long a title's probe may take before playback goes ahead without its track list.</summary>
     internal static readonly TimeSpan ProbeTimeout = TimeSpan.FromSeconds(20);
 
+    // The IPTV tab's root thumbnail is a nicety, so building it (one Xtream live-list fetch on a cold cache, plus a
+    // collage render on first open) must never hold the channel's root listing open: past this it just shows no
+    // thumbnail this time, and a warm cache makes the next open instant.
+    private static readonly TimeSpan RootCollageTimeout = TimeSpan.FromSeconds(4);
+
     /// <summary>How long one listing may spend filling blanks from TMDB.</summary>
     internal static readonly TimeSpan TmdbBudget = TimeSpan.FromSeconds(5);
 
@@ -628,6 +633,12 @@ public sealed class PortalitoVodChannel : IChannel, IRequiresMediaInfoCallback, 
     // folders left over (about one title per catalog), TV en vivo what the live categories left.
     private async Task<IReadOnlyList<ChannelItemInfo>> RootFoldersAsync(PortalitoServices services, CancellationToken cancellationToken)
     {
+        // Kicked off up front so it overlaps the portal collages below instead of adding its latency after them; it is
+        // self-bounded by RootCollageTimeout, so a slow IPTV panel can't delay the channel opening.
+        var iptvImageTask = services.ShowIptvLiveTab
+            ? XtreamLiveRootCollageAsync(services, cancellationToken)
+            : Task.FromResult<string?>(null);
+
         var catalogsTask = AllCatalogCollagesAsync(services, cancellationToken);
         var liveTask = LiveRootCollageAsync(services, cancellationToken);
         var catalogs = await catalogsTask.ConfigureAwait(false);
@@ -654,8 +665,7 @@ public sealed class PortalitoVodChannel : IChannel, IRequiresMediaInfoCallback, 
         // The optional IPTV live tab comes last, after the portal's own tabs; only when configured and enabled.
         if (services.ShowIptvLiveTab)
         {
-            var iptvImage = await XtreamLiveRootCollageAsync(services, cancellationToken).ConfigureAwait(false);
-            folders.Add(Folder(VodItemId.XtreamLiveRoot().ToString(), "TV IPTV", ChannelFolderType.Container, iptvImage));
+            folders.Add(Folder(VodItemId.XtreamLiveRoot().ToString(), "TV IPTV", ChannelFolderType.Container, await iptvImageTask.ConfigureAwait(false)));
         }
 
         return folders;
@@ -933,12 +943,16 @@ public sealed class PortalitoVodChannel : IChannel, IRequiresMediaInfoCallback, 
             return null;
         }
 
+        // Self-bounded: the live-list fetch and the first-open logo downloads must not hold the root listing open. The
+        // token is passed all the way down so the timeout actually interrupts the network work, not just the await.
+        using var timeout = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
+        timeout.CancelAfter(RootCollageTimeout);
         try
         {
             var icons = new List<string>();
-            foreach (var category in await xtream.LiveCategoriesAsync(cancellationToken).ConfigureAwait(false))
+            foreach (var category in await xtream.LiveCategoriesAsync(timeout.Token).ConfigureAwait(false))
             {
-                foreach (var channel in await xtream.LiveChannelsAsync(category.Id, cancellationToken).ConfigureAwait(false))
+                foreach (var channel in await xtream.LiveChannelsAsync(category.Id, timeout.Token).ConfigureAwait(false))
                 {
                     if (channel.Icon is { Length: > 0 } icon
                         && Uri.TryCreate(icon, UriKind.Absolute, out var u) && u.Scheme is "http" or "https")
@@ -958,11 +972,17 @@ public sealed class PortalitoVodChannel : IChannel, IRequiresMediaInfoCallback, 
                 }
             }
 
-            return await CollageAsync(services, "TV IPTV", CollageFit.Contain, icons, cancellationToken).ConfigureAwait(false);
+            return await CollageAsync(services, "TV IPTV", CollageFit.Contain, icons, timeout.Token).ConfigureAwait(false);
         }
         catch (XtreamException ex)
         {
             _logger.LogDebug("No TV IPTV tab collage ({Reason})", ex.Message);
+            return null;
+        }
+        catch (OperationCanceledException) when (!cancellationToken.IsCancellationRequested)
+        {
+            // Hit RootCollageTimeout: the tab opens with no thumbnail this time; a warm cache makes the next open instant.
+            _logger.LogDebug("TV IPTV tab thumbnail timed out after {Seconds}s; opening the tab without it", RootCollageTimeout.TotalSeconds);
             return null;
         }
     }
