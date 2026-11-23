@@ -9,6 +9,14 @@
     "imageUrl": "https://raw.githubusercontent.com/jaheaga/portalito/main/assets/branding/portalito-banner.png",
     "versions": [
       {
+        "version": "0.6.0.0",
+        "targetAbi": "12.0.0.0",
+        "sourceUrl": "https://github.com/jaheaga/portalito/releases/download/v0.6.0.0/Portalito_0.6.0.0.zip",
+        "checksum": "8aad0c466cabfe31e0f3cd9064be0e11",
+        "changelog": "Cleans up the decorated channel names in the TV IPTV tab. Normalized live-channel names. Panel names come heavily decorated \u2014 country/provider prefixes (AR |, CO |, CR:), unicode look-alikes (E$PN, F\u26bdX, T\u24dd\u03a4), leetspeak ($P0RTS, L1GA, P3RU), quality tags (HD/SD/FHD/4K), operator/backup tags (OP 02)\u2026",
+        "timestamp": "2026-11-23T19:57:03Z"
+      },
+      {
         "version": "0.5.0.0",
         "targetAbi": "12.0.0.0",
         "sourceUrl": "https://github.com/jaheaga/portalito/releases/download/v0.5.0.0/Portalito_0.5.0.0.zip",
